@@ -1,0 +1,54 @@
+package org.example.motionville.entity.report;
+
+import org.example.motionville.entity.account.AppUser;
+import org.example.motionville.entity.comment.Comment;
+import org.example.motionville.entity.video.Video;
+import jakarta.persistence.*;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
+import org.example.motionville.enums.report.ReportReason;
+import org.example.motionville.enums.report.ReportStatus;
+
+import java.time.Instant;
+
+@Entity
+@Table(name= "reports")
+@Getter
+@Setter
+@Builder
+public class Report {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reporter_id",nullable = false)
+    private AppUser reporter;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name="video_id")
+    private Video video;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name="comment_id")
+    private Comment comment;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false,length = 30)
+    private ReportReason reason;
+
+    @Column(columnDefinition = "TEXT")
+    private String details;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false,length = 20)
+    private ReportStatus status=ReportStatus.OPEN;
+
+    @Column(name="created_at", nullable = false)
+    private Instant createdAt;
+
+    @Column(name = "resolved_at")
+    private Instant resolvedAt;
+}
