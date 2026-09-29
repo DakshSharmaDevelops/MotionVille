@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Subscriptions — MotionVille</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/header :: siteHeader}"></div>
+<div class="app-layout">
+    <div th:replace="~{fragments/sidebar :: siteSidebar}"></div>
+    <main class="page-shell">
+        <div class="feed-heading">
+            <div><p class="eyebrow">Your creators</p><h1>Subscriptions</h1></div>
+        </div>
+        <div class="subscribed-channels" th:if="${!subscriptions.empty}">
+            <a class="subscribed-channel" th:each="subscription : ${subscriptions}"
+               th:href="@{/channels/{id}(id=${subscription.channel.id})}">
+                <span class="mini-avatar large" th:text="${#strings.substring(subscription.channel.name, 0, 1).toUpperCase()}">C</span>
+                <span th:text="${subscription.channel.name}">Creator</span>
+            </a>
+        </div>
+        <div class="empty-state" th:if="${videos.empty}">
+            <div class="empty-symbol">▤</div>
+            <h3 th:text="${subscriptions.empty ? 'Follow creators to build your feed' : 'No new videos yet'}">No subscriptions</h3>
+            <p>New public uploads from MotionVille channels you follow will appear here.</p>
+            <a class="button button-outline" th:href="@{/(source='local')}">Browse creators</a>
+        </div>
+        <div class="video-grid" th:unless="${videos.empty}">
+            <th:block th:each="video : ${videos.content}">
+                <div th:replace="~{fragments/video-card :: videoCard(${video})}"></div>
+            </th:block>
+        </div>
+    </main>
+</div>
+<script th:src="@{/js/video-thumbnails.js}" defer></script>
+</body>
+</html>

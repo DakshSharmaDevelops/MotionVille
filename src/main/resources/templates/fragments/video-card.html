@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<article class="video-card" th:fragment="videoCard(video)">
+    <a class="thumbnail" th:href="@{/videos/{id}(id=${video.id})}">
+        <video class="thumbnail-preview" data-video-thumbnail aria-hidden="true" tabindex="-1" muted playsinline
+               preload="none" th:src="@{/media/{key}(key=${video.storageKey})}"></video>
+        <span class="play-icon">▶</span>
+    </a>
+    <div class="video-card-copy">
+        <a class="video-card-title" th:href="@{/videos/{id}(id=${video.id})}" th:text="${video.title}">Video title</a>
+        <a class="muted channel-link" th:href="@{/channels/{id}(id=${video.channel.id})}"
+           th:text="${video.channel.name}">Channel</a>
+        <a class="muted channel-link" th:if="${video.category != null and !video.category.isBlank()}"
+           th:href="@{/(source='local',category=${video.category})}" th:text="${video.category}">Category</a>
+        <p class="muted" th:text="|${video.viewCount} views · ${video.createdAt}|">Video details</p>
+    </div>
+</article>
+</body>
+</html>

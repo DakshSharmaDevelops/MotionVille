@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edit video — MotionVille</title><link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/header :: siteHeader}"></div>
+<main class="form-page">
+    <section class="form-panel">
+        <p class="eyebrow">Creator studio</p><h1>Edit video details</h1>
+        <form method="post" th:action="@{/videos/{id}/edit(id=${video.id})}" th:object="${form}" class="form-stack">
+            <label>Title<input th:field="*{title}" maxlength="180" required></label>
+            <small class="field-error" th:errors="*{title}"></small>
+            <label>Description<textarea th:field="*{description}" rows="5" maxlength="5000"></textarea></label>
+            <label>Category<input th:field="*{category}" maxlength="80"></label>
+            <label>Tags<input th:field="*{tags}" maxlength="500"></label>
+            <label>Visibility
+                <select th:field="*{visibility}">
+                    <option value="PUBLIC">Public</option>
+                    <option value="PRIVATE">Private</option>
+                </select>
+            </label>
+            <button class="button button-primary" type="submit">Save changes</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

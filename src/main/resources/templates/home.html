@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${feed == 'trending' ? 'Trending — MotionVille' : 'MotionVille — discover videos'}">MotionVille — discover videos</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/header :: siteHeader}"></div>
+<div class="app-layout">
+<div th:replace="~{fragments/sidebar :: siteSidebar}"></div>
+<main class="page-shell">
+    <div class="feed-heading">
+        <div>
+            <p class="eyebrow">MotionVille creators</p>
+            <h1 th:text="${feed == 'trending' ? 'Trending' : (query != null and !query.isBlank() ? 'Search results' : 'Your video feed')}">Your video feed</h1>
+        </div>
+        <span class="feed-caption">Original videos from creators</span>
+    </div>
+
+    <div class="empty-state" th:if="${videos.empty}">
+        <div class="empty-symbol">◌</div>
+        <h3>No videos here yet</h3>
+        <p th:if="${query != null and !query.isBlank()}">Try a different search or check the spelling.</p>
+        <p th:unless="${query != null and !query.isBlank()}">Be the first creator to upload a video.</p>
+        <a class="button button-outline" sec:authorize="isAuthenticated()" th:href="@{/videos/upload}">Upload a video</a>
+    </div>
+
+    <div class="video-grid" th:unless="${videos.empty}">
+        <th:block th:each="video : ${videos.content}">
+            <div th:replace="~{fragments/video-card :: videoCard(${video})}"></div>
+        </th:block>
+    </div>
+
+    <nav class="pagination" th:if="${videos.totalPages > 1}" aria-label="Video pages">
+        <a th:if="${videos.hasPrevious()}" th:href="@{/(q=${query},category=${category},feed=${feed},page=${videos.number - 1})}">← Previous</a>
+        <span th:text="|Page ${videos.number + 1} of ${videos.totalPages}|">Page 1</span>
+        <a th:if="${videos.hasNext()}" th:href="@{/(q=${query},category=${category},feed=${feed},page=${videos.number + 1})}">Next →</a>
+    </nav>
+</main>
+</div>
+<script th:src="@{/js/video-thumbnails.js}" defer></script>
+</body>
+</html>

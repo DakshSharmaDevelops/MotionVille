@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create your channel — MotionVille</title><link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/header :: siteHeader}"></div>
+<main class="form-page">
+    <section class="form-panel">
+        <p class="eyebrow">Make it yours</p><h1>Create your channel</h1>
+        <p class="muted">Your channel is your home for the videos you publish.</p>
+        <div class="notice error" th:if="${channelError}" th:text="${channelError}"></div>
+        <form method="post" th:action="@{/channels/create}" th:object="${form}" class="form-stack">
+            <label>Channel name<input th:field="*{name}" maxlength="120" required></label>
+            <small class="field-error" th:errors="*{name}"></small>
+            <label>Description<textarea th:field="*{description}" rows="5" maxlength="2000"></textarea></label>
+            <small class="field-error" th:errors="*{description}"></small>
+            <button class="button button-primary" type="submit">Create channel</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>
