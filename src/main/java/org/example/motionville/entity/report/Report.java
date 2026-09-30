@@ -7,8 +7,8 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import org.example.motionville.enums.report.ReportReason;
-import org.example.motionville.enums.report.ReportStatus;
+import org.example.motionville.entity.report.enums.ReportReason;
+import org.example.motionville.entity.report.enums.ReportStatus;
 
 import java.time.Instant;
 

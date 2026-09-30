@@ -1,4 +1,4 @@
-package org.example.motionville.enums.playlist;
+package org.example.motionville.entity.playlist.enums;
 
 public enum PlayListVisibility {
     PUBLIC,

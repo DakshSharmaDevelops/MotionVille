@@ -6,7 +6,7 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import org.example.motionville.enums.notification.NotificationType;
+import org.example.motionville.entity.notification.enums.NotificationType;
 
 import java.time.Instant;
 

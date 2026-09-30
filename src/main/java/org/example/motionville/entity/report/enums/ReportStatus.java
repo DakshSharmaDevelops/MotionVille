@@ -1,4 +1,4 @@
-package org.example.motionville.enums.report;
+package org.example.motionville.entity.report.enums;
 
 public enum ReportStatus {
     OPEN,

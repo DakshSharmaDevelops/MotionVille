@@ -6,14 +6,13 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import org.example.motionville.enums.playlist.PlayListVisibility;
+import org.example.motionville.entity.playlist.enums.PlayListVisibility;
 
 import java.time.Instant;
 import java.util.List;
 
 @Getter
 @Setter
-@Builder
 @Entity
 @Table(name="playlists")
 public class PlayList {
@@ -46,7 +45,6 @@ public class PlayList {
     @OneToMany(mappedBy = "playList",
                 cascade = CascadeType.ALL,
                 orphanRemoval = true)
-    @Builder.Default
     private List<PlayListVideo> videos;
 
 }

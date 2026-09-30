@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import org.example.motionville.enums.engagement.ReactionType;
+import org.example.motionville.entity.engagement.enums.ReactionType;
 
 import java.time.Instant;
 

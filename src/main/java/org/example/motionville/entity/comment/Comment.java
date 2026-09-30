@@ -13,7 +13,6 @@ import java.util.List;
 
 @Getter
 @Setter
-@Builder
 @Entity
 @Table(name="comments")
 public class Comment {
@@ -22,20 +21,19 @@ public class Comment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name="video_id", nullable = false)
     private Video video;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name="author_id",nullable = false)
     private AppUser author;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name="parent_comment_id")
     private Comment parentComment;
 
     @OneToMany(mappedBy = "parentComment")
-    @Builder.Default
     private List<Comment> replies;
 
     @Column(nullable = false,columnDefinition = "TEXT")

@@ -1,11 +1,9 @@
 package org.example.motionville.entity.channel;
 
+import lombok.*;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -15,19 +13,18 @@ import java.util.List;
 @Setter
 @Entity
 @Table(name="channels")
-@Builder
 public class Channel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(optional = false)
     @JoinColumn(name="owner_id" , nullable = false)
     private AppUser owner;
 
     @Column(nullable = false, unique = true, length = 50)
-    private String handle;
+    private String handle;    // read about it//
 
     @Column(nullable = false, length = 100)
     private String name;
@@ -42,11 +39,9 @@ public class Channel {
     private Instant createdAt;
 
     @OneToMany(mappedBy = "channel")
-    @Builder.Default
     private List<Video> videos;
 
     @OneToMany(mappedBy = "channel")
-    @Builder.Default
     private List<Subscription> subscriptions;
 
 }

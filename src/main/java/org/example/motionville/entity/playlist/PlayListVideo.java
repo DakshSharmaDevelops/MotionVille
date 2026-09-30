@@ -31,11 +31,11 @@ public class PlayListVideo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name="playList_id",nullable = false)
     private PlayList playList;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name="video_id",nullable = false)
     private Video video;
 

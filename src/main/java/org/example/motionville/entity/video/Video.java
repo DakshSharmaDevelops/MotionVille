@@ -6,8 +6,8 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import org.example.motionville.enums.video.VideoProcessingStatus;
-import org.example.motionville.enums.video.VideoVisibility;
+import org.example.motionville.entity.video.enums.VideoProcessingStatus;
+import org.example.motionville.entity.video.enums.VideoVisibility;
 
 import java.time.Instant;
 import java.util.List;

@@ -1,4 +1,4 @@
-package org.example.motionville.enums.video;
+package org.example.motionville.entity.video.enums;
 
 public enum VideoProcessingStatus {
     UPLOADING,

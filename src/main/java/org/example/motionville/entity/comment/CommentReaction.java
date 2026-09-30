@@ -1,7 +1,7 @@
 package org.example.motionville.entity.comment;
 
 import org.example.motionville.entity.account.AppUser;
-import org.example.motionville.enums.engagement.ReactionType;
+import org.example.motionville.entity.engagement.enums.ReactionType;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -26,11 +26,11 @@ public class CommentReaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "user_id",nullable = false)
     private AppUser user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "comment_id",nullable = false)
     private Comment comment;
 
