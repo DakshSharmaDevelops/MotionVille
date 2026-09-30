@@ -51,4 +51,9 @@ public class Report {
 
     @Column(name = "resolved_at")
     private Instant resolvedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
 }

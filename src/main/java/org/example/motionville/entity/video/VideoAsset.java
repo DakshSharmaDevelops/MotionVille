@@ -1,7 +1,6 @@
 package org.example.motionville.entity.video;
 
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,7 +8,6 @@ import java.time.Instant;
 
 @Setter
 @Getter
-@Builder
 @Entity
 @Table(
         name = "video_assets",
@@ -45,5 +43,12 @@ public class VideoAsset {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
+
+    protected VideoAsset() {
+    }
 
 }

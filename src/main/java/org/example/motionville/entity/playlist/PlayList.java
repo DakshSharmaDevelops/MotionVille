@@ -9,6 +9,7 @@ import lombok.Setter;
 import org.example.motionville.entity.playlist.enums.PlayListVisibility;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -47,4 +48,25 @@ public class PlayList {
                 orphanRemoval = true)
     private List<PlayListVideo> videos;
 
+    public void addVideo(PlayListVideo playlistVideo) {
+        if (videos == null) videos = new ArrayList<>();
+        videos.add(playlistVideo);
+        playlistVideo.setPlayList(this);
+    }
+
+    public void removeVideo(PlayListVideo playlistVideo) {
+        if (videos != null && videos.remove(playlistVideo)) playlistVideo.setPlayList(null);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        Instant now = Instant.now();
+        if (createdAt == null) createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
+    }
 }

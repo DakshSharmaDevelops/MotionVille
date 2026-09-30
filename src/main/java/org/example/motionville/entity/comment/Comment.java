@@ -44,4 +44,27 @@ public class Comment {
 
     @Column(name="updated_at",nullable = false)
     private Instant updatedAt;
+
+    public void addReply(Comment reply) {
+        if (replies == null) replies = new ArrayList<>();
+        replies.add(reply);
+        reply.setParentComment(this);
+        reply.setVideo(video);
+    }
+
+    public void removeReply(Comment reply) {
+        if (replies != null && replies.remove(reply)) reply.setParentComment(null);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        Instant now = Instant.now();
+        if (createdAt == null) createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
+    }
 }

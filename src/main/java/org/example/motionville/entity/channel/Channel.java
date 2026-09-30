@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -44,5 +45,28 @@ public class Channel {
     @OneToMany(mappedBy = "channel")
     private List<Subscription> subscriptions;
 
-}
+    public void addVideo(Video video) {
+        if (videos == null) videos = new ArrayList<>();
+        videos.add(video);
+        video.setChannel(this);
+    }
 
+    public void removeVideo(Video video) {
+        if (videos != null) videos.remove(video);
+    }
+
+    public void addSubscription(Subscription subscription) {
+        if (subscriptions == null) subscriptions = new ArrayList<>();
+        subscriptions.add(subscription);
+        subscription.setChannel(this);
+    }
+
+    public void removeSubscription(Subscription subscription) {
+        if (subscriptions != null) subscriptions.remove(subscription);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
+}

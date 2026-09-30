@@ -45,4 +45,9 @@ public class Notification {
 
     @Column(name="read_at")
     private Instant readAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
 }

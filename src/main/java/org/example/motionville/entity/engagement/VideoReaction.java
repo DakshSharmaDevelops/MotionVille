@@ -42,4 +42,9 @@ public class VideoReaction {
 
     @Column(nullable = false,name="created_at")
     private Instant createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
 }

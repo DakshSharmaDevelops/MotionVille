@@ -40,4 +40,9 @@ public class CommentReaction {
 
     @Column(name="created_at",nullable = false)
     private Instant createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
 }

@@ -3,13 +3,13 @@ package org.example.motionville.entity.video;
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -20,7 +20,8 @@ public class Video {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "id")
+    private Long videoId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="channel_id", nullable = false)
@@ -75,4 +76,54 @@ public class Video {
     )
     private List<Tag> tags;
 
+    public void addAsset(VideoAsset asset) {
+        if (asset == null) return;
+        if (asset.getVideo() != null && asset.getVideo() != this) {
+            throw new IllegalArgumentException("Video asset already belongs to another video");
+        }
+        if (assets == null) assets = new ArrayList<>();
+        if (!assets.contains(asset)) assets.add(asset);
+        asset.setVideo(this);
+    }
+
+    public void removeAsset(VideoAsset asset) {
+        if (assets != null && assets.remove(asset) && asset != null && asset.getVideo() == this) {
+            asset.setVideo(null);
+        }
+    }
+
+    public void addComment(Comment comment) {
+        if (comments == null) comments = new ArrayList<>();
+        comments.add(comment);
+        comment.setVideo(this);
+    }
+
+    public void removeComment(Comment comment) {
+        if (comments != null) comments.remove(comment);
+    }
+
+    public void addTag(Tag tag) {
+        if (tags == null) tags = new ArrayList<>();
+        if (!tags.contains(tag)) tags.add(tag);
+        if (tag.getVideos() == null) tag.setVideos(new ArrayList<>());
+        if (!tag.getVideos().contains(this)) tag.getVideos().add(this);
+    }
+
+    public void removeTag(Tag tag) {
+        if (tags != null && tags.remove(tag) && tag.getVideos() != null) {
+            tag.getVideos().remove(this);
+        }
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        Instant now = Instant.now();
+        if (createdAt == null) createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
+    }
 }
