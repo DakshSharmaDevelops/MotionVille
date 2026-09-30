@@ -17,7 +17,7 @@ public class Channel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long channelId;
 
     @ManyToOne(optional = false)
     @JoinColumn(name="owner_id" , nullable = false)
@@ -45,4 +45,3 @@ public class Channel {
     private List<Subscription> subscriptions;
 
 }
-

@@ -1,12 +1,12 @@
 package org.example.motionville.entity.video;
 
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
+@NoArgsConstructor
+@AllArgsConstructor
 @Setter
 @Getter
 @Builder
@@ -44,6 +44,4 @@ public class VideoAsset {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-
-}
+    }

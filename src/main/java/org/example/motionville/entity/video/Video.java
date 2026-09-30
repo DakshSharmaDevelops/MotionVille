@@ -20,7 +20,7 @@ public class Video {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long videoId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="channel_id", nullable = false)
