@@ -18,7 +18,8 @@ public class Channel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "id")
+    private Long channelId;
 
     @ManyToOne(optional = false)
     @JoinColumn(name="owner_id" , unique = true,nullable = false)

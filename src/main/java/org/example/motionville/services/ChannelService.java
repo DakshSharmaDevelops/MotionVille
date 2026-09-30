@@ -97,7 +97,7 @@ public class ChannelService {
                         )
                 );
 
-        if (channelRepository.existsByHandleAndIdNot(
+        if (channelRepository.existsByHandleAndChannelIdNot(
                 request.getHandle(),
                 id)) {
 
@@ -156,7 +156,7 @@ public class ChannelService {
 
         ChannelResponse response = new ChannelResponse();
 
-        response.setId(channel.getId());
+        response.setId(channel.getChannelId());
         response.setOwnerId(channel.getOwner().getId());
         response.setHandle(channel.getHandle());
         response.setName(channel.getName());

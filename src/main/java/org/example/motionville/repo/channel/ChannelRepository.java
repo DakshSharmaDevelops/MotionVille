@@ -9,7 +9,7 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     boolean existsByHandle(String handle);
 
-    boolean existsByHandleAndIdNot(String handle, Long id);
+    boolean existsByHandleAndChannelIdNot(String handle, Long id);
 
     List<Channel> findByOwner_Id(Long ownerId);
 }
