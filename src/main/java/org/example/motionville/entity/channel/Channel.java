@@ -1,12 +1,13 @@
 package org.example.motionville.entity.channel;
 
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -17,10 +18,11 @@ public class Channel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long channelId;
 
     @ManyToOne(optional = false)
-    @JoinColumn(name="owner_id" , nullable = false)
+    @JoinColumn(name="owner_id" , unique = true,nullable = false)
     private AppUser owner;
 
     @Column(nullable = false, unique = true, length = 50)
@@ -44,4 +46,28 @@ public class Channel {
     @OneToMany(mappedBy = "channel")
     private List<Subscription> subscriptions;
 
+    public void addVideo(Video video) {
+        if (videos == null) videos = new ArrayList<>();
+        videos.add(video);
+        video.setChannel(this);
+    }
+
+    public void removeVideo(Video video) {
+        if (videos != null) videos.remove(video);
+    }
+
+    public void addSubscription(Subscription subscription) {
+        if (subscriptions == null) subscriptions = new ArrayList<>();
+        subscriptions.add(subscription);
+        subscription.setChannel(this);
+    }
+
+    public void removeSubscription(Subscription subscription) {
+        if (subscriptions != null) subscriptions.remove(subscription);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
 }

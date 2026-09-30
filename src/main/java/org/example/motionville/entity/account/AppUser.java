@@ -4,11 +4,11 @@ import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.playlist.PlayList;
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -20,6 +20,9 @@ public class AppUser {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false,unique = true,length = 150)
+    private String email;
 
     @Column(nullable = false, unique=true, length = 50)
     private String username;
@@ -50,4 +53,46 @@ public class AppUser {
 
     @OneToMany(mappedBy = "author")
     private List<Comment> comments;
+
+    public void addChannel(Channel channel) {
+        if (channels == null) channels = new ArrayList<>();
+        channels.add(channel);
+        channel.setOwner(this);
+    }
+
+    public void removeChannel(Channel channel) {
+        if (channels != null) channels.remove(channel);
+    }
+
+    public void addPlayList(PlayList playList) {
+        if (playLists == null) playLists = new ArrayList<>();
+        playLists.add(playList);
+        playList.setOwner(this);
+    }
+
+    public void removePlayList(PlayList playList) {
+        if (playLists != null) playLists.remove(playList);
+    }
+
+    public void addComment(Comment comment) {
+        if (comments == null) comments = new ArrayList<>();
+        comments.add(comment);
+        comment.setAuthor(this);
+    }
+
+    public void removeComment(Comment comment) {
+        if (comments != null) comments.remove(comment);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        Instant now = Instant.now();
+        if (createdAt == null) createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
+    }
 }

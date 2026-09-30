@@ -11,13 +11,9 @@ import java.time.Instant;
 @Getter
 @Builder
 @Entity
-@Table(
-        name = "video_assets",
+@Table(name = "video_assets",
         uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uq_video_asset_variant",
-                        columnNames = {"video_id","quality","mime_type"}
-                )
+                @UniqueConstraint(name = "uq_video_asset_variant", columnNames = {"video_id","quality","mime_type"})
         }
 )
 public class VideoAsset {
@@ -44,4 +40,10 @@ public class VideoAsset {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
     }
+
+}
