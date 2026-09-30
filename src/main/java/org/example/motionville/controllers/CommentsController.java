@@ -24,9 +24,9 @@ public class CommentsController {
     }
 
     @PostMapping("/videos/{videoId}/comments")
-    @ResponseStatus(HttpStatus.CREATED)
     public CommentResponse createComment(@PathVariable Long videoId,
-                                         @Valid @RequestBody CommentCreateRequest request) {
+                                         @Valid
+                                         @RequestBody CommentCreateRequest request) {
         return commentService.createComment(videoId, request);
     }
 
@@ -37,7 +37,6 @@ public class CommentsController {
     }
 
     @DeleteMapping("/comments/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteComment(@PathVariable Long id) {
         commentService.deleteComment(id);
     }
@@ -48,7 +47,6 @@ public class CommentsController {
     }
 
     @PostMapping("/comments/{commentId}/replies")
-    @ResponseStatus(HttpStatus.CREATED)
     public CommentResponse createReply(@PathVariable Long commentId,
                                        @Valid @RequestBody CommentCreateRequest request) {
         return commentService.createReply(commentId, request);

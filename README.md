@@ -1,6 +1,6 @@
 # MotionVille
 
-MotionVille is a Java 17 / Spring Boot video-sharing application built with Spring MVC, Thymeleaf, Spring Security, Spring Data JPA, PostgreSQL, and Flyway. It follows a layered MVC design: controllers handle web requests, services enforce business rules, repositories own persistence, and templates render server-side views.
+MotionVille is a Java 17 / Spring Boot video-sharing application built with Spring MVC, Thymeleaf, Spring Security, Spring Data JPA, and PostgreSQL. It follows a layered MVC design: controllers handle web requests, services enforce business rules, repositories own persistence, and templates render server-side views.
 
 ## First release
 
@@ -16,7 +16,7 @@ MotionVille is a Java 17 / Spring Boot video-sharing application built with Spri
 - Comments, video likes, and channel subscriptions
 - Soft deletion of videos and comments at the service/domain layer
 - Private video playback restricted to the channel owner
-- Flyway-managed schema and PostgreSQL-ready production configuration
+- Hibernate-managed local schema and PostgreSQL-ready production configuration
 
 This release intentionally starts with the reliable upload-to-playback path. It does not claim to implement every feature in the full project proposal.
 
@@ -38,7 +38,7 @@ Configuration can be overridden with environment variables. Use the shared **Mot
 | `DATABASE_USERNAME` | `sa` |
 | `DATABASE_PASSWORD` | Empty for local H2; set a secret for PostgreSQL |
 | `MEDIA_DIRECTORY` | `./data/media` |
-| `DDL_AUTO` | `validate`; schema changes are applied by Flyway |
+| `DDL_AUTO` | `update` locally; production uses `validate` and requires a pre-created schema |
 
 For PostgreSQL, set the database URL and credentials, then run with the `prod` profile:
 
@@ -66,7 +66,6 @@ config/        Spring Security, MVC error handling
 resources/
   templates/   Thymeleaf server-rendered pages
   static/      CSS
-  db/migration Flyway schema migrations
 ```
 
 Controllers accept validated form input and delegate. Services enforce ownership, visibility, upload, and engagement rules. JPA entities are not returned from JSON APIs; templates only receive entities loaded with the relations they render. Constructor injection is used throughout.
