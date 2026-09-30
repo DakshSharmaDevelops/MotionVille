@@ -2,6 +2,7 @@ package org.example.motionville.entity.video;
 
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
+import org.example.motionville.entity.engagement.VideoReaction;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -68,6 +69,9 @@ public class Video {
     @OneToMany(mappedBy = "video")
     private List<Comment> comments;
 
+    @OneToMany(mappedBy = "video")
+    private List<VideoReaction> videoReactions;
+
     @ManyToMany
     @JoinTable(
             name = "video_tags",
@@ -77,17 +81,13 @@ public class Video {
     private List<Tag> tags;
 
     public void addAsset(VideoAsset asset) {
-        if (asset == null) return;
-        if (asset.getVideo() != null && asset.getVideo() != this) {
-            throw new IllegalArgumentException("Video asset already belongs to another video");
-        }
         if (assets == null) assets = new ArrayList<>();
-        if (!assets.contains(asset)) assets.add(asset);
+        assets.add(asset);
         asset.setVideo(this);
     }
 
     public void removeAsset(VideoAsset asset) {
-        if (assets != null && assets.remove(asset) && asset != null && asset.getVideo() == this) {
+        if (assets != null && assets.remove(asset)) {
             asset.setVideo(null);
         }
     }
@@ -102,11 +102,21 @@ public class Video {
         if (comments != null) comments.remove(comment);
     }
 
+    public void addVideoReaction(VideoReaction videoReaction) {
+        if (videoReactions == null) videoReactions = new ArrayList<>();
+        videoReactions.add(videoReaction);
+        videoReaction.setVideo(this);
+    }
+
+    public void removeVideoReaction(VideoReaction videoReaction) {
+        if (videoReactions != null) videoReactions.remove(videoReaction);
+    }
+
     public void addTag(Tag tag) {
         if (tags == null) tags = new ArrayList<>();
-        if (!tags.contains(tag)) tags.add(tag);
+        tags.add(tag);
         if (tag.getVideos() == null) tag.setVideos(new ArrayList<>());
-        if (!tag.getVideos().contains(this)) tag.getVideos().add(this);
+        tag.getVideos().add(this);
     }
 
     public void removeTag(Tag tag) {

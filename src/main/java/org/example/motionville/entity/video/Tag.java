@@ -1,7 +1,6 @@
 package org.example.motionville.entity.video;
 
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 

@@ -1,12 +1,12 @@
 package org.example.motionville.entity.channel;
 
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 

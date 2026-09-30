@@ -1,9 +1,7 @@
 package org.example.motionville.entity.playlist;
 
 import org.example.motionville.entity.account.AppUser;
-import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.example.motionville.entity.playlist.enums.PlayListVisibility;

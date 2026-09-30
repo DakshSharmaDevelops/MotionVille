@@ -3,7 +3,6 @@ package org.example.motionville.entity.comment;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 

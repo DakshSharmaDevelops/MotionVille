@@ -4,7 +4,6 @@ import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.playlist.PlayList;
 import jakarta.persistence.*;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
