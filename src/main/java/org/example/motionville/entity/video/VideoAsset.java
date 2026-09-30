@@ -9,13 +9,9 @@ import java.time.Instant;
 @Setter
 @Getter
 @Entity
-@Table(
-        name = "video_assets",
+@Table(name = "video_assets",
         uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uq_video_asset_variant",
-                        columnNames = {"video_id","quality","mime_type"}
-                )
+                @UniqueConstraint(name = "uq_video_asset_variant", columnNames = {"video_id","quality","mime_type"})
         }
 )
 public class VideoAsset {
