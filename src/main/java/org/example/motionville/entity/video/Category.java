@@ -2,6 +2,8 @@ package org.example.motionville.entity.video;
 
 import jakarta.persistence.*;
 import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,6 +12,8 @@ import lombok.Setter;
 @Entity
 @Table(name = "categories")
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Category {
 
     @Id

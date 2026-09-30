@@ -5,6 +5,8 @@ import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
 import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import org.example.motionville.entity.report.enums.ReportReason;
@@ -17,6 +19,8 @@ import java.time.Instant;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Report {
 
     @Id

@@ -8,6 +8,7 @@ import org.example.motionville.repo.channel.ChannelRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -35,7 +36,7 @@ public class VideoService {
             VideoRepository videoRepository,
             ChannelRepository channelRepository,
             VideoAssetRepository videoAssetRepository,
-            R2StorageService r2StorageService,
+            @Lazy R2StorageService r2StorageService,
             PlatformTransactionManager transactionManager
     ) {
         this.videoRepository = videoRepository;

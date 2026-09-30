@@ -1,6 +1,7 @@
 package org.example.motionville.services.videoService;
 
 import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -17,6 +18,7 @@ import java.net.URI;
 import java.nio.file.Path;
 
 @Service
+@Lazy
 public class R2StorageService {
 
     private final S3Client client;

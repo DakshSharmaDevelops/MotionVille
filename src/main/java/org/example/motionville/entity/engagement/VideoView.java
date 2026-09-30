@@ -4,6 +4,8 @@ import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
 import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -12,6 +14,8 @@ import java.time.Instant;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name="video_views")
 public class VideoView {
