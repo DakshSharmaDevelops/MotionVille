@@ -3,8 +3,10 @@ package org.example.motionville.services.videoService;
 import org.example.motionville.dto.VideoCreateRequest;
 import org.example.motionville.dto.VideoProcessingStatusRequest;
 import org.example.motionville.dto.VideoVisibilityRequest;
+import org.example.motionville.dto.VideoUpdateRequest;
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.video.Video;
+import org.example.motionville.entity.video.VideoAsset;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.channel.ChannelRepository;
@@ -28,6 +30,7 @@ class VideoManagementServiceTest {
     private VideoRepository videos;
     private ChannelRepository channels;
     private VideoAssetRepository assets;
+    private R2StorageService r2StorageService;
     private VideoManagementService service;
     private Video video;
 
@@ -36,8 +39,9 @@ class VideoManagementServiceTest {
         videos = mock(VideoRepository.class);
         channels = mock(ChannelRepository.class);
         assets = mock(VideoAssetRepository.class);
+        r2StorageService = mock(R2StorageService.class);
         service = new VideoManagementService(
-                videos, channels, mock(CategoryRepository.class), assets);
+                videos, channels, mock(CategoryRepository.class), assets, r2StorageService);
 
         Channel channel = new Channel();
         channel.setChannelId(4L);
@@ -146,5 +150,37 @@ class VideoManagementServiceTest {
 
         assertThrows(ResponseStatusException.class, () -> service.changeProcessingStatus(
                 12L, new VideoProcessingStatusRequest(VideoProcessingStatus.READY)));
+    }
+
+    @Test
+    void deletingVideoSchedulesItsThumbnailAndAssetsForR2Cleanup() {
+        video.setThumbnailUrl("r2://bucket/videos/12/thumbnail.jpg");
+        VideoAsset asset = VideoAsset.builder()
+                .video(video)
+                .assetUrl("r2://bucket/videos/12/playback.mp4")
+                .quality("playback")
+                .mimeType("video/mp4")
+                .build();
+        when(assets.findByVideo(video)).thenReturn(List.of(asset));
+
+        service.delete(12L);
+
+        verify(r2StorageService).deleteAfterCommit(List.of(
+                "r2://bucket/videos/12/thumbnail.jpg",
+                "r2://bucket/videos/12/playback.mp4"));
+        verify(videos).delete(video);
+    }
+
+    @Test
+    void replacingThumbnailSchedulesOldR2ThumbnailForCleanup() {
+        video.setThumbnailUrl("r2://bucket/videos/12/old-thumbnail.jpg");
+        when(channels.findById(4L)).thenReturn(Optional.of(video.getChannel()));
+
+        service.update(12L, new VideoUpdateRequest(
+                4L, null, "Demo", null, "https://cdn.example/new.jpg",
+                0, VideoVisibility.PRIVATE));
+
+        verify(r2StorageService).deleteAfterCommit(
+                List.of("r2://bucket/videos/12/old-thumbnail.jpg"));
     }
 }

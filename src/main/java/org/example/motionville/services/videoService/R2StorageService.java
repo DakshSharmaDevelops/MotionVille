@@ -4,6 +4,8 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -22,6 +24,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Service
 @Lazy
@@ -137,6 +142,50 @@ public class R2StorageService {
                 .build();
 
         client.deleteObject(request);
+    }
+
+    public void deleteAfterCommit(Collection<String> locators) {
+        String prefix = objectLocator("");
+        Set<String> keys = new LinkedHashSet<>();
+        for (String locator : locators) {
+            if (locator != null && locator.startsWith(prefix)) {
+                String key = locator.substring(prefix.length());
+                if (!key.isBlank()) {
+                    keys.add(key);
+                }
+            }
+        }
+        if (keys.isEmpty()) {
+            return;
+        }
+
+        Runnable deleteObjects = () -> {
+            RuntimeException failure = null;
+            for (String key : keys) {
+                try {
+                    delete(key);
+                } catch (RuntimeException exception) {
+                    if (failure == null) {
+                        failure = exception;
+                    } else {
+                        failure.addSuppressed(exception);
+                    }
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    deleteObjects.run();
+                }
+            });
+        } else {
+            deleteObjects.run();
+        }
     }
 
     public String objectLocator(String key) {

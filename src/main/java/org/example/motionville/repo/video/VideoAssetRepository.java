@@ -10,4 +10,9 @@ public interface VideoAssetRepository
         extends JpaRepository<VideoAsset, Long> {
 
     List<VideoAsset> findByVideo(Video video);
+
+    boolean existsByVideo_VideoIdAndQualityAndMimeType(
+            Long videoId, String quality, String mimeType);
+
+    java.util.Optional<VideoAsset> findByIdAndVideo_VideoId(Long assetId, Long videoId);
 }

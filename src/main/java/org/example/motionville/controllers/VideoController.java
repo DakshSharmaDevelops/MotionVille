@@ -4,13 +4,18 @@ import jakarta.validation.Valid;
 import org.example.motionville.dto.VideoCreateRequest;
 import org.example.motionville.dto.VideoPageResponse;
 import org.example.motionville.dto.VideoProcessingStatusRequest;
+import org.example.motionville.dto.TagResponse;
+import org.example.motionville.dto.VideoAssetRequest;
+import org.example.motionville.dto.VideoAssetResponse;
 import org.example.motionville.dto.VideoResponse;
 import org.example.motionville.dto.VideoUpdateRequest;
 import org.example.motionville.dto.VideoVisibilityRequest;
 import org.example.motionville.entity.video.VideoAsset;
+import org.example.motionville.services.videoService.VideoAssetManagementService;
 import org.example.motionville.services.videoService.VideoManagementService;
 import org.example.motionville.services.videoService.VideoSearchService;
 import org.example.motionville.services.videoService.VideoService;
+import org.example.motionville.services.videoService.VideoTagService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,14 +30,20 @@ public class VideoController {
     private final VideoManagementService managementService;
     private final VideoSearchService searchService;
     private final VideoService videoService;
+    private final VideoTagService videoTagService;
+    private final VideoAssetManagementService videoAssetManagementService;
 
     public VideoController(
             VideoManagementService managementService,
             VideoSearchService searchService,
-            VideoService videoService) {
+            VideoService videoService,
+            VideoTagService videoTagService,
+            VideoAssetManagementService videoAssetManagementService) {
         this.managementService = managementService;
         this.searchService = searchService;
         this.videoService = videoService;
+        this.videoTagService = videoTagService;
+        this.videoAssetManagementService = videoAssetManagementService;
     }
 
     @PostMapping
@@ -94,6 +105,48 @@ public class VideoController {
             @PathVariable Long id,
             @Valid @RequestBody VideoProcessingStatusRequest request) {
         return managementService.changeProcessingStatus(id, request);
+    }
+
+    @PostMapping("/{videoId}/tags/{tagId}")
+    public ResponseEntity<Void> addTag(
+            @PathVariable Long videoId,
+            @PathVariable Long tagId) {
+        videoTagService.addTag(videoId, tagId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{videoId}/tags/{tagId}")
+    public ResponseEntity<Void> removeTag(
+            @PathVariable Long videoId,
+            @PathVariable Long tagId) {
+        videoTagService.removeTag(videoId, tagId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{videoId}/tags")
+    public List<TagResponse> getTags(@PathVariable Long videoId) {
+        return videoTagService.getTags(videoId);
+    }
+
+    @PostMapping("/{videoId}/assets")
+    public ResponseEntity<VideoAssetResponse> addAsset(
+            @PathVariable Long videoId,
+            @Valid @RequestBody VideoAssetRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(videoAssetManagementService.add(videoId, request));
+    }
+
+    @GetMapping("/{videoId}/assets")
+    public List<VideoAssetResponse> getAssets(@PathVariable Long videoId) {
+        return videoAssetManagementService.getAll(videoId);
+    }
+
+    @DeleteMapping("/{videoId}/assets/{assetId}")
+    public ResponseEntity<Void> deleteAsset(
+            @PathVariable Long videoId,
+            @PathVariable Long assetId) {
+        videoAssetManagementService.delete(videoId, assetId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/play/{id}")

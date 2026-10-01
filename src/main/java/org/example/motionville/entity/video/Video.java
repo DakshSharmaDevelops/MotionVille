@@ -76,7 +76,10 @@ public class Video {
     @JoinTable(
             name = "video_tags",
             joinColumns = @JoinColumn(name = "video_id"),
-            inverseJoinColumns = @JoinColumn(name = "tag_id")
+            inverseJoinColumns = @JoinColumn(name = "tag_id"),
+            uniqueConstraints = @UniqueConstraint(
+                    name = "uq_video_tags_video_tag",
+                    columnNames = {"video_id", "tag_id"})
     )
     private List<Tag> tags;
 

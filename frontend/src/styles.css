@@ -212,6 +212,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .watch-primary { width: 100%; max-width: 1800px; margin: 0 auto; }
 .player-wrap { position: relative; display: grid; width: 100%; height: min(56.25vw, calc(100dvh - 92px)); min-width: 0; min-height: 220px; overflow: hidden; place-items: center; border-radius: 13px; background: #151518; }
 .player-wrap video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; background: #151518; }
+.player-preparing { position: absolute; inset: 0; display: grid; overflow: hidden; place-items: center; background: #151518; }
+.player-preparing > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.player-loading { position: relative; display: flex; flex-direction: column; align-items: center; gap: 11px; padding: 18px 22px; border-radius: 12px; color: #fff; background: rgba(16,16,18,.62); backdrop-filter: blur(5px); }
+.player-loading strong { font: 700 14px "Manrope", sans-serif; }
+.loading-spinner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: player-spin .8s linear infinite; }
+@keyframes player-spin { to { transform: rotate(360deg); } }
 .player-unavailable { display: flex; max-width: 360px; flex-direction: column; align-items: center; gap: 9px; padding: 20px; color: #fff; text-align: center; }
 .player-unavailable svg { color: #e77a6d; }
 .player-unavailable strong { font: 700 15px "Manrope", sans-serif; }

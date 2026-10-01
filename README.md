@@ -83,7 +83,33 @@ videos before pagination, so private or processing videos do not consume page
 slots. The frontend uses this for public feed views and requests the broader
 result set in channel-management views.
 `GET /api/categories` returns the available category IDs and names used by
-video creation and category filtering.
+video creation and category filtering. Categories also support CRUD through
+`POST /api/categories`, `GET /api/categories/{id}`, `PUT /api/categories/{id}`,
+and `DELETE /api/categories/{id}`. Create and update requests accept `name`
+and a lowercase hyphenated `slug`; both are unique without regard to case.
+Deleting a category assigned to videos returns `409 Conflict`.
+For example, create a category with `{"name":"Technology","slug":"technology"}`.
+
+### Tags and video assets
+
+Tags can be managed through `POST`, `GET`, `PUT`, and `DELETE /api/tags`
+(single-tag routes use `/api/tags/{tagId}`). Requests use `{"name":"Java"}`.
+A tag name is unique without regard to case; deleting a tag that is assigned
+to a video returns `409 Conflict`.
+
+Associate a tag with a video using
+`POST /api/videos/{videoId}/tags/{tagId}`; remove it with `DELETE` on that
+route, and list a video's tags with `GET /api/videos/{videoId}/tags`.
+`GET /api/tags/{tagId}/videos` lists the videos associated with a tag.
+Adding a duplicate association returns `409 Conflict`.
+
+Video-asset endpoints are `POST /api/videos/{videoId}/assets`,
+`GET /api/videos/{videoId}/assets`, and
+`DELETE /api/videos/{videoId}/assets/{assetId}`. The create request contains
+`assetUrl`, `quality`, `mimeType`, and `sizeBytes`. These endpoints persist
+asset metadata and the external URL only; media bytes remain in object storage.
+Removing an asset record does not delete its external object. Variants are
+unique per video, quality, and MIME type.
 
 ```text
 GET /api/videos?search=java

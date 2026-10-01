@@ -108,7 +108,7 @@ public class VideoSearchService {
 
     private String normalizeSearch(String search) {
         if (search == null || search.isBlank()) {
-            return null;
+            return "";
         }
         return search.trim()
                 .replace("!", "!!")

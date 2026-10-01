@@ -14,11 +14,14 @@ import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
@@ -28,16 +31,19 @@ public class VideoManagementService {
     private final ChannelRepository channelRepository;
     private final CategoryRepository categoryRepository;
     private final VideoAssetRepository videoAssetRepository;
+    private final R2StorageService r2StorageService;
 
     public VideoManagementService(
             VideoRepository videoRepository,
             ChannelRepository channelRepository,
             CategoryRepository categoryRepository,
-            VideoAssetRepository videoAssetRepository) {
+            VideoAssetRepository videoAssetRepository,
+            @Lazy R2StorageService r2StorageService) {
         this.videoRepository = videoRepository;
         this.channelRepository = channelRepository;
         this.categoryRepository = categoryRepository;
         this.videoAssetRepository = videoAssetRepository;
+        this.r2StorageService = r2StorageService;
     }
 
     public VideoResponse getVideo(Long id) {
@@ -68,15 +74,27 @@ public class VideoManagementService {
         video.setCategory(findCategory(request.categoryId()));
         video.setTitle(request.title().trim());
         video.setDescription(trimToNull(request.description()));
-        video.setThumbnailUrl(trimToNull(request.thumbnailUrl()));
+        String previousThumbnailUrl = video.getThumbnailUrl();
+        String updatedThumbnailUrl = trimToNull(request.thumbnailUrl());
+        video.setThumbnailUrl(updatedThumbnailUrl);
         video.setDurationSeconds(request.durationSeconds());
         setVisibility(video, request.visibility());
+        if (previousThumbnailUrl != null && !previousThumbnailUrl.equals(updatedThumbnailUrl)) {
+            r2StorageService.deleteAfterCommit(List.of(previousThumbnailUrl));
+        }
         return toResponse(videoRepository.save(video));
     }
 
     @Transactional
     public void delete(Long id) {
-        videoRepository.delete(findVideo(id));
+        Video video = findVideo(id);
+        List<String> objectLocators = new ArrayList<>();
+        objectLocators.add(video.getThumbnailUrl());
+        videoAssetRepository.findByVideo(video).stream()
+                .map(asset -> asset.getAssetUrl())
+                .forEach(objectLocators::add);
+        r2StorageService.deleteAfterCommit(objectLocators);
+        videoRepository.delete(video);
     }
 
     @Transactional

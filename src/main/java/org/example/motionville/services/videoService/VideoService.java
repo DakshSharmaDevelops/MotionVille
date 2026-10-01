@@ -340,15 +340,16 @@ VideoService {
         return locator.substring(prefix.length());
     }
 
+    @Transactional
     public void deleteVideo(Long id) {
-        if (!videoRepository.existsById(id)) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Video not found"
-            );
-        }
-
-        videoRepository.deleteById(id);
+        Video video = getVideoById(id);
+        List<String> objectLocators = new ArrayList<>();
+        objectLocators.add(video.getThumbnailUrl());
+        videoAssetRepository.findByVideo(video).stream()
+                .map(VideoAsset::getAssetUrl)
+                .forEach(objectLocators::add);
+        r2StorageService.deleteAfterCommit(objectLocators);
+        videoRepository.delete(video);
     }
 
     public List<VideoAsset> playVideo(Long videoId) {

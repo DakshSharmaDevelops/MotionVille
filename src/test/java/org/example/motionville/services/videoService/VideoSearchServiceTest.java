@@ -90,6 +90,22 @@ class VideoSearchServiceTest {
     }
 
     @Test
+    void usesEmptySearchStringForUnfilteredVideoQuery() {
+        when(videoRepository.searchVideos(
+                eq(""), isNull(), isNull(), eq(true), eq(VideoVisibility.PUBLIC),
+                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
+                any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        service.search("   ", 0, 20, null, null, null, true);
+
+        verify(videoRepository).searchVideos(
+                eq(""), isNull(), isNull(), eq(true), eq(VideoVisibility.PUBLIC),
+                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
+                any(PageRequest.class));
+    }
+
+    @Test
     void rejectsInvalidPagingAndUnsupportedSortWithoutQueryingRepository() {
         assertThrows(ResponseStatusException.class,
                 () -> service.search(null, -1, 20, "createdAt,desc", null, null, false));

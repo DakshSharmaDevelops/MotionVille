@@ -1,10 +1,13 @@
 package org.example.motionville.repo.video;
 
 import jakarta.persistence.EntityManager;
+import org.hibernate.exception.ConstraintViolationException;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.video.Category;
+import org.example.motionville.entity.video.Tag;
 import org.example.motionville.entity.video.Video;
+import org.example.motionville.entity.video.VideoAsset;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -55,6 +59,7 @@ class VideoRepositorySearchTest {
 
         Category category = new Category();
         category.setName("Technology");
+        category.setSlug("technology");
         category.setDescription("Technology videos");
         entityManager.persist(category);
 
@@ -92,7 +97,7 @@ class VideoRepositorySearchTest {
     @Test
     void includesUncategorizedVideosWithoutCategoryFilterAndEscapesLikeWildcards() {
         var unfiltered = videoRepository.searchVideos(
-                null, null, channelId, false, VideoVisibility.PUBLIC,
+                "", null, channelId, false, VideoVisibility.PUBLIC,
                 java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
                 PageRequest.of(0, 10));
         assertEquals(3, unfiltered.getTotalElements());
@@ -159,7 +164,7 @@ class VideoRepositorySearchTest {
         entityManager.clear();
 
         var firstPage = videoRepository.searchVideos(
-                null,
+                "",
                 null,
                 channelId,
                 true,
@@ -170,6 +175,59 @@ class VideoRepositorySearchTest {
         assertEquals(1, firstPage.getTotalElements());
         assertEquals(1, firstPage.getTotalPages());
         assertEquals("Visible public video", firstPage.getContent().get(0).getTitle());
+    }
+
+    @Test
+    void findsVideosByTagThroughManyToManyJoin() {
+        Tag tag = new Tag();
+        tag.setName("java");
+        entityManager.persist(tag);
+
+        Video video = video(
+                entityManager.getReference(Channel.class, channelId),
+                null,
+                "Tagged video",
+                null,
+                Instant.now());
+        video.setTags(List.of(tag));
+        entityManager.persist(video);
+        entityManager.flush();
+        entityManager.clear();
+
+        var taggedVideos = videoRepository.findDistinctByTags_Id(tag.getId());
+
+        assertEquals(1, taggedVideos.size());
+        assertEquals("Tagged video", taggedVideos.get(0).getTitle());
+    }
+
+    @Test
+    void enforcesUniqueAssetVariantPerVideo() {
+        Video video = video(
+                entityManager.getReference(Channel.class, channelId),
+                null,
+                "Asset test",
+                null,
+                Instant.now());
+        entityManager.persist(video);
+        entityManager.flush();
+
+        entityManager.persist(asset(video, "r2://bucket/first"));
+        entityManager.flush();
+        assertThrows(ConstraintViolationException.class, () -> {
+            entityManager.persist(asset(video, "r2://bucket/second"));
+            entityManager.flush();
+        });
+    }
+
+    private VideoAsset asset(Video video, String url) {
+        return VideoAsset.builder()
+                .video(video)
+                .assetUrl(url)
+                .quality("playback")
+                .mimeType("video/mp4")
+                .sizeBytes(10L)
+                .createdAt(Instant.now())
+                .build();
     }
 
     private Video video(Channel channel, Category category, String title, String description, Instant createdAt) {
