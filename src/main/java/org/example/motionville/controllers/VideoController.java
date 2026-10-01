@@ -2,12 +2,14 @@ package org.example.motionville.controllers;
 
 import jakarta.validation.Valid;
 import org.example.motionville.dto.VideoCreateRequest;
+import org.example.motionville.dto.VideoPageResponse;
 import org.example.motionville.dto.VideoProcessingStatusRequest;
 import org.example.motionville.dto.VideoResponse;
 import org.example.motionville.dto.VideoUpdateRequest;
 import org.example.motionville.dto.VideoVisibilityRequest;
 import org.example.motionville.entity.video.VideoAsset;
 import org.example.motionville.services.videoService.VideoManagementService;
+import org.example.motionville.services.videoService.VideoSearchService;
 import org.example.motionville.services.videoService.VideoService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,12 +23,15 @@ import java.util.List;
 public class VideoController {
 
     private final VideoManagementService managementService;
+    private final VideoSearchService searchService;
     private final VideoService videoService;
 
     public VideoController(
             VideoManagementService managementService,
+            VideoSearchService searchService,
             VideoService videoService) {
         this.managementService = managementService;
+        this.searchService = searchService;
         this.videoService = videoService;
     }
 
@@ -38,8 +43,14 @@ public class VideoController {
     }
 
     @GetMapping
-    public List<VideoResponse> getAllVideos() {
-        return managementService.getAllVideos();
+    public VideoPageResponse getAllVideos(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long channelId) {
+        return searchService.search(search, page, size, sort, categoryId, channelId);
     }
 
     @GetMapping("/{id}")

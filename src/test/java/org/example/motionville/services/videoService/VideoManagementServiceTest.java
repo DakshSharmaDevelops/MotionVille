@@ -90,15 +90,28 @@ class VideoManagementServiceTest {
     }
 
     @Test
-    void unpublishMakesVideoPrivate() {
+    void unpublishKeepsVisibilityAndClearsPublicationTimestamp() {
         video.setProcessingStatus(VideoProcessingStatus.READY);
         video.setVisibility(VideoVisibility.PUBLIC);
         video.setPublishedAt(Instant.now());
 
         var response = service.unpublish(12L);
 
-        assertEquals(VideoVisibility.PRIVATE, response.visibility());
+        assertEquals(VideoVisibility.PUBLIC, response.visibility());
         assertNull(response.publishedAt());
+    }
+
+    @Test
+    void canRepublishAfterUnpublishing() {
+        video.setProcessingStatus(VideoProcessingStatus.READY);
+        video.setVisibility(VideoVisibility.PUBLIC);
+        video.setPublishedAt(Instant.now());
+        service.unpublish(12L);
+
+        var response = service.publish(12L);
+
+        assertEquals(VideoVisibility.PUBLIC, response.visibility());
+        assertNotNull(response.publishedAt());
     }
 
     @Test
@@ -110,6 +123,19 @@ class VideoManagementServiceTest {
                 12L, new VideoVisibilityRequest(VideoVisibility.PRIVATE));
 
         assertEquals(VideoVisibility.PRIVATE, response.visibility());
+        assertNull(response.publishedAt());
+    }
+
+    @Test
+    void changingVisibilityDoesNotPublishAnUnpublishedVideo() {
+        video.setProcessingStatus(VideoProcessingStatus.READY);
+        video.setVisibility(VideoVisibility.PRIVATE);
+        video.setPublishedAt(null);
+
+        var response = service.changeVisibility(
+                12L, new VideoVisibilityRequest(VideoVisibility.PUBLIC));
+
+        assertEquals(VideoVisibility.PUBLIC, response.visibility());
         assertNull(response.publishedAt());
     }
 
