@@ -275,7 +275,7 @@ async function apiRequest(path, options = {}) {
   return response.json();
 }
 
-function buildVideoQuery({ search, page, sort, channelId, categoryId }) {
+function buildVideoQuery({ search, page, sort, channelId, categoryId, publicOnly }) {
   const params = new URLSearchParams({
     page: String(page),
     size: "20",
@@ -284,6 +284,7 @@ function buildVideoQuery({ search, page, sort, channelId, categoryId }) {
   if (search.trim()) params.set("search", search.trim());
   if (channelId) params.set("channelId", String(channelId));
   if (categoryId) params.set("categoryId", String(categoryId));
+  if (publicOnly) params.set("publicOnly", "true");
   return `/videos?${params.toString()}`;
 }
 
@@ -957,12 +958,14 @@ export default function App() {
         const channelId = view === "Channel" ? activeChannelId : null;
         const categoryId = apiCategories
           .find((category) => category.name === activeCategory)?.id;
+        const publicOnly = !["Your channel", "Channel", "History", "Liked videos"].includes(view);
         const result = await apiRequest(buildVideoQuery({
           search,
           page: pageIndex,
           sort: sortOrder,
           channelId,
           categoryId,
+          publicOnly,
         }), { signal: controller.signal });
         if (controller.signal.aborted) return;
         const serverVideos = result.content.map((video) => mapApiVideo(video, apiCategories));
@@ -1046,12 +1049,14 @@ export default function App() {
     const channelId = view === "Channel" ? activeChannelId : null;
     const categoryId = apiCategories
       .find((category) => category.name === activeCategory)?.id;
+    const publicOnly = !["Your channel", "Channel", "History", "Liked videos"].includes(view);
     const result = await apiRequest(buildVideoQuery({
       search,
       page: targetPage,
       sort: sortOrder,
       channelId,
       categoryId,
+      publicOnly,
     }));
     const serverVideos = result.content.map((video) => mapApiVideo(video, apiCategories));
     setVideos((current) => [...current.filter((video) => !video.serverVideo), ...serverVideos]);

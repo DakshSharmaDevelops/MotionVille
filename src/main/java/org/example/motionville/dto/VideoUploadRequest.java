@@ -9,13 +9,24 @@ import jakarta.validation.constraints.Size;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 
 public record VideoUploadRequest(
-        @NotNull Long channelId,
-        @Positive Long categoryId,
-        @NotBlank @Size(max = 255) String title,
-        @Size(max = 5000) String description,
-        @Size(max = 255) String thumbnailUrl,
-        @NotBlank String mimeType,
-        @NotNull @Min(1) @Max(524288000) Long sizeBytes,
-        @NotNull VideoVisibility visibility
+        @NotNull
+        Long channelId,
+        @Positive
+        Long categoryId,
+        @NotBlank
+        @Size(max = 255)
+        String title,
+        @Size(max = 5000)
+        String description,
+        @Size(max = 255)
+        String thumbnailUrl,
+        @NotBlank
+        String mimeType,
+        @NotNull
+        @Min(1)
+        @Max(524288000)
+        Long sizeBytes,
+        @NotNull
+        VideoVisibility visibility
 ) {
 }

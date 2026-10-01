@@ -78,6 +78,10 @@ Do not commit database passwords or production secrets. R2 credentials must be s
 `GET /api/videos` returns a page object containing `page`, `size`,
 `totalElements`, `totalPages`, and `content`. Search checks titles and
 descriptions; optional category and channel IDs filter the results.
+Use `publicOnly=true` for feed queries to filter to published, ready public
+videos before pagination, so private or processing videos do not consume page
+slots. The frontend uses this for public feed views and requests the broader
+result set in channel-management views.
 `GET /api/categories` returns the available category IDs and names used by
 video creation and category filtering.
 
@@ -87,6 +91,7 @@ GET /api/videos?page=0&size=20
 GET /api/videos?sort=createdAt,desc
 GET /api/videos?categoryId=1
 GET /api/videos?channelId=2
+GET /api/videos?publicOnly=true&page=0&size=20
 ```
 
 The default page is `0`, the default size is `20`, and page sizes are limited

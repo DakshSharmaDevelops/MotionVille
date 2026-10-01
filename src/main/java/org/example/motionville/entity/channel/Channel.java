@@ -26,7 +26,7 @@ public class Channel {
     private AppUser owner;
 
     @Column(nullable = false, unique = true, length = 50)
-    private String handle;    // read about it//
+    private String handle;
 
     @Column(nullable = false, length = 100)
     private String name;

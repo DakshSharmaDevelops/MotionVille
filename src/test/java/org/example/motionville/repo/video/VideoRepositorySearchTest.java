@@ -71,13 +71,17 @@ class VideoRepositorySearchTest {
     @Test
     void filtersSearchAndCategoryWhileReturningAccuratePages() {
         var allJava = videoRepository.searchVideos(
-                "java", null, channelId, PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt")));
+                "java", null, channelId, false, VideoVisibility.PUBLIC,
+                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt")));
         assertEquals(3, allJava.getTotalElements());
         assertEquals(3, allJava.getTotalPages());
         assertEquals("Cooking", allJava.getContent().get(0).getTitle());
 
         var categorizedJava = videoRepository.searchVideos(
-                "java", categoryId, channelId, PageRequest.of(0, 10));
+                "java", categoryId, channelId, false, VideoVisibility.PUBLIC,
+                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                PageRequest.of(0, 10));
         assertEquals(2, categorizedJava.getTotalElements());
         assertTrue(categorizedJava.getContent().stream()
                 .map(Video::getTitle)
@@ -88,7 +92,9 @@ class VideoRepositorySearchTest {
     @Test
     void includesUncategorizedVideosWithoutCategoryFilterAndEscapesLikeWildcards() {
         var unfiltered = videoRepository.searchVideos(
-                null, null, channelId, PageRequest.of(0, 10));
+                null, null, channelId, false, VideoVisibility.PUBLIC,
+                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                PageRequest.of(0, 10));
         assertEquals(3, unfiltered.getTotalElements());
 
         Video percentTitle = video(
@@ -101,9 +107,69 @@ class VideoRepositorySearchTest {
         entityManager.flush();
 
         var literalPercent = videoRepository.searchVideos(
-                "100!%", null, channelId, PageRequest.of(0, 10));
+                "100!%", null, channelId, false, VideoVisibility.PUBLIC,
+                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                PageRequest.of(0, 10));
         assertEquals(1, literalPercent.getTotalElements());
         assertEquals("100% Java", literalPercent.getContent().get(0).getTitle());
+    }
+
+    @Test
+    void filtersUnpublishedPrivateAndUnreadyVideosBeforePagination() {
+        Instant publishedAt = Instant.parse("2026-02-01T00:00:00Z");
+
+        Video visible = video(
+                entityManager.getReference(Channel.class, channelId),
+                null,
+                "Visible public video",
+                null,
+                publishedAt);
+        visible.setPublishedAt(publishedAt);
+        entityManager.persist(visible);
+
+        Video unpublished = video(
+                entityManager.getReference(Channel.class, channelId),
+                null,
+                "Unpublished video",
+                null,
+                publishedAt.plusSeconds(1));
+        unpublished.setPublishedAt(null);
+        entityManager.persist(unpublished);
+
+        Video privateVideo = video(
+                entityManager.getReference(Channel.class, channelId),
+                null,
+                "Private video",
+                null,
+                publishedAt.plusSeconds(2));
+        privateVideo.setVisibility(VideoVisibility.PRIVATE);
+        privateVideo.setPublishedAt(publishedAt);
+        entityManager.persist(privateVideo);
+
+        Video processing = video(
+                entityManager.getReference(Channel.class, channelId),
+                null,
+                "Processing video",
+                null,
+                publishedAt.plusSeconds(3));
+        processing.setPublishedAt(publishedAt);
+        processing.setProcessingStatus(VideoProcessingStatus.PROCESSING);
+        entityManager.persist(processing);
+        entityManager.flush();
+        entityManager.clear();
+
+        var firstPage = videoRepository.searchVideos(
+                null,
+                null,
+                channelId,
+                true,
+                VideoVisibility.PUBLIC,
+                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt")));
+
+        assertEquals(1, firstPage.getTotalElements());
+        assertEquals(1, firstPage.getTotalPages());
+        assertEquals("Visible public video", firstPage.getContent().get(0).getTitle());
     }
 
     private Video video(Channel channel, Category category, String title, String description, Instant createdAt) {
