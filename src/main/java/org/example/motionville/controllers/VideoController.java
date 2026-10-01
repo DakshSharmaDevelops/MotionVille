@@ -49,8 +49,9 @@ public class VideoController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) Long channelId) {
-        return searchService.search(search, page, size, sort, categoryId, channelId);
+            @RequestParam(required = false) Long channelId,
+            @RequestParam(defaultValue = "false") boolean publicOnly) {
+        return searchService.search(search, page, size, sort, categoryId, channelId, publicOnly);
     }
 
     @GetMapping("/{id}")

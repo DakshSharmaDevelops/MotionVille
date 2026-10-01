@@ -2,6 +2,8 @@ package org.example.motionville.services.videoService;
 
 import org.example.motionville.dto.VideoPageResponse;
 import org.example.motionville.entity.video.Video;
+import org.example.motionville.entity.video.enums.VideoProcessingStatus;
+import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.VideoRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -35,13 +38,20 @@ public class VideoSearchService {
             int size,
             String sort,
             Long categoryId,
-            Long channelId) {
+            Long channelId,
+            boolean publicOnly) {
         validateFilters(page, size, categoryId, channelId);
         Sort parsedSort = parseSort(sort);
         String normalizedSearch = normalizeSearch(search);
         Pageable pageable = PageRequest.of(page, size, stableSort(parsedSort));
         Page<Video> result = videoRepository.searchVideos(
-                normalizedSearch, categoryId, channelId, pageable);
+                normalizedSearch,
+                categoryId,
+                channelId,
+                publicOnly,
+                VideoVisibility.PUBLIC,
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                pageable);
 
         return new VideoPageResponse(
                 result.getNumber(),

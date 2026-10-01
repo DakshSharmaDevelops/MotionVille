@@ -36,7 +36,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
-public class VideoService {
+public class
+VideoService {
 
     // Accept standalone media containers, not playlists that can reference other
     // local files or URLs. Unsupported/corrupt media becomes FAILED.
@@ -140,7 +141,7 @@ public class VideoService {
                         "Channel not found. Select a channel saved in the backend first."
                 ));
 
-        Instant now = Instant.now();
+        var now = Instant.now();
         Video video = new Video();
         video.setChannel(channel);
         if (request.categoryId() != null) {
