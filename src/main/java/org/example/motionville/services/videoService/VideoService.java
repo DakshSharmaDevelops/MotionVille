@@ -8,6 +8,7 @@ import org.example.motionville.dto.VideoPlaybackResponse;
 import org.example.motionville.dto.VideoUploadRequest;
 import org.example.motionville.dto.VideoUploadResponse;
 import org.example.motionville.repo.channel.ChannelRepository;
+import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,7 @@ public class VideoService {
     private String ffprobe;
     private final VideoRepository videoRepository;
     private final ChannelRepository channelRepository;
+    private final CategoryRepository categoryRepository;
     private final VideoAssetRepository videoAssetRepository;
     private final R2StorageService r2StorageService;
     private final TransactionTemplate transactionTemplate;
@@ -55,6 +57,7 @@ public class VideoService {
     public VideoService(
             VideoRepository videoRepository,
             ChannelRepository channelRepository,
+            CategoryRepository categoryRepository,
             VideoAssetRepository videoAssetRepository,
             @Lazy R2StorageService r2StorageService,
             PlatformTransactionManager transactionManager,
@@ -63,6 +66,7 @@ public class VideoService {
         this.processingExecutor = processingExecutor;
         this.videoRepository = videoRepository;
         this.channelRepository = channelRepository;
+        this.categoryRepository = categoryRepository;
         this.videoAssetRepository = videoAssetRepository;
         this.r2StorageService = r2StorageService;
         this.transactionTemplate =
@@ -139,6 +143,13 @@ public class VideoService {
         Instant now = Instant.now();
         Video video = new Video();
         video.setChannel(channel);
+        if (request.categoryId() != null) {
+            video.setCategory(categoryRepository.findById(request.categoryId())
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Category not found"
+                    )));
+        }
         video.setTitle(request.title().trim());
         video.setDescription(request.description());
         video.setThumbnailUrl(request.thumbnailUrl());

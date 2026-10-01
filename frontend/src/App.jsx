@@ -275,7 +275,19 @@ async function apiRequest(path, options = {}) {
   return response.json();
 }
 
-function mapApiVideo(video) {
+function buildVideoQuery({ search, page, sort, channelId, categoryId }) {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: "20",
+    sort,
+  });
+  if (search.trim()) params.set("search", search.trim());
+  if (channelId) params.set("channelId", String(channelId));
+  if (categoryId) params.set("categoryId", String(categoryId));
+  return `/videos?${params.toString()}`;
+}
+
+function mapApiVideo(video, categories = []) {
   return {
     videoId: video.id,
     channelId: video.channelId,
@@ -289,7 +301,7 @@ function mapApiVideo(video) {
     createdAt: video.createdAt,
     updatedAt: video.updatedAt,
     publishedAt: video.publishedAt,
-    category: null,
+    category: categories.find((category) => Number(category.id) === Number(video.categoryId))?.name || null,
     tags: [],
     views: 0,
     likeCount: 0,
@@ -311,6 +323,10 @@ function mapApiChannel(channel) {
     createdAt: channel.createdAt,
     subscriptions: 0,
   };
+}
+
+function mapApiCategory(category) {
+  return { id: category.id, name: category.name };
 }
 
 function uploadFile(uploadUrl, file, mimeType, onProgress) {
@@ -419,7 +435,7 @@ function Avatar({ src, name, size = "normal" }) {
     : <span className={`avatar avatar-fallback avatar-${size}`}>{(name || "M").slice(0, 1).toUpperCase()}</span>;
 }
 
-function VideoCard({ video, channel, onSelect, onManage, index }) {
+function VideoCard({ video, channel, onSelect, onManage, onDelete, index }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(video.thumbnailUrl || "");
 
   useEffect(() => {
@@ -458,7 +474,10 @@ function VideoCard({ video, channel, onSelect, onManage, index }) {
           <button className="channel-link">{channel?.name || "MotionVille creator"}</button>
           <p>{formatViews(video.views)} <span>·</span> {formatAge(video.createdAt)}</p>
         </div>
-        {video.serverVideo && <button className="more-button" onClick={() => onManage(video)} aria-label={`Manage ${video.title}`}><Icon name="more" size={19} /></button>}
+        {video.serverVideo && <div className="video-card-actions">
+          <button className="video-card-action" onClick={() => onManage(video)}>Edit</button>
+          <button className="video-card-action video-card-delete" onClick={() => onDelete(video)}>Delete</button>
+        </div>}
       </div>
     </article>
   );
@@ -537,13 +556,13 @@ function CreateChannelDialog({ onClose, onCreate }) {
   );
 }
 
-function CreateVideoDialog({ channels, onClose, onCreate }) {
+function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
   const uploadChannels = channels.filter((channel) => channel.backendChannel);
   const [form, setForm] = useState({
     title: "",
     description: "",
     thumbnailUrl: "",
-    category: "Travel & Places",
+    categoryId: categories[0]?.id ? String(categories[0].id) : "",
     channelId: uploadChannels[0]?.channelId ? String(uploadChannels[0].channelId) : "",
     visibility: "PUBLIC",
   });
@@ -617,7 +636,11 @@ function CreateVideoDialog({ channels, onClose, onCreate }) {
     setError("");
     setBusy(true);
     try {
-      await onCreate({ ...form, mimeType }, file, setUploadProgress, generatedThumbnail);
+      await onCreate({
+        ...form,
+        categoryId: form.categoryId || String(categories[0]?.id || ""),
+        mimeType,
+      }, file, setUploadProgress, generatedThumbnail);
     } catch (uploadError) {
       setError(uploadError.message || "Video upload failed.");
     } finally {
@@ -640,7 +663,7 @@ function CreateVideoDialog({ channels, onClose, onCreate }) {
             </select></label>
           </div>
           <div className="form-two-col">
-            <label>Category<select name="category" value={form.category} onChange={update}>{CATEGORIES.slice(1).map((category) => <option key={category}>{category}</option>)}</select></label>
+            <label>Category<select name="categoryId" value={form.categoryId || (categories[0]?.id ? String(categories[0].id) : "")} onChange={update}><option value="">No category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label>Visibility<select name="visibility" value={form.visibility} onChange={update}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
           </div>
           <label>Thumbnail URL <span className="optional">Optional</span><input name="thumbnailUrl" type="url" value={form.thumbnailUrl} onChange={update} placeholder="https://example.com/thumbnail.jpg" /></label>
@@ -658,11 +681,12 @@ function CreateVideoDialog({ channels, onClose, onCreate }) {
   );
 }
 
-function ManageVideoDialog({ video, channels, onClose, onSave, onPublish, onUnpublish, onDelete }) {
+function ManageVideoDialog({ video, channels, categories, onClose, onSave, onPublish, onUnpublish, onDelete }) {
   const [form, setForm] = useState({
     title: video.title,
     description: video.description || "",
     thumbnailUrl: video.thumbnailUrl || "",
+    categoryId: video.categoryId ? String(video.categoryId) : "",
     visibility: video.visibility,
   });
   const [error, setError] = useState("");
@@ -672,7 +696,17 @@ function ManageVideoDialog({ video, channels, onClose, onSave, onPublish, onUnpu
     setBusy(true);
     setError("");
     try {
-      await action();
+      const updatedVideo = await action();
+      if (updatedVideo) {
+        setForm((current) => ({
+          ...current,
+          title: updatedVideo.title ?? current.title,
+          description: updatedVideo.description ?? "",
+          thumbnailUrl: updatedVideo.thumbnailUrl ?? "",
+          categoryId: updatedVideo.categoryId ? String(updatedVideo.categoryId) : "",
+          visibility: updatedVideo.visibility ?? current.visibility,
+        }));
+      }
     } catch (actionError) {
       setError(actionError.message || "Could not update this video.");
     } finally {
@@ -703,6 +737,7 @@ function ManageVideoDialog({ video, channels, onClose, onSave, onPublish, onUnpu
           <label>Video title<input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} maxLength="255" required /></label>
           <label>Description<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows="3" maxLength="5000" /></label>
           <label>Thumbnail URL<input type="text" value={form.thumbnailUrl} onChange={(event) => setForm((current) => ({ ...current, thumbnailUrl: event.target.value }))} maxLength="255" /></label>
+          <label>Category<select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}><option value="">No category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
           <label>Visibility<select value={form.visibility} onChange={(event) => setForm((current) => ({ ...current, visibility: event.target.value }))}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
           {error && <p className="inline-error" role="alert">{error}</p>}
           <div className="video-management-actions">
@@ -711,7 +746,15 @@ function ManageVideoDialog({ video, channels, onClose, onSave, onPublish, onUnpu
             }}>Delete</button>
             {isPublished
               ? <button type="button" className="text-button" disabled={busy} onClick={() => run(() => onUnpublish(video))}>Unpublish</button>
-              : <button type="button" className="text-button" disabled={busy || !isReady || video.visibility === "PRIVATE"} onClick={() => run(() => onPublish(video))}>Publish</button>}
+              : <button type="button" className="text-button" disabled={busy || !isReady || form.visibility === "PRIVATE"} onClick={() => {
+                const channel = channels.find((item) => Number(item.channelId) === Number(video.channelId));
+                if (!channel) {
+                  setError("The video's channel is not available.");
+                  return;
+                }
+                run(() => onPublish(video, { ...form, channelId: channel.channelId }));
+              }}>Publish</button>}
+            {!isPublished && form.visibility === "PRIVATE" && <small className="publish-hint">Choose Public or Unlisted and save before publishing.</small>}
             <button className="button button-primary" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
           </div>
         </form>
@@ -720,7 +763,7 @@ function ManageVideoDialog({ video, channels, onClose, onSave, onPublish, onUnpu
   );
 }
 
-function WatchDialog({ video, channel, onClose, onLike, onSubscribe, onComment, liked, subscribed }) {
+function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onComment, liked, subscribed }) {
   const [comment, setComment] = useState("");
   const comments = video.comments || [];
   const [playbackError, setPlaybackError] = useState(false);
@@ -828,7 +871,22 @@ function WatchDialog({ video, channel, onClose, onLike, onSubscribe, onComment, 
               <div className="comment-list">{comments.map((item) => <article className="comment" key={item.id}><Avatar src={item.author?.avatarUrl} name={item.author?.displayName || item.author?.username} /><div><strong>{item.author?.displayName || item.author?.username || "Viewer"} <span>· {formatAge(item.createdAt)}</span></strong><p>{item.body}</p><button className="comment-like"><Icon name="like" size={15} /> Like <span>Reply</span></button></div></article>)}</div>
             </section>
           </div>
-          <aside className="watch-next"><p className="sidebar-heading">Up next</p>{video.description && <div className="next-description">{video.description}</div>}</aside>
+          <section className="watch-recommendations" aria-label="More videos">
+            <div className="recommendations-heading"><span>More videos</span><span>{recommendations.length} videos</span></div>
+            {recommendations.length
+              ? <div className="recommendations-grid">{recommendations.map((item, index) => (
+                <VideoCard
+                  key={item.videoId}
+                  video={item}
+                  channel={item.channel}
+                  onSelect={onSelectRecommendation}
+                  onManage={() => {}}
+                  onDelete={() => {}}
+                  index={index}
+                />
+              ))}</div>
+              : <p className="recommendations-empty">No other videos to show yet.</p>}
+          </section>
         </div>
       </section>
     </Modal>
@@ -837,11 +895,18 @@ function WatchDialog({ video, channel, onClose, onLike, onSubscribe, onComment, 
 
 export default function App() {
   const [videos, setVideos] = useState(() => loadLocal("motionville.videos", SEED_VIDEOS));
+  const [hiddenVideoIds, setHiddenVideoIds] = useState(() => new Set());
   const [channels, setChannels] = useState(() => loadLocal("motionville.channels", SEED_CHANNELS));
+  const [apiCategories, setApiCategories] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [manageVideo, setManageVideo] = useState(null);
   const [backendLoaded, setBackendLoaded] = useState(false);
+  const [videoPage, setVideoPage] = useState({ page: 0, size: 20, totalElements: 0, totalPages: 0 });
+  const [pageIndex, setPageIndex] = useState(0);
+  const [sortOrder, setSortOrder] = useState("createdAt,desc");
+  const [videosLoading, setVideosLoading] = useState(false);
   const [feedError, setFeedError] = useState("");
+  const [categoryError, setCategoryError] = useState("");
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [view, setView] = useState("Home");
@@ -860,33 +925,69 @@ export default function App() {
   useEffect(() => localStorage.setItem("motionville.subscriptions", JSON.stringify(subscriptions)), [subscriptions]);
   useEffect(() => {
     const controller = new AbortController();
-    async function loadBackendData() {
-      const [videoResult, channelResult] = await Promise.allSettled([
-        apiRequest("/videos", { signal: controller.signal }),
+    async function loadBackendMetadata() {
+      const [channelResult, categoryResult] = await Promise.allSettled([
         apiRequest("/channels", { signal: controller.signal }),
+        apiRequest("/categories", { signal: controller.signal }),
       ]);
       if (controller.signal.aborted) return;
-      if (videoResult.status === "fulfilled") {
-        const serverVideos = videoResult.value.map(mapApiVideo);
-        setVideos((current) => [...current.filter((video) => !video.serverVideo), ...serverVideos]);
-        setBackendLoaded(true);
-        setFeedError("");
-      } else {
-        setFeedError(`Could not load saved videos: ${videoResult.reason.message}`);
-      }
       if (channelResult.status === "fulfilled") {
         const serverChannels = channelResult.value.map(mapApiChannel);
         setChannels((current) => [
           ...current.filter((channel) => !channel.backendChannel),
           ...serverChannels,
         ]);
-      } else if (videoResult.status === "fulfilled") {
-        setFeedError(`Videos loaded, but channels could not be loaded: ${channelResult.reason.message}`);
+      } else {
+        setFeedError(`Could not load channels: ${channelResult.reason.message}`);
+      }
+      if (categoryResult.status === "fulfilled") {
+        setApiCategories(categoryResult.value.map(mapApiCategory));
+      } else {
+        setCategoryError(`Could not load video categories: ${categoryResult.reason.message}`);
       }
     }
-    loadBackendData();
+    loadBackendMetadata();
     return () => controller.abort();
   }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setVideosLoading(true);
+      try {
+        const channelId = view === "Channel" ? activeChannelId : null;
+        const categoryId = apiCategories
+          .find((category) => category.name === activeCategory)?.id;
+        const result = await apiRequest(buildVideoQuery({
+          search,
+          page: pageIndex,
+          sort: sortOrder,
+          channelId,
+          categoryId,
+        }), { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        const serverVideos = result.content.map((video) => mapApiVideo(video, apiCategories));
+        setVideos((current) => [...current.filter((video) => !video.serverVideo), ...serverVideos]);
+        setVideoPage({
+          page: result.page,
+          size: result.size,
+          totalElements: result.totalElements,
+          totalPages: result.totalPages,
+        });
+        setBackendLoaded(true);
+        setFeedError("");
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setFeedError(`Could not load saved videos: ${error.message}`);
+        }
+      } finally {
+        if (!controller.signal.aborted) setVideosLoading(false);
+      }
+    }, search.trim() ? 250 : 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [activeCategory, activeChannelId, apiCategories, pageIndex, search, sortOrder, view]);
   useEffect(() => {
     if (!toast) return undefined;
     const timer = window.setTimeout(() => setToast(""), 2600);
@@ -894,6 +995,10 @@ export default function App() {
   }, [toast]);
 
   const channelById = useMemo(() => new Map(channels.map((channel) => [Number(channel.channelId), channel])), [channels]);
+  const categoryOptions = apiCategories.length
+    ? apiCategories
+    : CATEGORIES.slice(1).map((name) => ({ id: null, name }));
+  const visibleFeedError = feedError || categoryError;
 
   const visibleVideos = useMemo(() => {
     const currentChannel = channelById.get(Number(activeChannelId));
@@ -916,7 +1021,10 @@ export default function App() {
     });
     if (view === "Trending") items = [...items].sort((a, b) => (b.views || 0) - (a.views || 0));
     else if (view === "Recently added" || view === "History") items = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    if (activeCategory !== "All") items = items.filter((video) => video.category === activeCategory || (video.serverVideo && !video.category));
+    if (activeCategory !== "All") {
+      items = items.filter((video) => video.serverVideo || video.category === activeCategory);
+    }
+    items = items.filter((video) => !hiddenVideoIds.has(video.videoId));
     const normalized = search.trim().toLowerCase();
     if (normalized) {
       items = items.filter((video) => {
@@ -925,24 +1033,48 @@ export default function App() {
       });
     }
     return items;
-  }, [activeCategory, activeChannelId, channelById, channels, history, likedVideos, search, subscriptions, videos, view]);
+  }, [activeCategory, activeChannelId, apiCategories, channelById, channels, hiddenVideoIds, history, likedVideos, search, subscriptions, videos, view]);
+  const watchRecommendations = useMemo(() => videos
+    .filter((video) => video.videoId !== selectedVideo?.videoId
+      && video.visibility === "PUBLIC"
+      && (!video.serverVideo || (video.publishedAt
+        && (video.processingStatus === "READY" || video.processingStatus === "UPLOADED"))))
+    .map((video) => ({ ...video, channel: channelById.get(Number(video.channelId)) }))
+    .slice(0, 12), [channelById, selectedVideo?.videoId, videos]);
 
-  async function refreshBackendVideos() {
-    const savedVideos = await apiRequest("/videos");
-    const serverVideos = savedVideos.map(mapApiVideo);
+  async function refreshBackendVideos(targetPage = pageIndex) {
+    const channelId = view === "Channel" ? activeChannelId : null;
+    const categoryId = apiCategories
+      .find((category) => category.name === activeCategory)?.id;
+    const result = await apiRequest(buildVideoQuery({
+      search,
+      page: targetPage,
+      sort: sortOrder,
+      channelId,
+      categoryId,
+    }));
+    const serverVideos = result.content.map((video) => mapApiVideo(video, apiCategories));
     setVideos((current) => [...current.filter((video) => !video.serverVideo), ...serverVideos]);
+    setVideoPage({
+      page: result.page,
+      size: result.size,
+      totalElements: result.totalElements,
+      totalPages: result.totalPages,
+    });
     setBackendLoaded(true);
     setFeedError("");
   }
 
   function applyVideoResponse(response, closeDialog = true) {
-    const updatedVideo = mapApiVideo(response);
+    const updatedVideo = mapApiVideo(response, apiCategories);
     setVideos((current) => current.some((video) => video.videoId === updatedVideo.videoId)
       ? current.map((video) => video.videoId === updatedVideo.videoId
         ? { ...video, ...updatedVideo }
         : video)
       : [updatedVideo, ...current]);
-    if (closeDialog) setManageVideo(null);
+    setManageVideo((current) => current?.videoId === updatedVideo.videoId
+      ? closeDialog ? null : { ...current, ...updatedVideo }
+      : current);
     return updatedVideo;
   }
 
@@ -979,6 +1111,7 @@ export default function App() {
         title: form.title.trim(),
         description: form.description.trim(),
         thumbnailUrl: form.thumbnailUrl.trim() || null,
+        categoryId: form.categoryId ? Number(form.categoryId) : null,
         mimeType: form.mimeType,
         sizeBytes: file.size,
         visibility: form.visibility,
@@ -1007,7 +1140,8 @@ export default function App() {
       assetUrl: "",
       mimeType: "video/mp4",
       serverVideo: true,
-      category: form.category,
+      category: apiCategories.find((category) => Number(category.id) === Number(form.categoryId))?.name || null,
+      categoryId: form.categoryId ? Number(form.categoryId) : null,
       tags,
       likeCount: 0,
       comments: [],
@@ -1026,51 +1160,77 @@ export default function App() {
       setActiveChannelId(null);
       setView("Home");
     }
+  }
 
-    async function saveVideo(video, form) {
-      const response = await apiRequest(`/videos/${video.videoId}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          channelId: form.channelId,
-          categoryId: video.categoryId || null,
-          title: form.title.trim(),
-          description: form.description.trim() || null,
-          thumbnailUrl: form.thumbnailUrl.trim() || null,
-          durationSeconds: video.durationSeconds || 0,
-          visibility: video.visibility,
-        }),
-      });
-      if (form.visibility !== video.visibility) {
-        setVideos((current) => current.map((item) => item.videoId === video.videoId
-          ? { ...item, ...mapApiVideo(response) }
-          : item));
-        const visibilityResponse = await apiRequest(`/videos/${video.videoId}/visibility`, {
-          method: "PATCH",
-          body: JSON.stringify({ visibility: form.visibility }),
-        });
-        applyVideoResponse(visibilityResponse);
-      } else {
-        applyVideoResponse(response);
-      }
-      setToast("Video details saved.");
+  async function saveVideo(video, form) {
+    const response = await apiRequest(`/videos/${video.videoId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        channelId: form.channelId,
+        categoryId: form.categoryId ? Number(form.categoryId) : null,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        thumbnailUrl: form.thumbnailUrl.trim() || null,
+        durationSeconds: video.durationSeconds || 0,
+        visibility: form.visibility,
+      }),
+    });
+    const updatedVideo = applyVideoResponse(response, false);
+    setHiddenVideoIds((current) => new Set(current).add(video.videoId));
+    setToast("Video details saved.");
+    refreshBackendVideos().catch((error) => setFeedError(`Video saved, but the feed could not refresh: ${error.message}`));
+    return updatedVideo;
+  }
+
+  async function publishVideo(video, form) {
+    let candidate = video;
+    if (video.visibility !== form.visibility
+      || video.title !== form.title.trim()
+      || video.description !== (form.description.trim() || "")
+      || video.thumbnailUrl !== (form.thumbnailUrl.trim() || "")
+      || Number(video.categoryId || 0) !== Number(form.categoryId || 0)) {
+      candidate = await saveVideo(video, form);
     }
-
-    async function publishVideo(video) {
-      applyVideoResponse(await apiRequest(`/videos/${video.videoId}/publish`, { method: "PATCH" }));
+    if (candidate.publishedAt) {
       setToast("Video published.");
+      return candidate;
     }
+    const updatedVideo = applyVideoResponse(
+      await apiRequest(`/videos/${video.videoId}/publish`, { method: "PATCH" }),
+      false);
+    setToast("Video published.");
+    return updatedVideo;
+  }
 
-    async function unpublishVideo(video) {
-      applyVideoResponse(await apiRequest(`/videos/${video.videoId}/unpublish`, { method: "PATCH" }));
-      setToast("Video unpublished.");
-    }
+  async function unpublishVideo(video) {
+    const updatedVideo = applyVideoResponse(
+      await apiRequest(`/videos/${video.videoId}/unpublish`, { method: "PATCH" }),
+      false);
+    setToast("Video unpublished. It remains in your channel.");
+    return updatedVideo;
+  }
 
-    async function deleteVideo(video) {
-      await apiRequest(`/videos/${video.videoId}`, { method: "DELETE" });
-      setVideos((current) => current.filter((item) => item.videoId !== video.videoId));
-      setManageVideo(null);
-      setToast("Video deleted.");
-    }
+  async function deleteVideo(video) {
+    await apiRequest(`/videos/${video.videoId}`, { method: "DELETE" });
+    setVideos((current) => current.filter((item) => item.videoId !== video.videoId));
+    const totalElements = Math.max(0, videoPage.totalElements - 1);
+    const totalPages = Math.ceil(totalElements / videoPage.size);
+    const lastPage = Math.max(0, totalPages - 1);
+    setPageIndex(lastPage);
+    setVideoPage((current) => ({
+      ...current,
+      totalElements: Math.max(0, current.totalElements - 1),
+      totalPages: Math.ceil(Math.max(0, current.totalElements - 1) / current.size),
+      page: Math.min(current.page, lastPage),
+    }));
+    setManageVideo(null);
+    setToast("Video deleted.");
+    refreshBackendVideos(lastPage).catch((error) => setFeedError(`Video deleted, but the feed could not refresh: ${error.message}`));
+  }
+
+  function deleteVideoFromCard(video) {
+    if (!window.confirm(`Delete "${video.title}" permanently?`)) return;
+    deleteVideo(video).catch((error) => setFeedError(`Could not delete video: ${error.message}`));
   }
 
   function toggleLike(videoId) {
@@ -1117,6 +1277,7 @@ export default function App() {
     setView(nextView);
     setActiveChannelId(null);
     setActiveCategory("All");
+    setPageIndex(0);
     setSidebarOpen(false);
   }
 
@@ -1124,6 +1285,7 @@ export default function App() {
     setView("Channel");
     setActiveChannelId(channel.channelId);
     setActiveCategory("All");
+    setPageIndex(0);
     setSidebarOpen(false);
   }
 
@@ -1156,8 +1318,8 @@ export default function App() {
             <span className="brand-symbol"><Icon name="play" size={14} filled /></span><span>Motion<span className="brand-red">Ville</span></span>
           </a>
         </div>
-        <form className="search-form" onSubmit={(event) => event.preventDefault()}>
-          <div className="search-input-wrap"><Icon name="search" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search videos, creators, and more" aria-label="Search" />{search && <button type="button" className="search-clear" onClick={() => setSearch("")}><Icon name="close" size={16} /></button>}</div>
+        <form className="search-form" onSubmit={(event) => { event.preventDefault(); setPageIndex(0); }}>
+          <div className="search-input-wrap"><Icon name="search" size={19} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPageIndex(0); }} placeholder="Search videos, creators, and more" aria-label="Search" />{search && <button type="button" className="search-clear" onClick={() => { setSearch(""); setPageIndex(0); }}><Icon name="close" size={16} /></button>}</div>
           <button className="search-submit" type="submit" aria-label="Search"><Icon name="search" /></button>
         </form>
         <div className="topbar-actions">
@@ -1204,22 +1366,23 @@ export default function App() {
           ) : null}
 
           <div className="category-scroller" aria-label="Video categories">
-            {CATEGORIES.map((category, index) => <button key={category} className={`category-chip ${activeCategory === category ? "category-selected" : ""}`} onClick={() => setActiveCategory(category)}>{index === 0 && <Icon name="grid" size={14} />}{category}</button>)}
+            {[{ id: null, name: "All" }, ...categoryOptions].map((category) => <button key={category.name} className={`category-chip ${activeCategory === category.name ? "category-selected" : ""}`} onClick={() => { setActiveCategory(category.name); setPageIndex(0); }}><span>{category.name === "All" && <Icon name="grid" size={14} />}{category.name}</span></button>)}
           </div>
 
           <section className="feed-section">
-            <div className="feed-heading"><div><p className="section-eyebrow">{view === "Home" ? "Picked for you" : view}</p><h2>{feedTitle}</h2></div><div className="feed-controls"><button className="feed-filter" onClick={() => chooseView("Recently added")}><Icon name="filter" size={16} /> Recent</button><button className="feed-filter" onClick={() => refreshBackendVideos().catch((error) => setFeedError(error.message))}>Refresh</button></div></div>
-            {feedError && <p className="feed-error" role="alert">{feedError}{!backendLoaded && " Showing demo videos until the backend is available."}</p>}
-            {visibleVideos.length ? <div className="video-grid">{visibleVideos.map((video, index) => <VideoCard key={video.videoId} video={video} channel={channelById.get(Number(video.channelId))} onSelect={selectVideo} onManage={setManageVideo} index={index} />)}</div>
+            <div className="feed-heading"><div><p className="section-eyebrow">{view === "Home" ? "Picked for you" : view}</p><h2>{feedTitle}</h2></div><div className="feed-controls"><select className="feed-sort" aria-label="Sort videos" value={sortOrder} onChange={(event) => { setSortOrder(event.target.value); setPageIndex(0); }}><option value="createdAt,desc">Newest</option><option value="createdAt,asc">Oldest</option><option value="title,asc">Title A-Z</option><option value="title,desc">Title Z-A</option></select><button className="feed-filter" onClick={() => refreshBackendVideos().catch((error) => setFeedError(error.message))}>Refresh</button></div></div>
+            {visibleFeedError && <p className="feed-error" role="alert">{visibleFeedError}{!backendLoaded && " Showing demo videos until the backend is available."}</p>}
+            {visibleVideos.length ? <div className="video-grid">{visibleVideos.map((video, index) => <VideoCard key={video.videoId} video={video} channel={channelById.get(Number(video.channelId))} onSelect={selectVideo} onManage={setManageVideo} onDelete={deleteVideoFromCard} index={index} />)}</div>
               : <div className="empty-feed"><span><Icon name="video" size={25} /></span><h2>No videos yet</h2><p>{hasBackendChannels ? "Try another category or search, or upload a video." : "Create your first channel, then upload a video to see it here."}</p><button className="button button-primary" onClick={() => setCreateDialog(hasBackendChannels ? "video" : "channel")}><Icon name="plus" size={17} />{hasBackendChannels ? "Post a video" : "Create a channel"}</button></div>}
+            {backendLoaded && videoPage.totalPages > 1 && <nav className="pagination" aria-label="Video pages"><button className="feed-filter" disabled={videosLoading || pageIndex === 0} onClick={() => setPageIndex((page) => Math.max(0, page - 1))}>Previous</button><span>Page {videoPage.page + 1} of {videoPage.totalPages} · {videoPage.totalElements} videos</span><button className="feed-filter" disabled={videosLoading || pageIndex + 1 >= videoPage.totalPages} onClick={() => setPageIndex((page) => page + 1)}>Next</button></nav>}
           </section>
         </main>
       </div>
 
       {createDialog === "channel" && <CreateChannelDialog onClose={() => setCreateDialog(null)} onCreate={createChannel} />}
-      {createDialog === "video" && <CreateVideoDialog channels={channels} onClose={() => setCreateDialog(null)} onCreate={createVideo} />}
-      {manageVideo && <ManageVideoDialog video={manageVideo} channels={channels} onClose={() => setManageVideo(null)} onSave={saveVideo} onPublish={publishVideo} onUnpublish={unpublishVideo} onDelete={deleteVideo} />}
-      {selectedVideo && <WatchDialog video={selectedVideo} channel={channelById.get(Number(selectedVideo.channelId))} onClose={() => setSelectedVideo(null)} onLike={toggleLike} onSubscribe={toggleSubscription} onComment={addComment} liked={likedVideos.includes(selectedVideo.videoId)} subscribed={subscriptions.includes(Number(selectedVideo.channelId))} />}
+      {createDialog === "video" && <CreateVideoDialog channels={channels} categories={apiCategories} onClose={() => setCreateDialog(null)} onCreate={createVideo} />}
+      {manageVideo && <ManageVideoDialog video={manageVideo} channels={channels} categories={apiCategories} onClose={() => setManageVideo(null)} onSave={saveVideo} onPublish={publishVideo} onUnpublish={unpublishVideo} onDelete={deleteVideo} />}
+      {selectedVideo && <WatchDialog key={selectedVideo.videoId} video={selectedVideo} channel={channelById.get(Number(selectedVideo.channelId))} recommendations={watchRecommendations} onSelectRecommendation={selectVideo} onClose={() => setSelectedVideo(null)} onLike={toggleLike} onSubscribe={toggleSubscription} onComment={addComment} liked={likedVideos.includes(selectedVideo.videoId)} subscribed={subscriptions.includes(Number(selectedVideo.channelId))} />}
       {toast && <div className="toast"><Icon name="check" size={17} />{toast}</div>}
     </div>
   );
