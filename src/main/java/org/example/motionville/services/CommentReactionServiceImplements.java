@@ -31,14 +31,14 @@ public class CommentReactionServiceImplements implements CommentReactionService{
     public CommentReactionSummary getCommentReactionSummary(Long commentId, Long userId) {
         requireComment(commentId);
         ReactionType reactionType =userId== null ? null :
-                commentReactionRepository.findByComment_CommentIdAndUserId(commentId,userId)
+                commentReactionRepository.findByComment_IdAndUser_Id(commentId,userId)
                         .map(CommentReaction::getReaction)
                         .orElse(null);
 
 
         return new CommentReactionSummary(
-                commentReactionRepository.countByComment_CommentIdAndReaction(commentId,ReactionType.LIKE),
-                commentReactionRepository.countByComment_CommentIdAndReaction(commentId,ReactionType.DISLIKE),
+                commentReactionRepository.countByComment_IdAndReaction(commentId,ReactionType.LIKE),
+                commentReactionRepository.countByComment_IdAndReaction(commentId,ReactionType.DISLIKE),
                 reactionType);
     }
 
@@ -52,7 +52,7 @@ public class CommentReactionServiceImplements implements CommentReactionService{
                         notFound(userId));
 
         CommentReaction reaction= commentReactionRepository.
-                findByComment_CommentIdAndUserId(commentId,userId)
+                findByComment_IdAndUser_Id(commentId,userId)
                 .orElseGet(()->
                         CommentReaction.builder()
                                 .comment(comment)
@@ -71,7 +71,7 @@ public class CommentReactionServiceImplements implements CommentReactionService{
     public void deleteCommentReaction(Long commentId, Long userId){
         requireComment(commentId);
         CommentReaction reaction=commentReactionRepository
-                    .findByComment_CommentIdAndUserId(commentId,userId)
+                    .findByComment_IdAndUser_Id(commentId,userId)
                     .orElseThrow(()->
                                 notFound(userId));
         commentReactionRepository.delete(reaction);
