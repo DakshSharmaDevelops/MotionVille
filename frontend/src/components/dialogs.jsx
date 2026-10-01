@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { API_BASE_URL, createVideoThumbnail, MAX_VIDEO_BYTES, readResponseError } from "../api/videoApi.js";
 import { formatAge } from "../utils/format.js";
 import { Avatar, Icon, Modal, VideoCard } from "./ui.jsx";
+import {fetchComments, createComment, fetchReplies, createReply,} from "../api/commentApi.js";
 
 export function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
@@ -256,8 +257,18 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
 
 export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onComment, liked, subscribed }) {
   const [comment, setComment] = useState("");
-  const comments = video.comments || [];
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState("");
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [repliesByComment, setRepliesByComment] = useState({});
+  const [replyError, setReplyError] = useState("");
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [replySubmitting, setReplySubmitting] = useState(false);
   const [playbackError, setPlaybackError] = useState(false);
+
   const [playbackUrl, setPlaybackUrl] = useState("");
   const [playbackMimeType, setPlaybackMimeType] = useState("video/mp4");
   const [posterUrl, setPosterUrl] = useState(video.thumbnailUrl || "");
@@ -355,7 +366,15 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
               <div className="watch-channel"><Avatar src={channel?.avatarUrl} name={channel?.name} size="large" /><div><strong>{channel?.name || "MotionVille creator"}</strong><span>{channel?.handle || "@creator"}</span></div><button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button></div>
               <div className="watch-actions">
                 <button className={`action-pill ${liked ? "action-pill-selected" : ""}`} onClick={() => onLike(video.videoId)}><Icon name="like" size={18} filled={liked} /><span>{liked ? "Liked" : "Like"}</span></button>
-                <button className="action-pill" onClick={() => navigator.clipboard?.writeText(playbackUrl)}><Icon name="share" size={17} /><span>Share</span></button>
+                <button className="action-pill" onClick={() => navigator.clipboard?.writeText(playbackUrl)}><Icon name="share" size={17} /><span>Share</span></button>10. Frontend
+Build:
+• Comments/replies.
+• Like/dislike UI.
+• Playlist creation/management.
+• Add/remove/reorder videos.
+• Watch history and resume playback.
+• Notifications and read status.
+• Report video/comment.
               </div>
             </div>
             <div className="watch-description"><span>{formatAge(video.createdAt)}{video.category ? ` · ${video.category}` : ""}</span><p>{video.description || "No description added yet."}</p>{video.tags?.length > 0 && <div className="tag-row">{video.tags.map((tag) => <span key={tag}>#{tag.replace(/\s+/g, "")}</span>)}</div>}</div>
