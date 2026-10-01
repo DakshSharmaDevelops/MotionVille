@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { API_BASE_URL, createVideoThumbnail, MAX_VIDEO_BYTES, readResponseError } from "../api/videoApi.js";
 import { formatAge } from "../utils/format.js";
 import { Avatar, Icon, Modal, VideoCard } from "./ui.jsx";
-import {fetchComments, createComment, fetchReplies, createReply,} from "../api/commentApi.js";
+import {
+  createComment,
+  createReply,
+  fetchComments,
+  fetchReplies,
+} from "../api/commentApi.js";
+
+const COMMENT_AUTHOR_ID = Number(import.meta.env.VITE_COMMENT_AUTHOR_ID);
 
 export function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
@@ -274,6 +281,25 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [posterUrl, setPosterUrl] = useState(video.thumbnailUrl || "");
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    setComments([]);
+    setCommentsError("");
+    setCommentsLoading(true);
+
+    fetchComments(video.videoId, { signal: controller.signal })
+      .then((result) => setComments(result))
+      .catch((error) => {
+        if (!controller.signal.aborted) setCommentsError(error.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCommentsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [video.videoId]);
+
+  useEffect(() => {
     if (!video.serverVideo) return undefined;
     let active = true;
     setPosterUrl("");
@@ -330,16 +356,81 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     };
   }, [video.serverVideo, video.videoId]);
 
-  function addComment(event) {
+  async function addComment(event) {
     event.preventDefault();
-    if (!comment.trim()) return;
-    onComment(video.videoId, {
-      id: Date.now(),
-      author: { displayName: "You", username: "you", avatarUrl: "" },
-      body: comment.trim(),
-      createdAt: new Date().toISOString(),
-    });
-    setComment("");
+    const body = comment.trim();
+    if (!body) return;
+
+    if (!Number.isInteger(COMMENT_AUTHOR_ID) || COMMENT_AUTHOR_ID <= 0) {
+      setCommentsError("Set VITE_COMMENT_AUTHOR_ID to an existing user ID.");
+      return;
+    }
+
+    setCommentSubmitting(true);
+    setCommentsError("");
+
+    try {
+      const savedComment = await createComment(
+          video.videoId,
+          COMMENT_AUTHOR_ID,
+          body,
+      );
+      setComments((current) => [...current, savedComment]);
+      setComment("");
+    } catch (error) {
+      setCommentsError(error.message);
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }
+  async function toggleReplies(commentId) {
+    setReplyError("");
+
+    if (replyingTo === commentId) {
+      setReplyingTo(null);
+      return;
+    }
+
+    setReplyingTo(commentId);
+
+    if (Object.hasOwn(repliesByComment, commentId)) return;
+
+    setRepliesLoading(true);
+    try {
+      const replies = await fetchReplies(commentId);
+      setRepliesByComment((current) => ({ ...current, [commentId]: replies }));
+    } catch (error) {
+      setReplyError(error.message);
+    } finally {
+      setRepliesLoading(false);
+    }
+  }
+
+  async function submitReply(event) {
+    event.preventDefault();
+    const body = replyText.trim();
+    if (!body || replyingTo === null) return;
+
+    if (!Number.isInteger(COMMENT_AUTHOR_ID) || COMMENT_AUTHOR_ID <= 0) {
+      setReplyError("Set VITE_COMMENT_AUTHOR_ID to an existing user ID.");
+      return;
+    }
+
+    setReplySubmitting(true);
+    setReplyError("");
+
+    try {
+      const savedReply = await createReply(replyingTo, COMMENT_AUTHOR_ID, body);
+      setRepliesByComment((current) => ({
+        ...current,
+        [replyingTo]: [...(current[replyingTo] || []), savedReply],
+      }));
+      setReplyText("");
+    } catch (error) {
+      setReplyError(error.message);
+    } finally {
+      setReplySubmitting(false);
+    }
   }
 
   return (
@@ -366,22 +457,85 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
               <div className="watch-channel"><Avatar src={channel?.avatarUrl} name={channel?.name} size="large" /><div><strong>{channel?.name || "MotionVille creator"}</strong><span>{channel?.handle || "@creator"}</span></div><button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button></div>
               <div className="watch-actions">
                 <button className={`action-pill ${liked ? "action-pill-selected" : ""}`} onClick={() => onLike(video.videoId)}><Icon name="like" size={18} filled={liked} /><span>{liked ? "Liked" : "Like"}</span></button>
-                <button className="action-pill" onClick={() => navigator.clipboard?.writeText(playbackUrl)}><Icon name="share" size={17} /><span>Share</span></button>10. Frontend
-Build:
-• Comments/replies.
-• Like/dislike UI.
-• Playlist creation/management.
-• Add/remove/reorder videos.
-• Watch history and resume playback.
-• Notifications and read status.
-• Report video/comment.
+                <button className="action-pill" onClick={() => navigator.clipboard?.writeText(playbackUrl)}><Icon name="share" size={17} /><span>Share</span></button>
               </div>
             </div>
             <div className="watch-description"><span>{formatAge(video.createdAt)}{video.category ? ` · ${video.category}` : ""}</span><p>{video.description || "No description added yet."}</p>{video.tags?.length > 0 && <div className="tag-row">{video.tags.map((tag) => <span key={tag}>#{tag.replace(/\s+/g, "")}</span>)}</div>}</div>
+
             <section className="comments-section">
               <h2>{comments.length} Comments</h2>
-              <form className="comment-form" onSubmit={addComment}><Avatar name="You" /><input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add a comment…" aria-label="Add a comment" /><button disabled={!comment.trim()} type="submit">Comment</button></form>
-              <div className="comment-list">{comments.map((item) => <article className="comment" key={item.id}><Avatar src={item.author?.avatarUrl} name={item.author?.displayName || item.author?.username} /><div><strong>{item.author?.displayName || item.author?.username || "Viewer"} <span>· {formatAge(item.createdAt)}</span></strong><p>{item.body}</p><button className="comment-like"><Icon name="like" size={15} /> Like <span>Reply</span></button></div></article>)}</div>
+
+              <form className="comment-form" onSubmit={addComment}>
+                <Avatar name="You" />
+                <input
+                    value={comment}
+                    onChange={(event) => setComment(event.target.value)}
+                    placeholder="Add a comment…"
+                    aria-label="Add a comment"
+                    maxLength={10000}
+                />
+                <button
+                    disabled={!comment.trim() || commentSubmitting}
+                    type="submit"
+                >
+                  {commentSubmitting ? "Posting…" : "Comment"}
+                </button>
+              </form>
+
+              {commentsLoading && <p role="status">Loading comments…</p>}
+              {commentsError && <p className="inline-error" role="alert">{commentsError}</p>}
+
+              <div className="comment-list">
+                {comments.map((item) => (
+                    <article className="comment" key={item.id}>
+                      <Avatar name={item.authorDisplayName || "Viewer"} />
+                      <div>
+                        <strong>
+                          {item.authorDisplayName || "Viewer"}
+                          <span> · {formatAge(item.createdAt)}</span>
+                        </strong>
+                        <p>{item.body}</p>
+
+                        <button type="button" onClick={() => toggleReplies(item.id)}>
+                          {replyingTo === item.id ? "Hide replies" : "Reply"}
+                        </button>
+
+                        {replyingTo === item.id && (
+                            <div>
+                              {repliesLoading && <p role="status">Loading replies…</p>}
+                              {replyError && <p className="inline-error" role="alert">{replyError}</p>}
+
+                              {(repliesByComment[item.id] || []).map((reply) => (
+                                  <article className="comment" key={reply.id}>
+                                    <Avatar name={reply.authorDisplayName || "Viewer"} />
+                                    <div>
+                                      <strong>{reply.authorDisplayName || "Viewer"}</strong>
+                                      <p>{reply.body}</p>
+                                    </div>
+                                  </article>
+                              ))}
+
+                              <form onSubmit={submitReply}>
+                                <input
+                                    value={replyText}
+                                    onChange={(event) => setReplyText(event.target.value)}
+                                    placeholder="Write a reply…"
+                                    aria-label={`Reply to ${item.authorDisplayName || "comment"}`}
+                                    maxLength={10000}
+                                />
+                                <button
+                                    disabled={!replyText.trim() || replySubmitting}
+                                    type="submit"
+                                >
+                                  {replySubmitting ? "Posting…" : "Send reply"}
+                                </button>
+                              </form>
+                            </div>
+                        )}
+                      </div>
+                    </article>
+                ))}
+              </div>
             </section>
           </div>
           <section className="watch-recommendations" aria-label="More videos">

@@ -14,6 +14,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api")
+@CrossOrigin(origins = "${motionville.frontend-origin:http://localhost:5173}")
 public class CommentsController {
 
     private final CommentService commentService;

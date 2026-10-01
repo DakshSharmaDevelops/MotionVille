@@ -348,15 +348,6 @@ export default function App() {
     setHistory((current) => [video.videoId, ...current.filter((id) => id !== video.videoId)]);
   }
 
-  function addComment(videoId, comment) {
-    setVideos((current) => current.map((video) => video.videoId === videoId
-      ? { ...video, comments: [comment, ...(video.comments || [])] }
-      : video));
-    setSelectedVideo((current) => current?.videoId === videoId
-      ? { ...current, comments: [comment, ...(current.comments || [])] }
-      : current);
-  }
-
   function chooseView(nextView) {
     setView(nextView);
     setActiveChannelId(null);
@@ -473,7 +464,7 @@ export default function App() {
       {createDialog === "channel" && <CreateChannelDialog onClose={() => setCreateDialog(null)} onCreate={createChannel} />}
       {createDialog === "video" && <CreateVideoDialog channels={channels} categories={categories} onClose={() => setCreateDialog(null)} onCreate={createVideo} />}
       {manageVideo && <ManageVideoDialog video={manageVideo} channels={channels} categories={categories} onClose={() => setManageVideo(null)} onSave={saveVideo} onPublish={publishVideo} onUnpublish={unpublishVideo} onDelete={deleteVideo} />}
-      {selectedVideo && <WatchDialog key={selectedVideo.videoId} video={selectedVideo} channel={channelById.get(Number(selectedVideo.channelId))} recommendations={watchRecommendations} onSelectRecommendation={selectVideo} onClose={() => setSelectedVideo(null)} onLike={toggleLike} onSubscribe={toggleSubscription} onComment={addComment} liked={likedVideos.includes(selectedVideo.videoId)} subscribed={subscriptions.includes(Number(selectedVideo.channelId))} />}
+      {selectedVideo && <WatchDialog key={selectedVideo.videoId} video={selectedVideo} channel={channelById.get(Number(selectedVideo.channelId))} recommendations={watchRecommendations} onSelectRecommendation={selectVideo} onClose={() => setSelectedVideo(null)} onLike={toggleLike} onSubscribe={toggleSubscription} liked={likedVideos.includes(selectedVideo.videoId)} subscribed={subscriptions.includes(Number(selectedVideo.channelId))} />}
       {toast && <div className="toast"><Icon name="check" size={17} />{toast}</div>}
     </div>
   );
