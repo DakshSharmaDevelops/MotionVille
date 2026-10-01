@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
@@ -39,12 +38,6 @@ public class VideoManagementService {
         this.channelRepository = channelRepository;
         this.categoryRepository = categoryRepository;
         this.videoAssetRepository = videoAssetRepository;
-    }
-
-    public List<VideoResponse> getAllVideos() {
-        return videoRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(this::toResponse)
-                .toList();
     }
 
     public VideoResponse getVideo(Long id) {
@@ -106,7 +99,6 @@ public class VideoManagementService {
     public VideoResponse unpublish(Long id) {
         Video video = findVideo(id);
         video.setPublishedAt(null);
-        video.setVisibility(VideoVisibility.PRIVATE);
         return toResponse(videoRepository.save(video));
     }
 
@@ -165,8 +157,6 @@ public class VideoManagementService {
         video.setVisibility(visibility);
         if (visibility == VideoVisibility.PRIVATE) {
             video.setPublishedAt(null);
-        } else if (isReady(video) && video.getPublishedAt() == null) {
-            video.setPublishedAt(Instant.now());
         }
     }
 
@@ -196,20 +186,7 @@ public class VideoManagementService {
     }
 
     private VideoResponse toResponse(Video video) {
-        return new VideoResponse(
-                video.getVideoId(),
-                video.getChannel().getChannelId(),
-                video.getCategory() == null ? null : video.getCategory().getId(),
-                video.getTitle(),
-                video.getDescription(),
-                video.getThumbnailUrl(),
-                video.getDurationSeconds(),
-                video.getVisibility(),
-                video.getProcessingStatus(),
-                video.getCreatedAt(),
-                video.getUpdatedAt(),
-                video.getPublishedAt()
-        );
+        return VideoResponseMapper.toResponse(video);
     }
 
     private String trimToNull(String value) {

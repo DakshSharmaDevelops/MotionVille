@@ -4,6 +4,7 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.entity.video.VideoAsset;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.repo.channel.ChannelRepository;
+import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,8 +44,8 @@ class VideoProcessingTest {
         PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         executor = mock(ThreadPoolTaskExecutor.class);
-        service = new VideoService(videos, mock(ChannelRepository.class), assets, storage,
-                manager, executor);
+        service = new VideoService(videos, mock(ChannelRepository.class),
+                mock(CategoryRepository.class), assets, storage, manager, executor);
         ReflectionTestUtils.setField(service, "ffmpeg", "ffmpeg");
         ReflectionTestUtils.setField(service, "ffprobe", "ffprobe");
         video = new Video();

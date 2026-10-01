@@ -10,8 +10,7 @@ MotionVille is a Java 17 / Spring Boot video-sharing application built with Spri
 - Direct-to-R2 upload of MP4 or WebM videos up to 500 MB
 - Public/private video visibility, byte-range video playback, and view counts
 - Lazy video-frame thumbnail previews on feed and channel cards, with a branded fallback
-- Public video search across titles, descriptions, and tags with pagination
-- Category filtering
+- Case-insensitive video search across titles and descriptions, with pagination, sorting, and category/channel filters
 - Creator subscription feed and a trending list ranked by local video views
 - Comments, video likes, and channel subscriptions
 - Soft deletion of videos and comments at the service/domain layer
@@ -73,6 +72,27 @@ DEV_CHANNEL_BOOTSTRAP_ENABLED=false \
 Do not commit database passwords or production secrets. R2 credentials must be supplied through environment variables or a secret manager.
 
 ## Architecture
+
+### Video discovery API
+
+`GET /api/videos` returns a page object containing `page`, `size`,
+`totalElements`, `totalPages`, and `content`. Search checks titles and
+descriptions; optional category and channel IDs filter the results.
+`GET /api/categories` returns the available category IDs and names used by
+video creation and category filtering.
+
+```text
+GET /api/videos?search=java
+GET /api/videos?page=0&size=20
+GET /api/videos?sort=createdAt,desc
+GET /api/videos?categoryId=1
+GET /api/videos?channelId=2
+```
+
+The default page is `0`, the default size is `20`, and page sizes are limited
+to `1..100`. Sort uses `field,asc|desc`; supported fields are `createdAt`,
+`updatedAt`, `publishedAt`, `title`, `durationSeconds`, and `id`. Results use
+video ID as a stable tie-breaker where needed.
 
 Feature packages keep MVC layers close to their domain:
 
