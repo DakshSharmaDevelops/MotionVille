@@ -2,14 +2,26 @@ import { useEffect, useState } from "react";
 import { API_BASE_URL, createVideoThumbnail, MAX_VIDEO_BYTES, readResponseError } from "../api/videoApi.js";
 import { formatAge } from "../utils/format.js";
 import { Avatar, Icon, Modal, VideoCard } from "./ui.jsx";
+
 import {
   createComment,
   createReply,
+  deleteComment,
   fetchComments,
   fetchReplies,
+  updateComment,
 } from "../api/commentApi.js";
 
-const COMMENT_AUTHOR_ID = Number(import.meta.env.VITE_COMMENT_AUTHOR_ID);
+import {
+  fetchVideoReaction,
+  setVideoReaction,
+  removeVideoReaction,
+  fetchCommentReaction,
+  setCommentReaction,
+  removeCommentReaction,
+} from "../api/reactionApi.js";
+
+const COMMENT_AUTHOR_ID = Number(import.meta.env.VITE_COMMENT_AUTHOR_ID ?? 1);
 
 export function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
@@ -262,7 +274,7 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onComment, liked, subscribed }) {
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, liked, subscribed }) {
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -274,21 +286,99 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [repliesLoading, setRepliesLoading] = useState(false);
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [replySubmitting, setReplySubmitting] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentBody, setEditingCommentBody] = useState("");
+  const [commentActionId, setCommentActionId] = useState(null);
+  const [commentActionError, setCommentActionError] = useState("");
   const [playbackError, setPlaybackError] = useState(false);
 
   const [playbackUrl, setPlaybackUrl] = useState("");
   const [playbackMimeType, setPlaybackMimeType] = useState("video/mp4");
   const [posterUrl, setPosterUrl] = useState(video.thumbnailUrl || "");
 
+  const [videoReaction, setVideoReactionState] = useState({
+    likeCount: 0,
+    dislikeCount: 0,
+    userReaction: null,
+  });
+  const [videoReactionLoading, setVideoReactionLoading] = useState(false);
+  const [videoReactionBusy, setVideoReactionBusy] = useState(false);
+  const [reactionError, setReactionError] = useState("");
+  const [commentReactions, setCommentReactions] = useState({});
+  const [commentReactionError, setCommentReactionError] = useState("");
+  const [commentReactionBusyId, setCommentReactionBusyId] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    setVideoReactionLoading(true);
+    setReactionError("");
+    setVideoReactionState({ likeCount: 0, dislikeCount: 0, userReaction: null });
+    fetchVideoReaction(video.videoId)
+      .then((summary) => {
+        if (active) {
+          setVideoReactionState(summary);
+          onLike?.(video.videoId, summary.userReaction === "LIKE");
+        }
+      })
+      .catch((error) => {
+        if (active) setReactionError(error.message);
+      })
+      .finally(() => {
+        if (active) setVideoReactionLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [video.videoId]);
+
+  async function reactToVideo(reaction) {
+    if (videoReactionBusy) return;
+    setVideoReactionBusy(true);
+    setReactionError("");
+
+    try {
+      if (videoReaction.userReaction === reaction) {
+        await removeVideoReaction(video.videoId);
+      } else {
+        await setVideoReaction(video.videoId, reaction);
+      }
+
+      const summary = await fetchVideoReaction(video.videoId);
+      setVideoReactionState(summary);
+      onLike?.(video.videoId, summary.userReaction === "LIKE");
+    } catch (error) {
+      setReactionError(error.message);
+    } finally {
+      setVideoReactionBusy(false);
+    }
+  }
+
+  async function loadCommentReactionSummaries(items) {
+    const results = await Promise.all(items.map(async (item) => {
+      try {
+        return [item.id, await fetchCommentReaction(item.id)];
+      } catch (error) {
+        setCommentReactionError(error.message);
+        return [item.id, { likeCount: 0, dislikeCount: 0, userReaction: null }];
+      }
+    }));
+    setCommentReactions((current) => ({ ...current, ...Object.fromEntries(results) }));
+  }
+
   useEffect(() => {
     const controller = new AbortController();
 
     setComments([]);
+    setCommentReactions({});
     setCommentsError("");
     setCommentsLoading(true);
 
     fetchComments(video.videoId, { signal: controller.signal })
-      .then((result) => setComments(result))
+      .then((result) => {
+        setComments(result);
+        loadCommentReactionSummaries(result);
+      })
       .catch((error) => {
         if (!controller.signal.aborted) setCommentsError(error.message);
       })
@@ -376,6 +466,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
           body,
       );
       setComments((current) => [...current, savedComment]);
+      loadCommentReactionSummaries([savedComment]);
       setComment("");
     } catch (error) {
       setCommentsError(error.message);
@@ -399,10 +490,34 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     try {
       const replies = await fetchReplies(commentId);
       setRepliesByComment((current) => ({ ...current, [commentId]: replies }));
+      loadCommentReactionSummaries(replies);
     } catch (error) {
       setReplyError(error.message);
     } finally {
       setRepliesLoading(false);
+    }
+  }
+
+  async function reactToComment(commentId, currentReaction, nextReaction) {
+    if (commentReactionBusyId === commentId) return;
+    setCommentReactionBusyId(commentId);
+    setCommentReactionError("");
+    try {
+      if (currentReaction === nextReaction) {
+        await removeCommentReaction(commentId);
+      } else {
+        await setCommentReaction(commentId, nextReaction);
+      }
+
+      const summary = await fetchCommentReaction(commentId);
+      setCommentReactions((current) => ({
+        ...current,
+        [commentId]: summary,
+      }));
+    } catch (error) {
+      setCommentReactionError(error.message);
+    } finally {
+      setCommentReactionBusyId(null);
     }
   }
 
@@ -425,11 +540,83 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
         ...current,
         [replyingTo]: [...(current[replyingTo] || []), savedReply],
       }));
+      loadCommentReactionSummaries([savedReply]);
       setReplyText("");
     } catch (error) {
       setReplyError(error.message);
     } finally {
       setReplySubmitting(false);
+    }
+  }
+
+  function beginEdit(item) {
+    setEditingCommentId(item.id);
+    setEditingCommentBody(item.body);
+    setCommentActionError("");
+  }
+
+  function replaceComment(updatedComment, parentCommentId) {
+    if (parentCommentId === null) {
+      setComments((current) => current.map((item) =>
+        item.id === updatedComment.id ? updatedComment : item));
+      return;
+    }
+
+    setRepliesByComment((current) => ({
+      ...current,
+      [parentCommentId]: (current[parentCommentId] || []).map((item) =>
+        item.id === updatedComment.id ? updatedComment : item),
+    }));
+  }
+
+  async function saveCommentEdit(event, parentCommentId = null) {
+    event.preventDefault();
+    const body = editingCommentBody.trim();
+    if (!body || editingCommentId === null) return;
+
+    setCommentActionId(editingCommentId);
+    setCommentActionError("");
+    try {
+      const updatedComment = await updateComment(editingCommentId, body);
+      replaceComment(updatedComment, parentCommentId);
+      setEditingCommentId(null);
+      setEditingCommentBody("");
+    } catch (error) {
+      setCommentActionError(error.message);
+    } finally {
+      setCommentActionId(null);
+    }
+  }
+
+  async function removeComment(item, parentCommentId = null) {
+    if (!window.confirm("Delete this comment?")) return;
+
+    setCommentActionId(item.id);
+    setCommentActionError("");
+    try {
+      await deleteComment(item.id);
+      if (parentCommentId === null) {
+        setComments((current) => current.filter((commentItem) => commentItem.id !== item.id));
+        setRepliesByComment((current) => {
+          const next = { ...current };
+          delete next[item.id];
+          return next;
+        });
+      } else {
+        setRepliesByComment((current) => ({
+          ...current,
+          [parentCommentId]: (current[parentCommentId] || [])
+            .filter((commentItem) => commentItem.id !== item.id),
+        }));
+      }
+      if (editingCommentId === item.id) {
+        setEditingCommentId(null);
+        setEditingCommentBody("");
+      }
+    } catch (error) {
+      setCommentActionError(error.message);
+    } finally {
+      setCommentActionId(null);
     }
   }
 
@@ -456,9 +643,26 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
             <div className="watch-meta-row">
               <div className="watch-channel"><Avatar src={channel?.avatarUrl} name={channel?.name} size="large" /><div><strong>{channel?.name || "MotionVille creator"}</strong><span>{channel?.handle || "@creator"}</span></div><button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button></div>
               <div className="watch-actions">
-                <button className={`action-pill ${liked ? "action-pill-selected" : ""}`} onClick={() => onLike(video.videoId)}><Icon name="like" size={18} filled={liked} /><span>{liked ? "Liked" : "Like"}</span></button>
-                <button className="action-pill" onClick={() => navigator.clipboard?.writeText(playbackUrl)}><Icon name="share" size={17} /><span>Share</span></button>
-              </div>
+                <button
+                    className={`action-pill ${videoReaction.userReaction === "LIKE" ? "action-pill-selected" : ""}`}
+                    onClick={() => reactToVideo("LIKE")}
+                    disabled={videoReactionLoading || videoReactionBusy}
+                >
+                  <Icon name="like" size={18} filled={videoReaction.userReaction === "LIKE"} />
+                  <span>Like {videoReaction.likeCount}</span>
+                </button>
+
+                <button
+                    className={`action-pill ${videoReaction.userReaction === "DISLIKE" ? "action-pill-selected" : ""}`}
+                    onClick={() => reactToVideo("DISLIKE")}
+                    aria-label="Dislike video"
+                    disabled={videoReactionLoading || videoReactionBusy}
+                >
+                  <Icon name="dislike" size={18} filled={videoReaction.userReaction === "DISLIKE"} />
+                  <span>Dislike {videoReaction.dislikeCount}</span>
+                </button>
+
+                {reactionError && <p className="inline-error" role="alert">{reactionError}</p>}</div>
             </div>
             <div className="watch-description"><span>{formatAge(video.createdAt)}{video.category ? ` · ${video.category}` : ""}</span><p>{video.description || "No description added yet."}</p>{video.tags?.length > 0 && <div className="tag-row">{video.tags.map((tag) => <span key={tag}>#{tag.replace(/\s+/g, "")}</span>)}</div>}</div>
 
@@ -484,56 +688,157 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
 
               {commentsLoading && <p role="status">Loading comments…</p>}
               {commentsError && <p className="inline-error" role="alert">{commentsError}</p>}
+              {commentActionError && <p className="inline-error" role="alert">{commentActionError}</p>}
+              {commentReactionError && <p className="inline-error" role="alert">{commentReactionError}</p>}
 
               <div className="comment-list">
                 {comments.map((item) => (
-                    <article className="comment" key={item.id}>
-                      <Avatar name={item.authorDisplayName || "Viewer"} />
-                      <div>
-                        <strong>
-                          {item.authorDisplayName || "Viewer"}
-                          <span> · {formatAge(item.createdAt)}</span>
-                        </strong>
-                        <p>{item.body}</p>
-
-                        <button type="button" onClick={() => toggleReplies(item.id)}>
-                          {replyingTo === item.id ? "Hide replies" : "Reply"}
-                        </button>
-
-                        {replyingTo === item.id && (
-                            <div>
-                              {repliesLoading && <p role="status">Loading replies…</p>}
-                              {replyError && <p className="inline-error" role="alert">{replyError}</p>}
-
-                              {(repliesByComment[item.id] || []).map((reply) => (
-                                  <article className="comment" key={reply.id}>
-                                    <Avatar name={reply.authorDisplayName || "Viewer"} />
-                                    <div>
-                                      <strong>{reply.authorDisplayName || "Viewer"}</strong>
-                                      <p>{reply.body}</p>
-                                    </div>
-                                  </article>
-                              ))}
-
-                              <form onSubmit={submitReply}>
-                                <input
-                                    value={replyText}
-                                    onChange={(event) => setReplyText(event.target.value)}
-                                    placeholder="Write a reply…"
-                                    aria-label={`Reply to ${item.authorDisplayName || "comment"}`}
-                                    maxLength={10000}
-                                />
-                                <button
-                                    disabled={!replyText.trim() || replySubmitting}
-                                    type="submit"
-                                >
-                                  {replySubmitting ? "Posting…" : "Send reply"}
-                                </button>
-                              </form>
+                  <article className="comment" key={item.id}>
+                    <Avatar name={item.authorDisplayName || "Viewer"} />
+                    <div className="comment-content">
+                      <strong className="comment-author">
+                        {item.authorDisplayName || "Viewer"}
+                        <span> · {formatAge(item.createdAt)}</span>
+                      </strong>
+                      {editingCommentId === item.id
+                        ? <form className="comment-edit-form" onSubmit={saveCommentEdit}>
+                            <textarea
+                              value={editingCommentBody}
+                              onChange={(event) => setEditingCommentBody(event.target.value)}
+                              aria-label="Edit comment"
+                              maxLength={10000}
+                              required
+                            />
+                            <div className="comment-actions">
+                              <button className="comment-action" type="button" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                              <button className="comment-action" type="submit" disabled={!editingCommentBody.trim() || commentActionId === item.id}>
+                                {commentActionId === item.id ? "Saving…" : "Save"}
+                              </button>
                             </div>
-                        )}
-                      </div>
-                    </article>
+                          </form>
+                        : <>
+                            <p>{item.body}</p>
+                            <div className="comment-actions">
+                              <button
+                                className={`comment-action ${commentReactions[item.id]?.userReaction === "LIKE" ? "comment-action-selected" : ""}`}
+                                type="button"
+                                disabled={commentReactionBusyId === item.id}
+                                aria-pressed={commentReactions[item.id]?.userReaction === "LIKE"}
+                                onClick={() => reactToComment(item.id, commentReactions[item.id]?.userReaction, "LIKE")}
+                              >
+                                Like {commentReactions[item.id]?.likeCount ?? 0}
+                              </button>
+                              <button
+                                className={`comment-action ${commentReactions[item.id]?.userReaction === "DISLIKE" ? "comment-action-selected" : ""}`}
+                                type="button"
+                                disabled={commentReactionBusyId === item.id}
+                                aria-pressed={commentReactions[item.id]?.userReaction === "DISLIKE"}
+                                onClick={() => reactToComment(item.id, commentReactions[item.id]?.userReaction, "DISLIKE")}
+                              >
+                                Dislike {commentReactions[item.id]?.dislikeCount ?? 0}
+                              </button>
+                              <button
+                                className="comment-action"
+                                type="button"
+                                onClick={() => toggleReplies(item.id)}
+                                aria-expanded={replyingTo === item.id}
+                              >
+                                {replyingTo === item.id ? "Hide replies" : "Reply"}
+                              </button>
+                              <button className="comment-action" type="button" onClick={() => beginEdit(item)}>Edit</button>
+                              <button
+                                className="comment-action comment-action-delete"
+                                type="button"
+                                disabled={commentActionId === item.id}
+                                onClick={() => removeComment(item)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </>}
+
+                      {replyingTo === item.id && (
+                        <div className="comment-replies">
+                          {repliesLoading && <p className="comment-status" role="status">Loading replies…</p>}
+                          {replyError && <p className="inline-error" role="alert">{replyError}</p>}
+
+                          {(repliesByComment[item.id] || []).map((reply) => (
+                            <article className="comment comment-reply" key={reply.id}>
+                              <Avatar name={reply.authorDisplayName || "Viewer"} />
+                              <div className="comment-content">
+                                <strong className="comment-author">
+                                  {reply.authorDisplayName || "Viewer"}
+                                  <span> · {formatAge(reply.createdAt)}</span>
+                                </strong>
+                                {editingCommentId === reply.id
+                                  ? <form className="comment-edit-form" onSubmit={(event) => saveCommentEdit(event, item.id)}>
+                                      <textarea
+                                        value={editingCommentBody}
+                                        onChange={(event) => setEditingCommentBody(event.target.value)}
+                                        aria-label="Edit reply"
+                                        maxLength={10000}
+                                        required
+                                      />
+                                      <div className="comment-actions">
+                                        <button className="comment-action" type="button" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                                        <button className="comment-action" type="submit" disabled={!editingCommentBody.trim() || commentActionId === reply.id}>
+                                          {commentActionId === reply.id ? "Saving…" : "Save"}
+                                        </button>
+                                      </div>
+                                    </form>
+                                  : <>
+                                      <p>{reply.body}</p>
+                                      <div className="comment-actions">
+                                        <button
+                                          className={`comment-action ${commentReactions[reply.id]?.userReaction === "LIKE" ? "comment-action-selected" : ""}`}
+                                          type="button"
+                                          disabled={commentReactionBusyId === reply.id}
+                                          aria-pressed={commentReactions[reply.id]?.userReaction === "LIKE"}
+                                          onClick={() => reactToComment(reply.id, commentReactions[reply.id]?.userReaction, "LIKE")}
+                                        >
+                                          Like {commentReactions[reply.id]?.likeCount ?? 0}
+                                        </button>
+                                        <button
+                                          className={`comment-action ${commentReactions[reply.id]?.userReaction === "DISLIKE" ? "comment-action-selected" : ""}`}
+                                          type="button"
+                                          disabled={commentReactionBusyId === reply.id}
+                                          aria-pressed={commentReactions[reply.id]?.userReaction === "DISLIKE"}
+                                          onClick={() => reactToComment(reply.id, commentReactions[reply.id]?.userReaction, "DISLIKE")}
+                                        >
+                                          Dislike {commentReactions[reply.id]?.dislikeCount ?? 0}
+                                        </button>
+                                        <button className="comment-action" type="button" onClick={() => beginEdit(reply)}>Edit</button>
+                                        <button
+                                          className="comment-action comment-action-delete"
+                                          type="button"
+                                          disabled={commentActionId === reply.id}
+                                          onClick={() => removeComment(reply, item.id)}
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </>}
+                              </div>
+                            </article>
+                          ))}
+
+                          <form className="comment-form comment-reply-form" onSubmit={submitReply}>
+                            <Avatar name="You" />
+                            <input
+                              value={replyText}
+                              onChange={(event) => setReplyText(event.target.value)}
+                              placeholder="Write a reply…"
+                              aria-label={`Reply to ${item.authorDisplayName || "comment"}`}
+                              maxLength={10000}
+                            />
+                            <button disabled={!replyText.trim() || replySubmitting} type="submit">
+                              {replySubmitting ? "Posting…" : "Reply"}
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </div>
+                  </article>
                 ))}
               </div>
             </section>

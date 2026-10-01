@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
+@CrossOrigin(origins = "${motionville.frontend-origin:http://localhost:5173}")
 @RequestMapping("/api/comments")
 public class CommentReactionController {
 
