@@ -1,6 +1,7 @@
 package org.example.motionville.services;
 
 import lombok.RequiredArgsConstructor;
+import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.comment.CommentReaction;
 import org.example.motionville.repo.account.AppUserRepository;
@@ -23,7 +24,13 @@ public class CommentReactionServiceImplements implements CommentReactionService{
 
     @Override
     public CommentReaction findCommentReactionSummary(Long commentId, Long userId) {
+
         requireComment(commentId);
+
+        AppUser appUser=appUserRepository.findById(userId)
+                .orElseThrow(()->
+                        new ResponseStatusException(HttpStatus.BAD_REQUEST,"User not found"));
+
 
         return null;
     }
