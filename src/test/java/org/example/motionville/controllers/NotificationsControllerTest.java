@@ -1,13 +1,12 @@
 package org.example.motionville.controllers;
 
-import org.example.motionville.entity.notification.Notification;
+import org.example.motionville.dto.NotificationResponse;
+import org.example.motionville.entity.notification.enums.NotificationType;
 import org.example.motionville.services.NotificationsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
@@ -19,14 +18,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class NotificationsControllerTest {
 
-    private StubNotificationsService service;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        service = new StubNotificationsService();
         mockMvc = MockMvcBuilders.standaloneSetup(
-                new NotificationsController(service)).build();
+                new NotificationsController(new StubNotificationsService())).build();
     }
 
     @Test
@@ -60,40 +57,37 @@ class NotificationsControllerTest {
     }
 
     private static class StubNotificationsService implements NotificationsService {
-        private final List<Notification> notifications = List.of(
-                notification(1L, "New comment"),
-                notification(2L, "New video"));
-
         @Override
-        public List<Notification> getAllNotification() {
-            return notifications;
+        public List<NotificationResponse> getAllNotification() {
+            return List.of(
+                    notification(1L, "New comment", null),
+                    notification(2L, "New video", null));
         }
 
         @Override
-        public Notification markAsRead(Long notificationId) {
-            return notifications.stream()
-                    .filter(notification -> notification.getId().equals(notificationId))
-                    .findFirst()
-                    .map(notification -> {
-                        notification.setReadAt(Instant.parse("2026-01-01T00:00:00Z"));
-                        return notification;
-                    })
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND, "Notification not found"));
+        public NotificationResponse markAsRead(Long notificationId) {
+            return notificationId == 1L
+                    ? notification(1L, "New comment", Instant.parse("2026-01-01T00:00:00Z"))
+                    : throwNotFound();
         }
 
         @Override
-        public List<Notification> markAllAsRead() {
-            notifications.forEach(notification ->
-                    notification.setReadAt(Instant.parse("2026-01-01T00:00:00Z")));
-            return notifications;
+        public List<NotificationResponse> markAllAsRead() {
+            Instant readAt = Instant.parse("2026-01-01T00:00:00Z");
+            return List.of(
+                    notification(1L, "New comment", readAt),
+                    notification(2L, "New video", readAt));
         }
 
-        private static Notification notification(Long id, String message) {
-            Notification notification = new Notification();
-            notification.setId(id);
-            notification.setMessage(message);
-            return notification;
+        private NotificationResponse throwNotFound() {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND, "Notification not found");
+        }
+
+        private static NotificationResponse notification(Long id, String message, Instant readAt) {
+            return new NotificationResponse(id, 7L, 3L, 9L,
+                    NotificationType.NEW_COMMENT, message,
+                    Instant.parse("2026-01-01T00:00:00Z"), readAt);
         }
     }
 }

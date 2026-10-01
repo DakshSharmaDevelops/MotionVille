@@ -1,13 +1,14 @@
 package org.example.motionville.services;
 
-import org.example.motionville.entity.notification.Notification;
+import org.example.motionville.dto.NotificationResponse;
 
 import java.util.List;
 
 public interface NotificationsService {
-    List<Notification> getAllNotification();
 
-    Notification markAsRead(Long notificationId);
+    List<NotificationResponse> getAllNotification();
 
-    List<Notification> markAllAsRead();
+    NotificationResponse markAsRead(Long notificationId);
+
+    List<NotificationResponse> markAllAsRead();
 }

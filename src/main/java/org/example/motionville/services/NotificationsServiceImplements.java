@@ -1,6 +1,7 @@
 package org.example.motionville.services;
 
 import lombok.RequiredArgsConstructor;
+import org.example.motionville.dto.NotificationResponse;
 import org.example.motionville.entity.notification.Notification;
 import org.example.motionville.repo.notification.NotificationRepository;
 import org.springframework.stereotype.Service;
@@ -18,13 +19,16 @@ public class NotificationsServiceImplements implements NotificationsService {
     private final NotificationRepository notificationRepository;
 
     @Override
-    public List<Notification> getAllNotification() {
-        return notificationRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<NotificationResponse> getAllNotification() {
+        return notificationRepository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Override
     @Transactional
-    public Notification markAsRead(Long notificationId) {
+    public NotificationResponse markAsRead(Long notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -34,17 +38,32 @@ public class NotificationsServiceImplements implements NotificationsService {
         if (notification.getReadAt() == null) {
             notification.setReadAt(Instant.now());
         }
-        return notificationRepository.save(notification);
+        return toResponse(notificationRepository.save(notification));
     }
 
     @Override
     @Transactional
-    public List<Notification> markAllAsRead() {
+    public List<NotificationResponse> markAllAsRead() {
         List<Notification> notifications = notificationRepository.findAll();
         Instant readAt = Instant.now();
         notifications.stream()
                 .filter(notification -> notification.getReadAt() == null)
                 .forEach(notification -> notification.setReadAt(readAt));
-        return notificationRepository.saveAll(notifications);
+        return notificationRepository.saveAll(notifications).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private NotificationResponse toResponse(Notification notification) {
+        return new NotificationResponse(
+                notification.getId(),
+                notification.getRecipient() == null ? null : notification.getRecipient().getId(),
+                notification.getActor() == null ? null : notification.getActor().getId(),
+                notification.getComment() == null ? null : notification.getComment().getId(),
+                notification.getType(),
+                notification.getMessage(),
+                notification.getCreatedAt(),
+                notification.getReadAt()
+        );
     }
 }
