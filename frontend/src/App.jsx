@@ -329,10 +329,18 @@ export default function App() {
     deleteVideo(video).catch((error) => setFeedError(`Could not delete video: ${error.message}`));
   }
 
-  function toggleLike(videoId) {
-    setLikedVideos((current) => current.includes(videoId)
-      ? current.filter((id) => id !== videoId)
-      : [...current, videoId]);
+  function toggleLike(videoId, liked) {
+    setLikedVideos((current) => {
+      const alreadyLiked = current.includes(videoId);
+      if (liked === true && !alreadyLiked) return [...current, videoId];
+      if (liked === false && alreadyLiked) return current.filter((id) => id !== videoId);
+      if (liked === undefined) {
+        return alreadyLiked
+          ? current.filter((id) => id !== videoId)
+          : [...current, videoId];
+      }
+      return current;
+    });
   }
 
   function toggleSubscription(channelId) {

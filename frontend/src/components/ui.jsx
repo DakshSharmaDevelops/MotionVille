@@ -23,6 +23,7 @@ export function Icon({ name, size = 21, filled = false }) {
     library: <><path d="M4 5v14M8 5v14M12 5v14M16 5v14M20 5v14" /></>,
     history: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>,
     like: <><path d="M7 10v11H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zm0 0 4-8a3 3 0 0 1 2 3v3h5.5a3 3 0 0 1 2.9 3.8l-2 7A3 3 0 0 1 16.5 21H7" /></>,
+    dislike: <><path d="M7 14V3H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2zm0 0 4 8a3 3 0 0 0 2-3v-3h5.5a3 3 0 0 0 2.9-3.8l-2-7A3 3 0 0 0 16.5 3H7" /></>,
     search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
     plus: <><path d="M12 5v14M5 12h14" /></>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
