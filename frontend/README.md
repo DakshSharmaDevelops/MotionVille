@@ -9,10 +9,12 @@ npm run dev
 
 Vite prints the local URL, usually `http://localhost:5173`. Create a production build with `npm run build`.
 
-## Demo behavior
+## Video upload and playback
 
-This frontend is standalone and does not call or change the Spring backend. It starts with sample data shaped around the application's entities (`AppUser`, `Channel`, `Video`, `VideoAsset`, `Category`, `Tag`, `Comment`, `VideoReaction`, and `Subscription`). Creating channels, posting metadata with a direct MP4/WebM URL, playback, likes, comments, watch history, and subscriptions are stored in this browser's local storage.
+The React app calls the Spring API at `http://localhost:8080/api` by default. Override the API root with `VITE_API_BASE_URL` when running or building the frontend. The feed and channel list load from the backend on startup; sample videos remain as demo entries. In **Create → Post a video**, choose a video file (up to 500 MB); the browser requests a presigned URL, uploads directly to R2, then asks the backend to verify and process the asset. If no thumbnail URL is entered, the frontend captures a frame (or creates a branded title card for browser-undecodable formats) and uploads the JPEG to R2. Playback and thumbnail URLs are refreshed when the video is opened/displayed.
 
-Use **Create a channel** to add a channel with a name, handle, description, and optional banner URL. Use **Create → Post a video** to add a title, asset URL, optional thumbnail/description, category, visibility, and channel. No video files are uploaded; video playback depends on a direct URL that permits browser playback.
+Use the video card's manage control to edit metadata (`PUT /api/videos/{id}`), change visibility (`PATCH /api/videos/{id}/visibility`), publish/unpublish, or delete. The app refreshes persisted videos from `GET /api/videos`; not-ready, private, or unpublished server videos are omitted from the public feed.
 
-To reset the demo back to its sample data, clear this site's local storage in the browser developer tools.
+Before uploading, configure the backend R2 environment variables and start the backend with `DEV_CHANNEL_BOOTSTRAP_ENABLED=true`. Use **Create channel** in the app to create a backend-backed development channel. Configure R2 bucket CORS to allow the frontend origin to send `PUT`, `GET`, and `HEAD` requests with `Content-Type` and `Range` headers.
+
+This sign-in-free API is for local development only. Do not expose it publicly or rely on its private visibility settings for access control until authentication/authorization is added. Likes, comments, watch history, subscriptions, and sample demo entries remain stored in browser local storage; clear this site's local storage to reset them.

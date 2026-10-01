@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 const VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const SEED_CHANNELS = [
   {
-    channelId: 1,
+    channelId: -1,
+    backendChannel: false,
     ownerId: 1,
     name: "MotionVille Studio",
     handle: "@motionvillestudio",
@@ -14,7 +17,8 @@ const SEED_CHANNELS = [
     subscriptions: 28400,
   },
   {
-    channelId: 2,
+    channelId: -2,
+    backendChannel: false,
     ownerId: 2,
     name: "Northstar Films",
     handle: "@northstarfilms",
@@ -25,7 +29,8 @@ const SEED_CHANNELS = [
     subscriptions: 9160,
   },
   {
-    channelId: 3,
+    channelId: -3,
+    backendChannel: false,
     ownerId: 3,
     name: "The Sunday Table",
     handle: "@sundaytable",
@@ -40,7 +45,7 @@ const SEED_CHANNELS = [
 const SEED_VIDEOS = [
   {
     videoId: 101,
-    channelId: 1,
+    channelId: -1,
     title: "A slower morning in the mountains",
     description: "A few quiet moments from a weekend up north. Sometimes the best plan is no plan at all.",
     thumbnailUrl: "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=1000&h=563&fit=crop",
@@ -57,7 +62,7 @@ const SEED_VIDEOS = [
   },
   {
     videoId: 102,
-    channelId: 2,
+    channelId: -2,
     title: "Finding the last light on the coast",
     description: "Chasing the last warm light of the day along the Pacific coast.",
     thumbnailUrl: "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?w=1000&h=563&fit=crop",
@@ -74,7 +79,7 @@ const SEED_VIDEOS = [
   },
   {
     videoId: 103,
-    channelId: 3,
+    channelId: -3,
     title: "The perfect Sunday tomato pasta",
     description: "A simple, no-fuss pasta with ripe tomatoes, basil and a little patience.",
     thumbnailUrl: "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=1000&h=563&fit=crop",
@@ -91,7 +96,7 @@ const SEED_VIDEOS = [
   },
   {
     videoId: 104,
-    channelId: 1,
+    channelId: -1,
     title: "A tiny desk reset that changed my week",
     description: "Clearing the clutter, setting an intention, and getting back into a good rhythm.",
     thumbnailUrl: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=1000&h=563&fit=crop",
@@ -108,7 +113,7 @@ const SEED_VIDEOS = [
   },
   {
     videoId: 105,
-    channelId: 2,
+    channelId: -2,
     title: "A quiet walk through old Kyoto",
     description: "Early morning streets, wooden doorways, and nowhere particular to be.",
     thumbnailUrl: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1000&h=563&fit=crop",
@@ -125,7 +130,7 @@ const SEED_VIDEOS = [
   },
   {
     videoId: 106,
-    channelId: 3,
+    channelId: -3,
     title: "Five lunches I make on repeat",
     description: "Easy lunch ideas for busy weekdays, made with things already in the kitchen.",
     thumbnailUrl: "https://images.unsplash.com/photo-1547592180-85f173990554?w=1000&h=563&fit=crop",
@@ -142,7 +147,7 @@ const SEED_VIDEOS = [
   },
   {
     videoId: 107,
-    channelId: 1,
+    channelId: -1,
     title: "The little details of a rainy city",
     description: "Reflections, street lights and the lovely hush after the rain.",
     thumbnailUrl: "https://images.unsplash.com/photo-1519608487953-e999c86e7455?w=1000&h=563&fit=crop",
@@ -159,7 +164,7 @@ const SEED_VIDEOS = [
   },
   {
     videoId: 108,
-    channelId: 2,
+    channelId: -2,
     title: "Build a weekend cabin playlist with me",
     description: "A soundtrack for packing a bag and getting out of town.",
     thumbnailUrl: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1000&h=563&fit=crop",
@@ -248,18 +253,200 @@ function formatDuration(value = 0) {
   return `${minutes}:${seconds}`;
 }
 
+async function readApiError(response) {
+  try {
+    const body = await response.json();
+    return body.message || `Request failed (${response.status}).`;
+  } catch {
+    return `Request failed (${response.status}).`;
+  }
+}
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers,
+    },
+  });
+  if (!response.ok) throw new Error(await readApiError(response));
+  if (response.status === 204 || response.status === 202) return null;
+  return response.json();
+}
+
+function mapApiVideo(video) {
+  return {
+    videoId: video.id,
+    channelId: video.channelId,
+    categoryId: video.categoryId,
+    title: video.title,
+    description: video.description || "",
+    thumbnailUrl: video.thumbnailUrl || "",
+    durationSeconds: video.durationSeconds || 0,
+    visibility: video.visibility,
+    processingStatus: video.processingStatus,
+    createdAt: video.createdAt,
+    updatedAt: video.updatedAt,
+    publishedAt: video.publishedAt,
+    category: null,
+    tags: [],
+    views: 0,
+    likeCount: 0,
+    comments: [],
+    serverVideo: true,
+  };
+}
+
+function mapApiChannel(channel) {
+  return {
+    channelId: channel.id,
+    ownerId: channel.ownerId,
+    backendChannel: true,
+    name: channel.name,
+    handle: channel.handle,
+    description: channel.description || "",
+    bannerUrl: channel.bannerUrl || "",
+    avatarUrl: "",
+    createdAt: channel.createdAt,
+    subscriptions: 0,
+  };
+}
+
+function uploadFile(uploadUrl, file, mimeType, onProgress) {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", uploadUrl);
+    request.setRequestHeader("Content-Type", mimeType);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) resolve();
+      else reject(new Error(`R2 upload failed (${request.status}). Check the bucket CORS configuration.`));
+    };
+    request.onerror = () => reject(new Error("Could not reach R2. Check the bucket CORS configuration."));
+    request.onabort = () => reject(new Error("Video upload was cancelled."));
+    request.send(file);
+  });
+}
+
+function makeTitleThumbnail(title) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 360;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("This browser cannot create a video thumbnail.");
+  const gradient = context.createLinearGradient(0, 0, 640, 360);
+  gradient.addColorStop(0, "#ad7762");
+  gradient.addColorStop(1, "#34343a");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 640, 360);
+  context.fillStyle = "rgba(20, 20, 24, .36)";
+  context.fillRect(0, 0, 640, 360);
+  context.fillStyle = "#ffffff";
+  context.font = "700 30px sans-serif";
+  context.textAlign = "center";
+  const words = (title.trim() || "MotionVille").split(/\s+/);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (context.measureText(next).width > 540 && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  const visibleLines = lines.slice(0, 3);
+  visibleLines.forEach((text, index) => {
+    context.fillText(text, 320, 180 + (index - (visibleLines.length - 1) / 2) * 42, 540);
+  });
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Could not generate a thumbnail."));
+    }, "image/jpeg", 0.86);
+  });
+}
+
+async function createVideoThumbnail(file, title) {
+  const sourceUrl = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+  try {
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = resolve;
+      video.onerror = () => reject(new Error("Could not read video metadata."));
+      video.src = sourceUrl;
+    });
+    await new Promise((resolve, reject) => {
+      video.onseeked = resolve;
+      video.onerror = () => reject(new Error("Could not decode a video frame."));
+      video.currentTime = Math.min(1, Math.max(0, video.duration / 2));
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 360;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser cannot create a video thumbnail.");
+    const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+    const width = video.videoWidth * scale;
+    const height = video.videoHeight * scale;
+    context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Could not create a thumbnail from the video."));
+      }, "image/jpeg", 0.86);
+    });
+  } catch {
+    return makeTitleThumbnail(title);
+  } finally {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
 function Avatar({ src, name, size = "normal" }) {
   return src
     ? <img className={`avatar avatar-${size}`} src={src} alt="" />
     : <span className={`avatar avatar-fallback avatar-${size}`}>{(name || "M").slice(0, 1).toUpperCase()}</span>;
 }
 
-function VideoCard({ video, channel, onSelect, index }) {
+function VideoCard({ video, channel, onSelect, onManage, index }) {
+  const [thumbnailUrl, setThumbnailUrl] = useState(video.thumbnailUrl || "");
+
+  useEffect(() => {
+    setThumbnailUrl(video.thumbnailUrl || "");
+    if (!video.serverVideo) return undefined;
+    let active = true;
+    fetch(`${API_BASE_URL}/videos/${video.videoId}/thumbnail`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await readApiError(response));
+        return response.json();
+      })
+      .then((result) => {
+        if (active) setThumbnailUrl(result.thumbnailUrl);
+      })
+      .catch(() => {
+        if (active) setThumbnailUrl("");
+      });
+    return () => {
+      active = false;
+    };
+  }, [video.serverVideo, video.thumbnailUrl, video.videoId]);
+
   return (
     <article className="video-card" style={{ "--card-order": index }}>
       <button className="video-thumb" onClick={() => onSelect(video)} aria-label={`Watch ${video.title}`}>
-        {video.thumbnailUrl
-          ? <img src={video.thumbnailUrl} alt="" loading="lazy" />
+        {thumbnailUrl
+          ? <img src={thumbnailUrl} alt="" loading="lazy" onError={() => setThumbnailUrl("")} />
           : <div className={`thumb-gradient gradient-${index % 5}`}><Icon name="play" size={34} /></div>}
         <span className="duration-badge">{formatDuration(video.durationSeconds)}</span>
         <span className="thumb-play"><Icon name="play" size={22} filled /></span>
@@ -271,7 +458,7 @@ function VideoCard({ video, channel, onSelect, index }) {
           <button className="channel-link">{channel?.name || "MotionVille creator"}</button>
           <p>{formatViews(video.views)} <span>·</span> {formatAge(video.createdAt)}</p>
         </div>
-        <button className="more-button" aria-label="More options"><Icon name="more" size={19} /></button>
+        {video.serverVideo && <button className="more-button" onClick={() => onManage(video)} aria-label={`Manage ${video.title}`}><Icon name="more" size={19} /></button>}
       </div>
     </article>
   );
@@ -302,6 +489,7 @@ function Modal({ children, onClose, className = "" }) {
 function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   function update(event) {
     const { name, value } = event.target;
@@ -313,13 +501,21 @@ function CreateChannelDialog({ onClose, onCreate }) {
     }));
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
     if (!form.name.trim() || !form.handle.trim()) {
       setError("Add a channel name and handle to continue.");
       return;
     }
-    onCreate(form);
+    setBusy(true);
+    setError("");
+    try {
+      await onCreate(form);
+    } catch (createError) {
+      setError(createError.message || "Could not create the channel.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -334,7 +530,7 @@ function CreateChannelDialog({ onClose, onCreate }) {
           <label>Description <span className="optional">Optional</span><textarea name="description" value={form.description} onChange={update} maxLength="500" rows="3" placeholder="What will you share on your channel?" /></label>
           <label>Banner image URL <span className="optional">Optional</span><input name="bannerUrl" type="url" value={form.bannerUrl} onChange={update} placeholder="https://example.com/banner.jpg" /></label>
           {error && <p className="inline-error" role="alert">{error}</p>}
-          <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose}>Cancel</button><button className="button button-primary" type="submit">Create channel <Icon name="chevron" size={17} /></button></div>
+          <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose} disabled={busy}>Cancel</button><button className="button button-primary" type="submit" disabled={busy}>{busy ? "Creating…" : "Create channel"} {!busy && <Icon name="chevron" size={17} />}</button></div>
         </form>
       </section>
     </Modal>
@@ -342,38 +538,91 @@ function CreateChannelDialog({ onClose, onCreate }) {
 }
 
 function CreateVideoDialog({ channels, onClose, onCreate }) {
+  const uploadChannels = channels.filter((channel) => channel.backendChannel);
   const [form, setForm] = useState({
     title: "",
     description: "",
     thumbnailUrl: "",
-    assetUrl: "",
-    mimeType: "video/mp4",
     category: "Travel & Places",
-    channelId: channels[0]?.channelId ? String(channels[0].channelId) : "",
+    channelId: uploadChannels[0]?.channelId ? String(uploadChannels[0].channelId) : "",
     visibility: "PUBLIC",
   });
+  const [file, setFile] = useState(null);
   const [error, setError] = useState("");
   const [previewError, setPreviewError] = useState(false);
+  const [generatedThumbnail, setGeneratedThumbnail] = useState(null);
+  const [generatedThumbnailUrl, setGeneratedThumbnailUrl] = useState("");
+  const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  useEffect(() => () => {
+    if (generatedThumbnailUrl) URL.revokeObjectURL(generatedThumbnailUrl);
+  }, [generatedThumbnailUrl]);
 
   function update(event) {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
-    if (event.target.name === "thumbnailUrl") setPreviewError(false);
+    if (event.target.name === "thumbnailUrl") {
+      setPreviewError(false);
+      if (event.target.value.trim()) {
+        setGeneratedThumbnail(null);
+      }
+    }
   }
 
-  function submit(event) {
-    event.preventDefault();
-    if (!form.channelId) {
-      setError("Create a channel first, then you can post a video.");
-      return;
-    }
+  async function selectVideoFile(event) {
+    const selectedFile = event.target.files?.[0] || null;
+    setFile(selectedFile);
+    setGeneratedThumbnail(null);
+    setGeneratedThumbnailUrl("");
+    if (!selectedFile || form.thumbnailUrl.trim()) return;
+    setGeneratingThumbnail(true);
+    setError("");
     try {
-      const parsed = new URL(form.assetUrl);
-      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("URL must use HTTP or HTTPS.");
-    } catch {
-      setError("Enter a valid direct video URL (MP4 or WebM).");
+      const thumbnail = await createVideoThumbnail(selectedFile, form.title);
+      setGeneratedThumbnail(thumbnail);
+      setGeneratedThumbnailUrl(URL.createObjectURL(thumbnail));
+    } catch (thumbnailError) {
+      setError(thumbnailError.message || "Could not generate a thumbnail.");
+    } finally {
+      setGeneratingThumbnail(false);
+    }
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (generatingThumbnail) {
+      setError("Wait for the thumbnail preview to finish generating.");
       return;
     }
-    onCreate(form);
+    if (!form.channelId || !uploadChannels.some((channel) => String(channel.channelId) === form.channelId)) {
+      setError("Create a backend-backed channel first, then you can upload a video.");
+      return;
+    }
+    if (!file) {
+      setError("Choose a video file.");
+      return;
+    }
+    // Browsers may leave file.type empty for MKV/AVI. The server checks the
+    // actual media with ffprobe and converts it; this MIME is just an upload hint.
+    const mimeType = file.type || "application/octet-stream";
+    if (!mimeType.startsWith("video/") && !["application/octet-stream", "application/ogg"].includes(mimeType)) {
+      setError("Choose a video file such as MP4, WebM, MOV, MKV, or AVI.");
+      return;
+    }
+    if (file.size <= 0 || file.size > MAX_VIDEO_BYTES) {
+      setError("Choose a video smaller than 500 MB.");
+      return;
+    }
+    setError("");
+    setBusy(true);
+    try {
+      await onCreate({ ...form, mimeType }, file, setUploadProgress, generatedThumbnail);
+    } catch (uploadError) {
+      setError(uploadError.message || "Video upload failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -381,15 +630,14 @@ function CreateVideoDialog({ channels, onClose, onCreate }) {
       <section className="dialog create-dialog video-dialog" role="dialog" aria-modal="true" aria-labelledby="video-dialog-title">
         <div className="dialog-topline"><span className="dialog-step"><Icon name="video" size={15} /> Creator studio</span><button className="icon-button" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>
         <h2 id="video-dialog-title">Post a video</h2>
-        <p className="dialog-subtitle">Add a direct video URL. MotionVille saves the link and details, not the video file.</p>
+        <p className="dialog-subtitle">Your video uploads to R2, then converts for playback. Leave the thumbnail URL blank to create one automatically from the video. Maximum file size: 500 MB.</p>
         <form className="dialog-form" onSubmit={submit}>
           <label>Video title<input name="title" value={form.title} onChange={update} maxLength="255" placeholder="Give your video a title" required /></label>
-          <label>Video URL<input name="assetUrl" type="url" value={form.assetUrl} onChange={update} placeholder="https://example.com/my-video.mp4" required /><small>Use a direct, publicly accessible MP4 or WebM link.</small></label>
+          <label>Video file<input type="file" accept="video/*,.mp4,.webm,.mov,.mkv,.avi,.m4v,.mpeg,.mpg,.wmv,.flv,.3gp,.3g2,.ts,.mts,.m2ts,.ogv" onChange={selectVideoFile} required /><small>{file ? `${file.name} · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : "MP4, WebM, MOV, MKV, AVI and other video formats, up to 500 MB."}</small></label>
           <div className="form-two-col">
-            <label>Channel<select name="channelId" value={form.channelId} onChange={update} required>
-              {channels.map((channel) => <option key={channel.channelId} value={channel.channelId}>{channel.name} · {channel.handle}</option>)}
+            <label>Channel<select name="channelId" value={form.channelId} onChange={update} required disabled={!uploadChannels.length}>
+              {uploadChannels.map((channel) => <option key={channel.channelId} value={channel.channelId}>{channel.name} · {channel.handle}</option>)}
             </select></label>
-            <label>Video format<select name="mimeType" value={form.mimeType} onChange={update}><option value="video/mp4">MP4</option><option value="video/webm">WebM</option></select></label>
           </div>
           <div className="form-two-col">
             <label>Category<select name="category" value={form.category} onChange={update}>{CATEGORIES.slice(1).map((category) => <option key={category}>{category}</option>)}</select></label>
@@ -397,9 +645,75 @@ function CreateVideoDialog({ channels, onClose, onCreate }) {
           </div>
           <label>Thumbnail URL <span className="optional">Optional</span><input name="thumbnailUrl" type="url" value={form.thumbnailUrl} onChange={update} placeholder="https://example.com/thumbnail.jpg" /></label>
           {form.thumbnailUrl && !previewError && <img className="thumbnail-preview" src={form.thumbnailUrl} alt="Thumbnail preview" onError={() => setPreviewError(true)} />}
+          {!form.thumbnailUrl.trim() && generatedThumbnailUrl && <div className="generated-thumbnail-preview"><img className="thumbnail-preview" src={generatedThumbnailUrl} alt="Automatically generated video thumbnail preview" /><small>Thumbnail generated from your video</small></div>}
           <label>Description <span className="optional">Optional</span><textarea name="description" value={form.description} onChange={update} rows="3" maxLength="5000" placeholder="Tell viewers a little about this video" /></label>
+          {!uploadChannels.length && <p className="inline-error" role="alert">Create a channel first. Demo channels are not saved in the backend.</p>}
           {error && <p className="inline-error" role="alert">{error}</p>}
-          <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose}>Cancel</button><button className="button button-primary" type="submit">Post video <Icon name="chevron" size={17} /></button></div>
+          {generatingThumbnail && <p className="upload-progress" role="status">Generating thumbnail preview…</p>}
+          {busy && <p className="upload-progress" role="status">{uploadProgress < 100 ? `Uploading to R2: ${uploadProgress}%` : "Finishing upload…"}</p>}
+          <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose} disabled={busy || generatingThumbnail}>Cancel</button><button className="button button-primary" type="submit" disabled={busy || generatingThumbnail}>{busy ? "Uploading…" : "Post video"} {!busy && <Icon name="chevron" size={17} />}</button></div>
+        </form>
+      </section>
+    </Modal>
+  );
+}
+
+function ManageVideoDialog({ video, channels, onClose, onSave, onPublish, onUnpublish, onDelete }) {
+  const [form, setForm] = useState({
+    title: video.title,
+    description: video.description || "",
+    thumbnailUrl: video.thumbnailUrl || "",
+    visibility: video.visibility,
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function run(action) {
+    setBusy(true);
+    setError("");
+    try {
+      await action();
+    } catch (actionError) {
+      setError(actionError.message || "Could not update this video.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    const channel = channels.find((item) => Number(item.channelId) === Number(video.channelId));
+    if (!channel) {
+      setError("The video's channel is not available.");
+      return;
+    }
+    run(() => onSave(video, { ...form, channelId: channel.channelId }));
+  }
+
+  const isPublished = Boolean(video.publishedAt);
+  const isReady = video.processingStatus === "READY" || video.processingStatus === "UPLOADED";
+
+  return (
+    <Modal onClose={onClose}>
+      <section className="dialog create-dialog" role="dialog" aria-modal="true" aria-labelledby="manage-video-title">
+        <div className="dialog-topline"><span className="dialog-step"><Icon name="video" size={15} /> Video settings</span><button className="icon-button" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>
+        <h2 id="manage-video-title">Manage video</h2>
+        <p className="dialog-subtitle">Status: {video.processingStatus} · {isPublished ? "Published" : "Not published"}</p>
+        <form className="dialog-form" onSubmit={submit}>
+          <label>Video title<input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} maxLength="255" required /></label>
+          <label>Description<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows="3" maxLength="5000" /></label>
+          <label>Thumbnail URL<input type="text" value={form.thumbnailUrl} onChange={(event) => setForm((current) => ({ ...current, thumbnailUrl: event.target.value }))} maxLength="255" /></label>
+          <label>Visibility<select value={form.visibility} onChange={(event) => setForm((current) => ({ ...current, visibility: event.target.value }))}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
+          {error && <p className="inline-error" role="alert">{error}</p>}
+          <div className="video-management-actions">
+            <button type="button" className="text-button danger-text" disabled={busy} onClick={() => {
+              if (window.confirm("Delete this video permanently?")) run(() => onDelete(video));
+            }}>Delete</button>
+            {isPublished
+              ? <button type="button" className="text-button" disabled={busy} onClick={() => run(() => onUnpublish(video))}>Unpublish</button>
+              : <button type="button" className="text-button" disabled={busy || !isReady || video.visibility === "PRIVATE"} onClick={() => run(() => onPublish(video))}>Publish</button>}
+            <button className="button button-primary" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+          </div>
         </form>
       </section>
     </Modal>
@@ -410,6 +724,71 @@ function WatchDialog({ video, channel, onClose, onLike, onSubscribe, onComment, 
   const [comment, setComment] = useState("");
   const comments = video.comments || [];
   const [playbackError, setPlaybackError] = useState(false);
+  const [playbackUrl, setPlaybackUrl] = useState(video.assetUrl || "");
+  const [playbackMimeType, setPlaybackMimeType] = useState(video.mimeType || "video/mp4");
+  const [posterUrl, setPosterUrl] = useState(video.thumbnailUrl || "");
+
+  useEffect(() => {
+    if (!video.serverVideo) {
+      setPosterUrl(video.thumbnailUrl || "");
+      return undefined;
+    }
+    let active = true;
+    setPosterUrl("");
+    fetch(`${API_BASE_URL}/videos/${video.videoId}/thumbnail`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await readApiError(response));
+        return response.json();
+      })
+      .then((thumbnail) => {
+        if (active) setPosterUrl(thumbnail.thumbnailUrl);
+      })
+      .catch(() => {
+        if (active) setPosterUrl("");
+      });
+    return () => {
+      active = false;
+    };
+  }, [video.serverVideo, video.thumbnailUrl, video.videoId]);
+
+  useEffect(() => {
+    if (!video.serverVideo) return undefined;
+    let active = true;
+    let timer;
+    const controller = new AbortController();
+    setPlaybackUrl("");
+    setPlaybackError(false);
+    // Upload completion only queues conversion. Poll until the backend reports
+    // READY is returned once the normalized playback assets are stored.
+    async function preparePlayback() {
+      try {
+        const statusResponse = await fetch(`${API_BASE_URL}/videos/${video.videoId}/status`, { signal: controller.signal });
+        if (!statusResponse.ok) throw new Error(await readApiError(statusResponse));
+        const status = await statusResponse.json();
+        if (!active) return;
+        if (status.processingStatus === "FAILED") throw new Error("Video conversion failed");
+        if (status.processingStatus !== "READY" && status.processingStatus !== "UPLOADED") {
+          timer = setTimeout(preparePlayback, 3000);
+          return;
+        }
+        const response = await fetch(`${API_BASE_URL}/videos/${video.videoId}/playback`, { signal: controller.signal });
+        if (!response.ok) throw new Error(await readApiError(response));
+        const playback = await response.json();
+        if (active) {
+          setPlaybackUrl(playback.assetUrl);
+          setPlaybackMimeType(playback.mimeType);
+        }
+      } catch (error) {
+        if (active && error.name !== "AbortError") setPlaybackError(true);
+      }
+    }
+    preparePlayback();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [video.serverVideo, video.videoId]);
 
   function addComment(event) {
     event.preventDefault();
@@ -430,16 +809,16 @@ function WatchDialog({ video, channel, onClose, onLike, onSubscribe, onComment, 
         <div className="watch-content">
           <div className="watch-primary">
             <div className="player-wrap">
-              {video.assetUrl && !playbackError
-                ? <video controls autoPlay playsInline poster={video.thumbnailUrl || undefined} onError={() => setPlaybackError(true)}><source src={video.assetUrl} type={video.mimeType || "video/mp4"} />Your browser does not support video playback.</video>
-                : <div className="player-unavailable"><Icon name="video" size={34} /><strong>Video URL isn't playable</strong><span>Check that the link is a direct MP4 or WebM file and is publicly accessible.</span></div>}
+              {playbackUrl && !playbackError
+                ? <video controls autoPlay playsInline poster={posterUrl || undefined} onError={() => setPlaybackError(true)}><source src={playbackUrl} type={playbackMimeType} />Your browser does not support video playback.</video>
+                : <div className="player-unavailable"><Icon name="video" size={34} /><strong>{video.serverVideo && !playbackError ? "Preparing video…" : "Video isn't playable"}</strong><span>{playbackError ? "Could not prepare this video. Check backend processing logs; the file may be damaged or use an unsupported codec." : "The video is being prepared for playback."}</span></div>}
             </div>
             <h1 className="watch-title">{video.title}</h1>
             <div className="watch-meta-row">
               <div className="watch-channel"><Avatar src={channel?.avatarUrl} name={channel?.name} size="large" /><div><strong>{channel?.name || "MotionVille creator"}</strong><span>{channel?.handle || "@creator"}</span></div><button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button></div>
               <div className="watch-actions">
                 <button className={`action-pill ${liked ? "action-pill-selected" : ""}`} onClick={() => onLike(video.videoId)}><Icon name="like" size={18} filled={liked} /><span>{formatViews(video.likeCount || 0).replace(" views", "")}</span></button>
-                <button className="action-pill" onClick={() => navigator.clipboard?.writeText(video.assetUrl)}><Icon name="share" size={17} /><span>Share</span></button>
+                <button className="action-pill" onClick={() => navigator.clipboard?.writeText(playbackUrl)}><Icon name="share" size={17} /><span>Share</span></button>
               </div>
             </div>
             <div className="watch-description"><span>{formatViews(video.views)} · {formatAge(video.createdAt)} · {video.category}</span><p>{video.description || "No description added yet."}</p>{video.tags?.length > 0 && <div className="tag-row">{video.tags.map((tag) => <span key={tag}>#{tag.replace(/\s+/g, "")}</span>)}</div>}</div>
@@ -460,6 +839,9 @@ export default function App() {
   const [videos, setVideos] = useState(() => loadLocal("motionville.videos", SEED_VIDEOS));
   const [channels, setChannels] = useState(() => loadLocal("motionville.channels", SEED_CHANNELS));
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [manageVideo, setManageVideo] = useState(null);
+  const [backendLoaded, setBackendLoaded] = useState(false);
+  const [feedError, setFeedError] = useState("");
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [view, setView] = useState("Home");
@@ -477,6 +859,35 @@ export default function App() {
   useEffect(() => localStorage.setItem("motionville.history", JSON.stringify(history)), [history]);
   useEffect(() => localStorage.setItem("motionville.subscriptions", JSON.stringify(subscriptions)), [subscriptions]);
   useEffect(() => {
+    const controller = new AbortController();
+    async function loadBackendData() {
+      const [videoResult, channelResult] = await Promise.allSettled([
+        apiRequest("/videos", { signal: controller.signal }),
+        apiRequest("/channels", { signal: controller.signal }),
+      ]);
+      if (controller.signal.aborted) return;
+      if (videoResult.status === "fulfilled") {
+        const serverVideos = videoResult.value.map(mapApiVideo);
+        setVideos((current) => [...current.filter((video) => !video.serverVideo), ...serverVideos]);
+        setBackendLoaded(true);
+        setFeedError("");
+      } else {
+        setFeedError(`Could not load saved videos: ${videoResult.reason.message}`);
+      }
+      if (channelResult.status === "fulfilled") {
+        const serverChannels = channelResult.value.map(mapApiChannel);
+        setChannels((current) => [
+          ...current.filter((channel) => !channel.backendChannel),
+          ...serverChannels,
+        ]);
+      } else if (videoResult.status === "fulfilled") {
+        setFeedError(`Videos loaded, but channels could not be loaded: ${channelResult.reason.message}`);
+      }
+    }
+    loadBackendData();
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
     if (!toast) return undefined;
     const timer = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timer);
@@ -488,21 +899,24 @@ export default function App() {
     const currentChannel = channelById.get(Number(activeChannelId));
     let items = videos.filter((video) => {
       if (view === "Your channel") {
-        const ownedIds = channels.filter((channel) => channel.ownerId === 1).map((channel) => Number(channel.channelId));
+        const ownedIds = channels
+          .filter((channel) => channel.backendChannel || channel.ownerId === 1)
+          .map((channel) => Number(channel.channelId));
         return ownedIds.includes(Number(video.channelId));
       }
       if (view === "Channel") {
         return Number(video.channelId) === Number(activeChannelId)
-          && (video.visibility !== "PRIVATE" || currentChannel?.ownerId === 1);
+          && (video.visibility !== "PRIVATE" || currentChannel?.backendChannel || currentChannel?.ownerId === 1);
       }
       if (view === "History") return history.includes(video.videoId);
       if (view === "Liked videos") return likedVideos.includes(video.videoId);
       if (view === "Subscriptions") return subscriptions.includes(Number(video.channelId));
-      return video.visibility === "PUBLIC";
+      return video.visibility === "PUBLIC"
+        && (!video.serverVideo || (video.publishedAt && (video.processingStatus === "READY" || video.processingStatus === "UPLOADED")));
     });
     if (view === "Trending") items = [...items].sort((a, b) => (b.views || 0) - (a.views || 0));
     else if (view === "Recently added" || view === "History") items = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    if (activeCategory !== "All") items = items.filter((video) => video.category === activeCategory);
+    if (activeCategory !== "All") items = items.filter((video) => video.category === activeCategory || (video.serverVideo && !video.category));
     const normalized = search.trim().toLowerCase();
     if (normalized) {
       items = items.filter((video) => {
@@ -513,43 +927,86 @@ export default function App() {
     return items;
   }, [activeCategory, activeChannelId, channelById, channels, history, likedVideos, search, subscriptions, videos, view]);
 
-  function createChannel(form) {
+  async function refreshBackendVideos() {
+    const savedVideos = await apiRequest("/videos");
+    const serverVideos = savedVideos.map(mapApiVideo);
+    setVideos((current) => [...current.filter((video) => !video.serverVideo), ...serverVideos]);
+    setBackendLoaded(true);
+    setFeedError("");
+  }
+
+  function applyVideoResponse(response, closeDialog = true) {
+    const updatedVideo = mapApiVideo(response);
+    setVideos((current) => current.some((video) => video.videoId === updatedVideo.videoId)
+      ? current.map((video) => video.videoId === updatedVideo.videoId
+        ? { ...video, ...updatedVideo }
+        : video)
+      : [updatedVideo, ...current]);
+    if (closeDialog) setManageVideo(null);
+    return updatedVideo;
+  }
+
+  async function createChannel(form) {
     const handle = form.handle.startsWith("@") ? form.handle : `@${form.handle}`;
     if (channels.some((channel) => channel.handle.toLowerCase() === handle.toLowerCase())) {
-      setToast("That channel handle is already taken.");
-      return;
+      throw new Error("That channel handle is already taken.");
     }
-    const channel = {
-      channelId: Date.now(),
-      ownerId: 1,
-      name: form.name.trim(),
-      handle,
-      description: form.description.trim(),
-      bannerUrl: form.bannerUrl.trim(),
-      avatarUrl: "",
-      createdAt: new Date().toISOString(),
-      subscriptions: 0,
-    };
+    const savedChannel = await apiRequest("/dev/channels", {
+      method: "POST",
+      body: JSON.stringify({
+        name: form.name.trim(),
+        handle,
+        description: form.description.trim(),
+        bannerUrl: form.bannerUrl.trim() || null,
+      }),
+    });
+    const channel = mapApiChannel(savedChannel);
     setChannels((current) => [channel, ...current]);
     setCreateDialog(null);
     setToast("Your channel is ready.");
     setView("Your channel");
   }
 
-  function createVideo(form) {
+  async function createVideo(form, file, setProgress, generatedThumbnail) {
     const channelId = Number(form.channelId);
+    const thumbnailToUpload = form.thumbnailUrl.trim()
+      ? null
+      : generatedThumbnail || await createVideoThumbnail(file, form.title);
+    const upload = await apiRequest("/videos/uploads", {
+      method: "POST",
+      body: JSON.stringify({
+        channelId,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        thumbnailUrl: form.thumbnailUrl.trim() || null,
+        mimeType: form.mimeType,
+        sizeBytes: file.size,
+        visibility: form.visibility,
+      }),
+    });
+
+    await uploadFile(upload.uploadUrl, file, upload.mimeType, setProgress);
+    if (upload.thumbnailUploadUrl && thumbnailToUpload) {
+      await uploadFile(upload.thumbnailUploadUrl, thumbnailToUpload, "image/jpeg", () => {});
+    }
+    setProgress(100);
+    await apiRequest(`/videos/${upload.videoId}/complete`, {
+      method: "POST",
+    });
+
     const tags = form.title.toLowerCase().split(/\s+/).filter((word) => word.length > 3).slice(0, 4);
     const video = {
-      videoId: Date.now(),
+      videoId: upload.videoId,
       channelId,
       title: form.title.trim(),
       description: form.description.trim(),
       thumbnailUrl: form.thumbnailUrl.trim(),
       durationSeconds: 0,
       visibility: form.visibility,
-      processingStatus: "UPLOADED",
-      assetUrl: form.assetUrl.trim(),
-      mimeType: form.mimeType,
+      processingStatus: "PROCESSING",
+      assetUrl: "",
+      mimeType: "video/mp4",
+      serverVideo: true,
       category: form.category,
       tags,
       likeCount: 0,
@@ -557,9 +1014,10 @@ export default function App() {
       createdAt: new Date().toISOString(),
       views: 0,
     };
-    setVideos((current) => [video, ...current]);
+    setVideos((current) => [video, ...current.filter((item) => item.videoId !== video.videoId)]);
+    refreshBackendVideos().catch((error) => setFeedError(`Video uploaded, but the feed could not refresh: ${error.message}`));
     setCreateDialog(null);
-    setToast("Video added to your MotionVille feed.");
+    setToast("Video uploaded. Preparing it for playback.");
     setActiveCategory("All");
     if (video.visibility === "PRIVATE") {
       setActiveChannelId(channelId);
@@ -567,6 +1025,51 @@ export default function App() {
     } else {
       setActiveChannelId(null);
       setView("Home");
+    }
+
+    async function saveVideo(video, form) {
+      const response = await apiRequest(`/videos/${video.videoId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          channelId: form.channelId,
+          categoryId: video.categoryId || null,
+          title: form.title.trim(),
+          description: form.description.trim() || null,
+          thumbnailUrl: form.thumbnailUrl.trim() || null,
+          durationSeconds: video.durationSeconds || 0,
+          visibility: video.visibility,
+        }),
+      });
+      if (form.visibility !== video.visibility) {
+        setVideos((current) => current.map((item) => item.videoId === video.videoId
+          ? { ...item, ...mapApiVideo(response) }
+          : item));
+        const visibilityResponse = await apiRequest(`/videos/${video.videoId}/visibility`, {
+          method: "PATCH",
+          body: JSON.stringify({ visibility: form.visibility }),
+        });
+        applyVideoResponse(visibilityResponse);
+      } else {
+        applyVideoResponse(response);
+      }
+      setToast("Video details saved.");
+    }
+
+    async function publishVideo(video) {
+      applyVideoResponse(await apiRequest(`/videos/${video.videoId}/publish`, { method: "PATCH" }));
+      setToast("Video published.");
+    }
+
+    async function unpublishVideo(video) {
+      applyVideoResponse(await apiRequest(`/videos/${video.videoId}/unpublish`, { method: "PATCH" }));
+      setToast("Video unpublished.");
+    }
+
+    async function deleteVideo(video) {
+      await apiRequest(`/videos/${video.videoId}`, { method: "DELETE" });
+      setVideos((current) => current.filter((item) => item.videoId !== video.videoId));
+      setManageVideo(null);
+      setToast("Video deleted.");
     }
   }
 
@@ -625,6 +1128,7 @@ export default function App() {
   }
 
   const activeChannel = view === "Channel" ? channelById.get(Number(activeChannelId)) : null;
+  const hasBackendChannels = channels.some((channel) => channel.backendChannel);
   const feedTitle = view === "Trending"
     ? "Popular right now"
     : view === "Recently added"
@@ -657,7 +1161,7 @@ export default function App() {
           <button className="search-submit" type="submit" aria-label="Search"><Icon name="search" /></button>
         </form>
         <div className="topbar-actions">
-          <button className="create-button" onClick={() => setCreateDialog(channels.length ? "video" : "channel")}><Icon name="plus" size={18} /><span>Create</span></button>
+          <button className="create-button" onClick={() => setCreateDialog(hasBackendChannels ? "video" : "channel")}><Icon name="plus" size={18} /><span>Create</span></button>
           <button className="icon-button notification-button" aria-label="Notifications"><Icon name="bell" /></button>
           <Avatar name="Daksh" size="small" />
         </div>
@@ -704,15 +1208,17 @@ export default function App() {
           </div>
 
           <section className="feed-section">
-            <div className="feed-heading"><div><p className="section-eyebrow">{view === "Home" ? "Picked for you" : view}</p><h2>{feedTitle}</h2></div><button className="feed-filter" onClick={() => chooseView("Recently added")}><Icon name="filter" size={16} /> Recent</button></div>
-            {visibleVideos.length ? <div className="video-grid">{visibleVideos.map((video, index) => <VideoCard key={video.videoId} video={video} channel={channelById.get(Number(video.channelId))} onSelect={selectVideo} index={index} />)}</div>
-              : <div className="empty-feed"><span><Icon name="video" size={25} /></span><h2>No videos yet</h2><p>{channels.length ? "Try another category or search, or add a video with a direct URL." : "Create your first channel, then post a video to see it here."}</p><button className="button button-primary" onClick={() => setCreateDialog(channels.length ? "video" : "channel")}><Icon name="plus" size={17} />{channels.length ? "Post a video" : "Create a channel"}</button></div>}
+            <div className="feed-heading"><div><p className="section-eyebrow">{view === "Home" ? "Picked for you" : view}</p><h2>{feedTitle}</h2></div><div className="feed-controls"><button className="feed-filter" onClick={() => chooseView("Recently added")}><Icon name="filter" size={16} /> Recent</button><button className="feed-filter" onClick={() => refreshBackendVideos().catch((error) => setFeedError(error.message))}>Refresh</button></div></div>
+            {feedError && <p className="feed-error" role="alert">{feedError}{!backendLoaded && " Showing demo videos until the backend is available."}</p>}
+            {visibleVideos.length ? <div className="video-grid">{visibleVideos.map((video, index) => <VideoCard key={video.videoId} video={video} channel={channelById.get(Number(video.channelId))} onSelect={selectVideo} onManage={setManageVideo} index={index} />)}</div>
+              : <div className="empty-feed"><span><Icon name="video" size={25} /></span><h2>No videos yet</h2><p>{hasBackendChannels ? "Try another category or search, or upload a video." : "Create your first channel, then upload a video to see it here."}</p><button className="button button-primary" onClick={() => setCreateDialog(hasBackendChannels ? "video" : "channel")}><Icon name="plus" size={17} />{hasBackendChannels ? "Post a video" : "Create a channel"}</button></div>}
           </section>
         </main>
       </div>
 
       {createDialog === "channel" && <CreateChannelDialog onClose={() => setCreateDialog(null)} onCreate={createChannel} />}
       {createDialog === "video" && <CreateVideoDialog channels={channels} onClose={() => setCreateDialog(null)} onCreate={createVideo} />}
+      {manageVideo && <ManageVideoDialog video={manageVideo} channels={channels} onClose={() => setManageVideo(null)} onSave={saveVideo} onPublish={publishVideo} onUnpublish={unpublishVideo} onDelete={deleteVideo} />}
       {selectedVideo && <WatchDialog video={selectedVideo} channel={channelById.get(Number(selectedVideo.channelId))} onClose={() => setSelectedVideo(null)} onLike={toggleLike} onSubscribe={toggleSubscription} onComment={addComment} liked={likedVideos.includes(selectedVideo.videoId)} subscribed={subscriptions.includes(Number(selectedVideo.channelId))} />}
       {toast && <div className="toast"><Icon name="check" size={17} />{toast}</div>}
     </div>

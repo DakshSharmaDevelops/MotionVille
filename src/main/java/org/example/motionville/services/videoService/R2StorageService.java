@@ -1,6 +1,7 @@
 package org.example.motionville.services.videoService;
 
 import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -11,15 +12,23 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.time.Duration;
 
 @Service
+@Lazy
 public class R2StorageService {
 
     private final S3Client client;
+    private final S3Presigner presigner;
     private final String bucket;
 
     public R2StorageService(
@@ -29,18 +38,15 @@ public class R2StorageService {
             @Value("${r2.bucket}") String bucket
     ) {
         this.bucket = bucket;
+        URI endpointUri = URI.create(endpoint);
+        StaticCredentialsProvider credentials = StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(accessKey, secretKey)
+        );
 
         this.client = S3Client.builder()
-                .endpointOverride(URI.create(endpoint))
+                .endpointOverride(endpointUri)
                 .region(Region.of("auto"))
-                .credentialsProvider(
-                        StaticCredentialsProvider.create(
-                                AwsBasicCredentials.create(
-                                        accessKey,
-                                        secretKey
-                                )
-                        )
-                )
+                .credentialsProvider(credentials)
                 .serviceConfiguration(
                         S3Configuration.builder()
                                 .pathStyleAccessEnabled(true)
@@ -48,6 +54,59 @@ public class R2StorageService {
                                 .build()
                 )
                 .build();
+
+        this.presigner = S3Presigner.builder()
+                .endpointOverride(endpointUri)
+                .region(Region.of("auto"))
+                .credentialsProvider(credentials)
+                .serviceConfiguration(
+                        S3Configuration.builder()
+                                .pathStyleAccessEnabled(true)
+                                .build()
+                )
+                .build();
+    }
+
+    public String createUploadUrl(String key, String mimeType) {
+        PutObjectRequest objectRequest = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(mimeType)
+                .build();
+
+        PutObjectPresignRequest presignRequest =
+                PutObjectPresignRequest.builder()
+                        .signatureDuration(Duration.ofMinutes(15))
+                        .putObjectRequest(objectRequest)
+                        .build();
+
+        return presigner.presignPutObject(presignRequest)
+                .url()
+                .toString();
+    }
+
+    public String createPlaybackUrl(String key) {
+        GetObjectRequest objectRequest = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+
+        GetObjectPresignRequest presignRequest =
+                GetObjectPresignRequest.builder()
+                        .signatureDuration(Duration.ofHours(1))
+                        .getObjectRequest(objectRequest)
+                        .build();
+
+        return presigner.presignGetObject(presignRequest)
+                .url()
+                .toString();
+    }
+
+    public HeadObjectResponse headObject(String key) {
+        return client.headObject(HeadObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build());
     }
 
     public String upload(Path file, String key, String mimeType) {
@@ -84,8 +143,13 @@ public class R2StorageService {
         return "r2://" + bucket + "/" + key;
     }
 
+    public String bucketName() {
+        return bucket;
+    }
+
     @PreDestroy
     public void close() {
         client.close();
+        presigner.close();
     }
 }

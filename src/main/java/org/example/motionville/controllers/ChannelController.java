@@ -13,6 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/channels")
+@CrossOrigin(origins = "${motionville.frontend-origin:http://localhost:5173}")
 public class ChannelController {
 
     private final ChannelService channelService;
