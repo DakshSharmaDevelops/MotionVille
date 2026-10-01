@@ -1,12 +1,12 @@
 package org.example.motionville.entity.channel;
 
-import org.example.motionville.entity.account.AppUser;
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.example.motionville.entity.account.AppUser;
 
 import java.time.Instant;
 
@@ -21,7 +21,7 @@ import java.time.Instant;
         uniqueConstraints = {
                 @UniqueConstraint(
                         name = "uq_subscription_user_channel",
-                        columnNames = {"subscriber_id","channel_id"}
+                        columnNames = {"subscriber_id", "channel_id"}
                 )
         }
 )
@@ -32,11 +32,11 @@ public class Subscription {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "subscriber_id",nullable = false)
+    @JoinColumn(name = "subscriber_id", nullable = false)
     private AppUser subscriber;
 
     @ManyToOne
-    @JoinColumn(name = "channel_id",nullable = false)
+    @JoinColumn(name = "channel_id", nullable = false)
     private Channel channel;
 
     @Column(name = "subscribed_at", nullable = false)
