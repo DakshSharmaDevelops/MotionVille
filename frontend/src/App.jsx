@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   apiRequest,
   buildVideoQuery,
@@ -56,6 +57,34 @@ const DEMO_ADMIN_USER_ID = Number(
     import.meta.env.VITE_DEMO_ADMIN_USER_ID || 9,
 );
 
+function routeView(pathname) {
+  if (pathname === "/explore") return "Explore";
+  if (pathname === "/trending") return "Trending";
+  if (pathname === "/subscriptions") return "Subscriptions";
+  if (pathname === "/playlists" || /^\/playlist\/\d+\/?$/.test(pathname)) return "Playlists";
+  if (pathname === "/history") return "History";
+  if (pathname === "/liked") return "Liked videos";
+  if (pathname === "/your-videos") return "Your channel";
+  if (pathname === "/recent") return "Recently added";
+  if (/^\/channel\/\d+\/?$/.test(pathname)) return "Channel";
+  if (pathname === "/search") return "Home";
+  return "Home";
+}
+
+function routeForView(view) {
+  switch (view) {
+    case "Explore": return "/explore";
+    case "Trending": return "/trending";
+    case "Subscriptions": return "/subscriptions";
+    case "Playlists": return "/playlists";
+    case "History": return "/history";
+    case "Liked videos": return "/liked";
+    case "Your channel": return "/your-videos";
+    case "Recently added": return "/recent";
+    default: return "/";
+  }
+}
+
 function loadStoredIds(key) {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "[]");
@@ -66,6 +95,8 @@ function loadStoredIds(key) {
 }
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
   const [channels, setChannels] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -109,7 +140,7 @@ export default function App() {
 
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
-  const [view, setView] = useState("Home");
+  const [view, setView] = useState(() => routeView(window.location.pathname));
 
   const [createDialog, setCreateDialog] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -143,6 +174,128 @@ export default function App() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationActionBusy, setNotificationActionBusy] = useState(false);
   const isDemoAdmin = Number(currentUser?.id) === DEMO_ADMIN_USER_ID;
+
+  useEffect(() => {
+    let active = true;
+    const path = location.pathname;
+    const nextView = routeView(path);
+    setView(nextView);
+    setActiveCategory("All");
+    setPageIndex(0);
+
+    const channelMatch = path.match(/^\/channel\/(\d+)\/?$/);
+    setActiveChannelId(channelMatch ? Number(channelMatch[1]) : null);
+
+    const query = new URLSearchParams(location.search);
+    if (path === "/search") {
+      setSearch(query.get("q") || "");
+    }
+    if (path === "/login") setAccountDialog("login");
+    else if (path === "/register") setAccountDialog("register");
+    else if (path !== "/login" && path !== "/register") setAccountDialog(null);
+
+    const watchMatch = path.match(/^\/watch\/(\d+)\/?$/);
+    if (watchMatch) {
+      const videoId = Number(watchMatch[1]);
+      setSelectedVideo((current) =>
+        current?.videoId === videoId ? current : videos.find(
+          (item) => Number(item.videoId) === videoId
+        ) || null
+      );
+    } else {
+      setSelectedVideo(null);
+    }
+
+    const playlistMatch = path.match(/^\/playlist\/(\d+)\/?$/);
+    if (playlistMatch) {
+      const playlistId = Number(playlistMatch[1]);
+      const playlist = playlists.find((item) => Number(item.id) === playlistId);
+      if (playlist && Number(selectedPlaylist?.id) !== playlistId) {
+        setSelectedPlaylist(playlist);
+        setPlaylistVideos([]);
+        setPlaylistLoading(true);
+        setPlaylistError("");
+        fetchPlaylistVideos(playlistId)
+          .then((result) => {
+            if (!active) return;
+            setPlaylistVideos(result.map((item) => {
+            const existing = videos.find((video) => Number(video.videoId) === Number(item.videoId));
+            return {
+              ...existing,
+              ...item,
+              videoId: item.videoId,
+              channelId: existing?.channelId,
+              serverVideo: true,
+              createdAt: existing?.createdAt || item.addedAt,
+            };
+            }));
+          })
+          .catch((error) => {
+            if (active) setPlaylistError(`Could not load playlist videos: ${error.message}`);
+          })
+          .finally(() => {
+            if (active) setPlaylistLoading(false);
+          });
+      } else if (!playlist) {
+        apiRequest(`/playlists/${playlistId}`)
+          .then((item) => {
+            if (!active) return null;
+            setSelectedPlaylist(item);
+            return fetchPlaylistVideos(playlistId);
+          })
+          .then((result) => {
+            if (!active || !result) return;
+            setPlaylistVideos(result.map((item) => {
+              const existing = videos.find((video) => Number(video.videoId) === Number(item.videoId));
+              return {
+                ...existing,
+                ...item,
+                videoId: item.videoId,
+                channelId: existing?.channelId,
+                serverVideo: true,
+                createdAt: existing?.createdAt || item.addedAt,
+              };
+            }));
+          })
+          .catch((error) => {
+            if (active) setPlaylistError(`Could not load playlist: ${error.message}`);
+          })
+          .finally(() => {
+            if (active) setPlaylistLoading(false);
+          });
+      }
+    } else {
+      setSelectedPlaylist(null);
+      setPlaylistVideos([]);
+    }
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, location.search, playlists, currentUser?.id]);
+
+  useEffect(() => {
+    const match = location.pathname.match(/^\/watch\/(\d+)\/?$/);
+    if (!match) return undefined;
+    const videoId = Number(match[1]);
+    if (videos.some((item) => Number(item.videoId) === videoId)) return undefined;
+
+    let active = true;
+    apiRequest(`/videos/${videoId}`)
+      .then((item) => {
+        if (active) setSelectedVideo(mapApiVideo(item, categories));
+      })
+      .catch((error) => {
+        if (active) setFeedError(`Could not load video: ${error.message}`);
+      });
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, videos, categories]);
+
+  function closeVideo() {
+    setSelectedVideo(null);
+    navigate(location.state?.from || "/");
+  }
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -808,6 +961,7 @@ export default function App() {
     setCreateDialog(null);
     setToast("Your channel is ready.");
     setView("Your channel");
+    navigate(`/channel/${channel.channelId}`);
   }
 
   async function registerUser(form) {
@@ -839,6 +993,7 @@ export default function App() {
     setAccountDialog(null);
     setAccountMenuOpen(false);
     setView("Home");
+    navigate("/");
     setYouPanelOpen(false);
     setToast(
       "Account created successfully."
@@ -863,6 +1018,7 @@ export default function App() {
     setAccountDialog(null);
     setAccountMenuOpen(false);
     setView("Home");
+    navigate("/");
     setYouPanelOpen(false);
     setToast("Signed in successfully.");
   }
@@ -912,6 +1068,7 @@ export default function App() {
     setAccountMenuOpen(false);
     setYouPanelOpen(false);
     setView("Home");
+    navigate("/");
 
     setToast("Signed out.");
   }
@@ -1137,9 +1294,11 @@ export default function App() {
     if (form.visibility === "PRIVATE") {
       setActiveChannelId(channelId);
       setView("Channel");
+      navigate(`/channel/${channelId}`);
     } else {
       setActiveChannelId(null);
       setView("Home");
+      navigate("/");
     }
   }
 
@@ -1405,6 +1564,11 @@ export default function App() {
 
   function selectVideo(video) {
     setSelectedVideo(video);
+    navigate(`/watch/${video.videoId}`, {
+      state: {
+        from: location.state?.from || `${location.pathname}${location.search}`,
+      },
+    });
 
     setHistory((current) => [
       video.videoId,
@@ -1458,6 +1622,7 @@ export default function App() {
 
   function chooseView(nextView) {
     setView(nextView);
+    navigate(routeForView(nextView));
     setActiveChannelId(null);
     setActiveCategory("All");
     setPageIndex(0);
@@ -1480,7 +1645,12 @@ export default function App() {
     setPlaylistVideos([]);
     setPlaylistLoading(true);
     setPlaylistError("");
-    chooseView("Playlists");
+    setView("Playlists");
+    setActiveChannelId(null);
+    setActiveCategory("All");
+    setPageIndex(0);
+    setSidebarOpen(false);
+    navigate(`/playlist/${playlist.id}`);
     try {
       const result = await fetchPlaylistVideos(playlist.id);
       setPlaylistVideos(result.map((item) => {
@@ -1691,6 +1861,7 @@ export default function App() {
 
   function showChannel(channel) {
     setView("Channel");
+    navigate(`/channel/${channel.channelId}`);
     setActiveChannelId(
       channel.channelId
     );
@@ -1751,7 +1922,7 @@ export default function App() {
 
           <a
             className="brand"
-            href="#"
+            href="/"
             onClick={(event) => {
               event.preventDefault();
               chooseView("Home");
@@ -1780,6 +1951,8 @@ export default function App() {
           onSubmit={(event) => {
             event.preventDefault();
             setPageIndex(0);
+            const query = search.trim();
+            navigate(query ? `/search?q=${encodeURIComponent(query)}` : "/search");
           }}
         >
           <div className="search-input-wrap">
@@ -1990,9 +2163,7 @@ export default function App() {
               <button
                 className="create-button"
                 type="button"
-                onClick={() =>
-                  setAccountDialog("register")
-                }
+                onClick={() => navigate("/register")}
               >
                 <Icon name="plus" size={18} />
                 <span>Create account</span>
@@ -2001,9 +2172,7 @@ export default function App() {
               <button
                 className="button button-primary"
                 type="button"
-                onClick={() =>
-                  setAccountDialog("login")
-                }
+                onClick={() => navigate("/login")}
               >
                 Sign in
               </button>
@@ -2912,7 +3081,7 @@ export default function App() {
             selectVideo
           }
           onClose={() =>
-            setSelectedVideo(null)
+            closeVideo()
           }
           onLike={toggleLike}
           onSubscribe={
@@ -2947,12 +3116,13 @@ export default function App() {
           subscriptionChannels={
             subscriptionChannels
           }
-          onClose={() =>
-            setAccountDialog(null)
-          }
+          onClose={() => {
+            setAccountDialog(null);
+            if (location.pathname === "/login" || location.pathname === "/register") navigate("/");
+          }}
           onLogin={loginUser}
-          onSwitchLogin={() => setAccountDialog("login")}
-          onSwitchRegister={() => setAccountDialog("register")}
+          onSwitchLogin={() => navigate("/login")}
+          onSwitchRegister={() => navigate("/register")}
           onRegister={registerUser}
           onUpdate={updateUser}
           onLogout={logoutUser}
