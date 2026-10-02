@@ -70,6 +70,10 @@ public class CommentServiceImplements implements CommentService {
     public CommentResponse createReply(Long commentId, CommentCreateRequest request) {
         Comment parent = commentRepository.findById(commentId)
                 .orElseThrow(() -> notFound("Comment", commentId));
+        if (parent.getParentComment() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Replies can only be added to top-level comments");
+        }
         AppUser author = appUserRepository.findById(request.getAuthorId())
                 .orElseThrow(() -> notFound("User", request.getAuthorId()));
         Comment reply = new Comment();
@@ -89,6 +93,9 @@ public class CommentServiceImplements implements CommentService {
     public CommentResponse updateComment(Long id, CommentRequest request) {
         Comment comment = commentRepository.findById(id)
                 .orElseThrow(() -> notFound("Comment", id));
+        if (comment.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Deleted comments cannot be edited");
+        }
         comment.setBody(request.getBody().trim());
         comment.setUpdatedAt(Instant.now());
         return toResponse(comment);
@@ -98,7 +105,10 @@ public class CommentServiceImplements implements CommentService {
     public void deleteComment(Long id) {
         Comment comment = commentRepository.findById(id)
                 .orElseThrow(() -> notFound("Comment", id));
-        commentRepository.delete(comment);
+        if (!comment.isDeleted()) {
+            comment.setDeleted(true);
+            commentRepository.save(comment);
+        }
     }
 
     private CommentResponse toResponse(Comment comment) {
@@ -109,7 +119,8 @@ public class CommentServiceImplements implements CommentService {
         response.setAuthorDisplayName(comment.getAuthor().getDisplayName());
         response.setParentCommentId(comment.getParentComment() == null
                 ? null : comment.getParentComment().getId());
-        response.setBody(comment.getBody());
+        response.setBody(comment.isDeleted() ? "This comment was deleted" : comment.getBody());
+        response.setDeleted(comment.isDeleted());
         response.setCreatedAt(comment.getCreatedAt());
         response.setUpdatedAt(comment.getUpdatedAt());
         return response;

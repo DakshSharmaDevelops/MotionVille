@@ -32,6 +32,9 @@ public class Comment {
     @JoinColumn(name="parent_comment_id")
     private Comment parentComment;
 
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean deleted = false;
+
     @OneToMany(mappedBy = "parentComment")
     private List<Comment> replies;
 

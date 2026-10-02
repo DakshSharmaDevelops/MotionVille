@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -54,10 +55,25 @@ public class VideoViewServiceImplements implements VideoViewService {
         AppUser viewer = request.getViewerId() == null ? null
                 : appUserRepository.findById(request.getViewerId())
                     .orElseThrow(() -> notFound("User", request.getViewerId()));
+        VideoView existingView = videoViewRepository
+                .findByVideo_VideoIdAndSessionId(videoId, request.getSessionId())
+                .orElse(null);
+        if (existingView != null) {
+            Long existingViewerId = existingView.getViewer() == null
+                    ? null : existingView.getViewer().getId();
+            if (!Objects.equals(existingViewerId, request.getViewerId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "This view session is already associated with another viewer");
+            }
+            return new VideoViewResponse(true, requiredSeconds, existingView.getId(), videoId,
+                    existingViewerId, existingView.getViewedAt());
+        }
+
         Instant viewedAt = Instant.now();
         VideoView event = VideoView.builder()
                 .video(video)
                 .viewer(viewer)
+                .sessionId(request.getSessionId())
                 .viewedAt(viewedAt)
                 .build();
         VideoView saved = videoViewRepository.save(event);

@@ -21,6 +21,8 @@ public class CommentResponse {
 
     private String body;
 
+    private boolean deleted;
+
     private Instant createdAt;
 
     private Instant updatedAt;

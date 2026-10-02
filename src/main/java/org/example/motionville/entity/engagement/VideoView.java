@@ -17,7 +17,13 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name="video_views")
+@Table(
+        name = "video_views",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_video_view_video_session",
+                columnNames = {"video_id", "session_id"}
+        )
+)
 public class VideoView {
 
     @Id
@@ -31,6 +37,9 @@ public class VideoView {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "viewer_id")
     private AppUser viewer;
+
+    @Column(name = "session_id", length = 36)
+    private String sessionId;
 
     @Column(name = "viewed_at", nullable = false)
     private Instant viewedAt;

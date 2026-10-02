@@ -102,9 +102,7 @@ public class PlayListVideoServiceImplements implements PlayListVideoService {
                     "videoIds must match the videos currently in this playlist");
         }
 
-        // Move every row out of the final position range first, avoiding transient
-        // collisions with UNIQUE(playlist_id, position) during the reorder.
-        normalizePositions(links);
+        moveToTemporaryPositions(links);
         for (int position = 0; position < videoIds.size(); position++) {
             linksByVideoId.get(videoIds.get(position)).setPosition(position);
         }
@@ -116,6 +114,15 @@ public class PlayListVideoServiceImplements implements PlayListVideoService {
 
     private void normalizePositions(List<PlayListVideo> links) {
         if (links.isEmpty()) return;
+        moveToTemporaryPositions(links);
+        for (int position = 0; position < links.size(); position++) {
+            links.get(position).setPosition(position);
+        }
+        playListVideoRepository.saveAllAndFlush(links);
+    }
+
+    private void moveToTemporaryPositions(List<PlayListVideo> links) {
+        if (links.isEmpty()) return;
         int offset = links.stream()
                 .map(PlayListVideo::getPosition)
                 .mapToInt(Integer::intValue)
@@ -123,10 +130,6 @@ public class PlayListVideoServiceImplements implements PlayListVideoService {
                 .orElse(-1) + links.size() + 1;
         for (PlayListVideo link : links) {
             link.setPosition(link.getPosition() + offset);
-        }
-        playListVideoRepository.saveAllAndFlush(links);
-        for (int position = 0; position < links.size(); position++) {
-            links.get(position).setPosition(position);
         }
         playListVideoRepository.saveAllAndFlush(links);
     }

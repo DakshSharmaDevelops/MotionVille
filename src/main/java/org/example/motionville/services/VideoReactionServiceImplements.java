@@ -62,10 +62,9 @@ public class VideoReactionServiceImplements implements VideoReactionService {
     @Transactional
     public void deleteReaction(Long videoId, Long userId) {
         requireVideo(videoId);
-        VideoReaction reaction = videoReactionRepository
+        videoReactionRepository
                 .findByVideo_VideoIdAndUser_Id(videoId, userId)
-                .orElseThrow(() -> notFound("Reaction", videoId));
-        videoReactionRepository.delete(reaction);
+                .ifPresent(videoReactionRepository::delete);
     }
 
     private Video requireVideo(Long videoId) {

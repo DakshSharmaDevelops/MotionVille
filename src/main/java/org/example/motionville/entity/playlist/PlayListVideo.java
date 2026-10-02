@@ -21,11 +21,11 @@ import java.time.Instant;
         uniqueConstraints = {
                 @UniqueConstraint(
                         name="uq_playlist_video",
-                        columnNames = {"playlist_id","video_id"}
+                        columnNames = {"play_list_id","video_id"}
                 ),
                 @UniqueConstraint(
                         name = "uq_playlist_position",
-                        columnNames = {"playlist_id","position"}
+                        columnNames = {"play_list_id","position"}
                 )
         }
 )

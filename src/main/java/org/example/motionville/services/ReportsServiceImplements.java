@@ -20,11 +20,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ReportsServiceImplements implements ReportsService {
+
+    private static final EnumSet<ReportStatus> ACTIVE_REPORT_STATUSES =
+            EnumSet.of(ReportStatus.OPEN, ReportStatus.REVIEWING);
 
     private final ReportRepository reportRepository;
     private final AppUserRepository appUserRepository;
@@ -53,13 +57,26 @@ public class ReportsServiceImplements implements ReportsService {
     @Override
     @Transactional
     public ReportResponse saveReport(ReportCreateRequest request) {
-        AppUser reporter = appUserRepository.findById(request.getReporterId())
+        AppUser reporter = appUserRepository.findByIdForUpdate(request.getReporterId())
                 .orElseThrow(() -> notFound("Reporter"));
         Video video = request.getVideoId() == null ? null : videoRepository.findById(request.getVideoId())
                 .orElseThrow(() -> notFound("Video"));
         Comment comment = request.getCommentId() == null ? null
                 : commentRepository.findById(request.getCommentId())
                 .orElseThrow(() -> notFound("Comment"));
+        if (comment != null && comment.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.GONE, "Comment was deleted");
+        }
+
+        boolean duplicateActiveReport = video != null
+                ? reportRepository.existsByReporter_IdAndVideo_VideoIdAndStatusIn(
+                        reporter.getId(), video.getVideoId(), ACTIVE_REPORT_STATUSES)
+                : reportRepository.existsByReporter_IdAndComment_IdAndStatusIn(
+                        reporter.getId(), comment.getId(), ACTIVE_REPORT_STATUSES);
+        if (duplicateActiveReport) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "You already have an open report for this content");
+        }
 
         Report report = new Report();
         report.setReporter(reporter);

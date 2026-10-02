@@ -50,7 +50,7 @@ public class CommentReactionServiceImplements implements CommentReactionService{
 
         AppUser user=appUserRepository.findById(userId)
                 .orElseThrow(()->
-                        notFound(userId));
+                        notFound("user",userId));
 
         CommentReaction reaction= commentReactionRepository.
                 findByComment_IdAndUser_Id(commentId,userId)
@@ -75,18 +75,22 @@ public class CommentReactionServiceImplements implements CommentReactionService{
     @Override
     public void deleteCommentReaction(Long commentId, Long userId){
         requireComment(commentId);
-        CommentReaction reaction=commentReactionRepository
-                    .findByComment_IdAndUser_Id(commentId,userId)
-                    .orElseThrow(()->
-                                notFound(userId));
-        commentReactionRepository.delete(reaction);
+
+        commentReactionRepository
+                .findByComment_IdAndUser_Id(commentId, userId)
+                .ifPresent(commentReactionRepository::delete);
     }
 
     private Comment requireComment(Long commentId) {
-        return commentRepository.findById(commentId)
-                .orElseThrow(() -> notFound(commentId));
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> notFound("comment",commentId));
+        if (comment.isDeleted()) {
+            throw new ResponseStatusException(HttpStatus.GONE, "Comment " + commentId + " was deleted");
+        }
+        return comment;
     }
-    private ResponseStatusException notFound(Long id) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Comment" + " " + id + " not found");
+    private ResponseStatusException notFound(String resource,Long id) {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND,
+                resource+ " " + id + " not found");
     }
 }

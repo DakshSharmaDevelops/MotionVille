@@ -22,6 +22,7 @@ import {
   removeCommentReaction,
 } from "../api/reactionApi.js";
 import { createReport } from "../api/reportApi.js";
+import { recordVideoView } from "../api/videoViewApi.js";
 
 export function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
@@ -364,6 +365,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [commentActionId, setCommentActionId] = useState(null);
   const [commentActionError, setCommentActionError] = useState("");
   const [playbackError, setPlaybackError] = useState(false);
+  const [viewError, setViewError] = useState("");
 
   const [playbackUrl, setPlaybackUrl] = useState("");
   const [playbackMimeType, setPlaybackMimeType] = useState("video/mp4");
@@ -386,6 +388,9 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const playerMetadataReady = useRef(false);
   const resumeApplied = useRef(false);
   const saveInProgress = useRef(false);
+  const viewSessionId = useRef(crypto.randomUUID());
+  const viewRequestAttempted = useRef(false);
+  const viewRequestInProgress = useRef(false);
   const [resumePosition, setResumePosition] = useState(0);
   const [resumeReady, setResumeReady] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(!currentUser?.id || !video.serverVideo);
@@ -445,6 +450,34 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
       setHistoryError(`Could not save watch progress: ${error.message}`);
     } finally {
       saveInProgress.current = false;
+    }
+  }
+
+  async function recordViewAtTime(player) {
+    if (!video.serverVideo || viewRequestAttempted.current || viewRequestInProgress.current
+        || !Number.isFinite(player.duration) || player.duration <= 0) return;
+
+    const durationSeconds = Math.floor(player.duration);
+    const requiredSeconds = durationSeconds < 30
+      ? Math.ceil(durationSeconds / 2)
+      : 30;
+    const watchedSeconds = Math.floor(player.currentTime);
+    if (watchedSeconds < requiredSeconds) return;
+
+    viewRequestInProgress.current = true;
+    try {
+      const result = await recordVideoView(
+        video.videoId,
+        watchedSeconds,
+        currentUser?.id ? Number(currentUser.id) : null,
+        viewSessionId.current,
+      );
+      viewRequestAttempted.current = result.counted;
+    } catch (error) {
+      viewRequestAttempted.current = true;
+      setViewError(error.message);
+    } finally {
+      viewRequestInProgress.current = false;
     }
   }
 
@@ -794,17 +827,17 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     try {
       await deleteComment(item.id);
       if (parentCommentId === null) {
-        setComments((current) => current.filter((commentItem) => commentItem.id !== item.id));
-        setRepliesByComment((current) => {
-          const next = { ...current };
-          delete next[item.id];
-          return next;
-        });
+        setComments((current) => current.map((commentItem) =>
+          commentItem.id === item.id
+            ? { ...commentItem, deleted: true, body: "This comment was deleted" }
+            : commentItem));
       } else {
         setRepliesByComment((current) => ({
           ...current,
           [parentCommentId]: (current[parentCommentId] || [])
-            .filter((commentItem) => commentItem.id !== item.id),
+            .map((commentItem) => commentItem.id === item.id
+              ? { ...commentItem, deleted: true, body: "This comment was deleted" }
+              : commentItem),
         }));
       }
       if (editingCommentId === item.id) {
@@ -835,6 +868,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                       onLoadedMetadata={onPlayerMetadata}
                       onTimeUpdate={(event) => {
                         lastPlaybackPosition.current = event.currentTarget.currentTime;
+                        recordViewAtTime(event.currentTarget);
                         saveProgress(event.currentTarget.currentTime);
                       }}
                       onPause={(event) => {
@@ -861,6 +895,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                   : <div className="player-unavailable"><Icon name="video" size={34} /><strong>Video isn't playable</strong><span>{playbackError ? "Could not prepare this video. Check backend processing logs; the file may be damaged or use an unsupported codec." : "The video is being prepared for playback."}</span></div>}
             </div>
             {historyError && <p className="inline-error" role="alert">{historyError}</p>}
+            {viewError && <p className="inline-error" role="alert">Could not record this video view: {viewError}</p>}
             <h1 className="watch-title">{video.title}</h1>
             <div className="watch-meta-row">
               <div className="watch-channel"><Avatar src={channel?.avatarUrl} name={channel?.name} size="large" /><div><strong>{channel?.name || "MotionVille creator"}</strong><span>{channel?.handle || "@creator"}</span></div><button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button></div>
@@ -953,24 +988,26 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                         : <>
                             <p>{item.body}</p>
                             <div className="comment-actions">
-                              <button
-                                className={`comment-action ${commentReactions[item.id]?.userReaction === "LIKE" ? "comment-action-selected" : ""}`}
-                                type="button"
-                                disabled={commentReactionBusyId === item.id}
-                                aria-pressed={commentReactions[item.id]?.userReaction === "LIKE"}
-                                onClick={() => reactToComment(item.id, commentReactions[item.id]?.userReaction, "LIKE")}
-                              >
-                                Like {commentReactions[item.id]?.likeCount ?? 0}
-                              </button>
-                              <button
-                                className={`comment-action ${commentReactions[item.id]?.userReaction === "DISLIKE" ? "comment-action-selected" : ""}`}
-                                type="button"
-                                disabled={commentReactionBusyId === item.id}
-                                aria-pressed={commentReactions[item.id]?.userReaction === "DISLIKE"}
-                                onClick={() => reactToComment(item.id, commentReactions[item.id]?.userReaction, "DISLIKE")}
-                              >
-                                Dislike {commentReactions[item.id]?.dislikeCount ?? 0}
-                              </button>
+                              {!item.deleted && <>
+                                <button
+                                  className={`comment-action ${commentReactions[item.id]?.userReaction === "LIKE" ? "comment-action-selected" : ""}`}
+                                  type="button"
+                                  disabled={commentReactionBusyId === item.id}
+                                  aria-pressed={commentReactions[item.id]?.userReaction === "LIKE"}
+                                  onClick={() => reactToComment(item.id, commentReactions[item.id]?.userReaction, "LIKE")}
+                                >
+                                  Like {commentReactions[item.id]?.likeCount ?? 0}
+                                </button>
+                                <button
+                                  className={`comment-action ${commentReactions[item.id]?.userReaction === "DISLIKE" ? "comment-action-selected" : ""}`}
+                                  type="button"
+                                  disabled={commentReactionBusyId === item.id}
+                                  aria-pressed={commentReactions[item.id]?.userReaction === "DISLIKE"}
+                                  onClick={() => reactToComment(item.id, commentReactions[item.id]?.userReaction, "DISLIKE")}
+                                >
+                                  Dislike {commentReactions[item.id]?.dislikeCount ?? 0}
+                                </button>
+                              </>}
                               <button
                                 className="comment-action"
                                 type="button"
@@ -979,20 +1016,22 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                               >
                                 {replyingTo === item.id ? "Hide replies" : "Reply"}
                               </button>
-                              <button className="comment-action" type="button" onClick={() => beginEdit(item)}>Edit</button>
-                              {onReportComment && (
-                                <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(item)}>
-                                  Report
+                              {!item.deleted && <>
+                                <button className="comment-action" type="button" onClick={() => beginEdit(item)}>Edit</button>
+                                {onReportComment && (
+                                  <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(item)}>
+                                    Report
+                                  </button>
+                                )}
+                                <button
+                                  className="comment-action comment-action-delete"
+                                  type="button"
+                                  disabled={commentActionId === item.id}
+                                  onClick={() => removeComment(item)}
+                                >
+                                  Delete
                                 </button>
-                              )}
-                              <button
-                                className="comment-action comment-action-delete"
-                                type="button"
-                                disabled={commentActionId === item.id}
-                                onClick={() => removeComment(item)}
-                              >
-                                Delete
-                              </button>
+                              </>}
                             </div>
                           </>}
 
@@ -1028,38 +1067,40 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                   : <>
                                       <p>{reply.body}</p>
                                       <div className="comment-actions">
-                                        <button
-                                          className={`comment-action ${commentReactions[reply.id]?.userReaction === "LIKE" ? "comment-action-selected" : ""}`}
-                                          type="button"
-                                          disabled={commentReactionBusyId === reply.id}
-                                          aria-pressed={commentReactions[reply.id]?.userReaction === "LIKE"}
-                                          onClick={() => reactToComment(reply.id, commentReactions[reply.id]?.userReaction, "LIKE")}
-                                        >
-                                          Like {commentReactions[reply.id]?.likeCount ?? 0}
-                                        </button>
-                                        <button
-                                          className={`comment-action ${commentReactions[reply.id]?.userReaction === "DISLIKE" ? "comment-action-selected" : ""}`}
-                                          type="button"
-                                          disabled={commentReactionBusyId === reply.id}
-                                          aria-pressed={commentReactions[reply.id]?.userReaction === "DISLIKE"}
-                                          onClick={() => reactToComment(reply.id, commentReactions[reply.id]?.userReaction, "DISLIKE")}
-                                        >
-                                          Dislike {commentReactions[reply.id]?.dislikeCount ?? 0}
-                                        </button>
-                                        <button className="comment-action" type="button" onClick={() => beginEdit(reply)}>Edit</button>
-                                        {onReportComment && (
-                                          <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(reply)}>
-                                            Report
+                                        {!reply.deleted && <>
+                                          <button
+                                            className={`comment-action ${commentReactions[reply.id]?.userReaction === "LIKE" ? "comment-action-selected" : ""}`}
+                                            type="button"
+                                            disabled={commentReactionBusyId === reply.id}
+                                            aria-pressed={commentReactions[reply.id]?.userReaction === "LIKE"}
+                                            onClick={() => reactToComment(reply.id, commentReactions[reply.id]?.userReaction, "LIKE")}
+                                          >
+                                            Like {commentReactions[reply.id]?.likeCount ?? 0}
                                           </button>
-                                        )}
-                                        <button
-                                          className="comment-action comment-action-delete"
-                                          type="button"
-                                          disabled={commentActionId === reply.id}
-                                          onClick={() => removeComment(reply, item.id)}
-                                        >
-                                          Delete
-                                        </button>
+                                          <button
+                                            className={`comment-action ${commentReactions[reply.id]?.userReaction === "DISLIKE" ? "comment-action-selected" : ""}`}
+                                            type="button"
+                                            disabled={commentReactionBusyId === reply.id}
+                                            aria-pressed={commentReactions[reply.id]?.userReaction === "DISLIKE"}
+                                            onClick={() => reactToComment(reply.id, commentReactions[reply.id]?.userReaction, "DISLIKE")}
+                                          >
+                                            Dislike {commentReactions[reply.id]?.dislikeCount ?? 0}
+                                          </button>
+                                          <button className="comment-action" type="button" onClick={() => beginEdit(reply)}>Edit</button>
+                                          {onReportComment && (
+                                            <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(reply)}>
+                                              Report
+                                            </button>
+                                          )}
+                                          <button
+                                            className="comment-action comment-action-delete"
+                                            type="button"
+                                            disabled={commentActionId === reply.id}
+                                            onClick={() => removeComment(reply, item.id)}
+                                          >
+                                            Delete
+                                          </button>
+                                        </>}
                                       </div>
                                     </>}
                               </div>
