@@ -48,7 +48,7 @@ export function Avatar({ src, name, size = "normal" }) {
     : <span className={`avatar avatar-fallback avatar-${size}`}>{(name || "M").slice(0, 1).toUpperCase()}</span>;
 }
 
-export function VideoCard({ video, channel, onSelect, onManage, onDelete, index }) {
+export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSavePlaylist, index }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(video.thumbnailUrl || "");
 
   useEffect(() => {
@@ -87,10 +87,13 @@ export function VideoCard({ video, channel, onSelect, onManage, onDelete, index 
           <button className="channel-link">{channel?.name || "MotionVille creator"}</button>
           <p>{video.views == null ? formatAge(video.createdAt) : `${formatViews(video.views)} · ${formatAge(video.createdAt)}`}</p>
         </div>
-        {video.serverVideo && <div className="video-card-actions">
-          <button className="video-card-action" onClick={() => onManage(video)}>Edit</button>
-          <button className="video-card-action video-card-delete" onClick={() => onDelete(video)}>Delete</button>
-        </div>}
+        <div className="video-card-actions">
+          {video.serverVideo && onSavePlaylist && <button className="video-card-action" onClick={() => onSavePlaylist(video)}>Save</button>}
+          {video.serverVideo && <>
+            <button className="video-card-action" onClick={() => onManage(video)}>Edit</button>
+            <button className="video-card-action video-card-delete" onClick={() => onDelete(video)}>Delete</button>
+          </>}
+        </div>
       </div>
     </article>
   );

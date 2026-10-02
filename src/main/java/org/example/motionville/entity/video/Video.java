@@ -3,6 +3,7 @@ package org.example.motionville.entity.video;
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.engagement.VideoReaction;
+import org.example.motionville.entity.playlist.PlayListVideo;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -71,6 +72,9 @@ public class Video {
 
     @OneToMany(mappedBy = "video")
     private List<VideoReaction> videoReactions;
+
+    @OneToMany(mappedBy = "video", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PlayListVideo> playlistEntries;
 
     @ManyToMany
     @JoinTable(

@@ -272,7 +272,7 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, liked, subscribed, currentUser }) {
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, liked, subscribed, currentUser }) {
   const reactionUserId = Number(currentUser?.id);
   const hasReactionUser = Number.isInteger(reactionUserId) && reactionUserId > 0;
   const [comment, setComment] = useState("");
@@ -678,6 +678,13 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                   <Icon name="dislike" size={18} filled={videoReaction.userReaction === "DISLIKE"} />
                   <span>Dislike {videoReaction.dislikeCount}</span>
                 </button>
+
+                {video.serverVideo && onSavePlaylist && (
+                  <button className="action-pill" onClick={() => onSavePlaylist(video)}>
+                    <Icon name="library" size={17} />
+                    <span>Save</span>
+                  </button>
+                )}
 
                 {reactionError && <p className="inline-error" role="alert">{reactionError}</p>}</div>
             </div>

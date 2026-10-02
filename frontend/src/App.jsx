@@ -22,6 +22,22 @@ import {
   ManageVideoDialog,
   WatchDialog,
 } from "./components/dialogs.jsx";
+import {
+  AddVideosToPlaylistDialog,
+  PlaylistDialog,
+  PlaylistLibrary,
+  SaveToPlaylistDialog,
+} from "./components/playlists.jsx";
+import {
+  addVideoToPlaylist,
+  createPlaylist,
+  deletePlaylist,
+  fetchPlaylistVideos,
+  fetchPlaylists,
+  removeVideoFromPlaylist,
+  reorderPlaylistVideos,
+  updatePlaylist,
+} from "./api/playlistApi.js";
 
 function loadStoredIds(key) {
   try {
@@ -39,6 +55,18 @@ export default function App() {
 
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [manageVideo, setManageVideo] = useState(null);
+  const [playlists, setPlaylists] = useState([]);
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
+  const [playlistVideos, setPlaylistVideos] = useState([]);
+  const [playlistLoading, setPlaylistLoading] = useState(false);
+  const [playlistError, setPlaylistError] = useState("");
+  const [playlistEditor, setPlaylistEditor] = useState(null);
+  const [playlistPickerVideo, setPlaylistPickerVideo] = useState(null);
+  const [playlistAddTarget, setPlaylistAddTarget] = useState(null);
+  const [playlistAddVideos, setPlaylistAddVideos] = useState([]);
+  const [playlistAddLoading, setPlaylistAddLoading] = useState(false);
+  const [playlistAddError, setPlaylistAddError] = useState("");
+  const [pendingPlaylistVideo, setPendingPlaylistVideo] = useState(null);
 
   const [backendLoaded, setBackendLoaded] = useState(false);
 
@@ -64,6 +92,7 @@ export default function App() {
 
   const [createDialog, setCreateDialog] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [youPanelOpen, setYouPanelOpen] = useState(false);
   const [toast, setToast] = useState("");
 
   const [likedVideos, setLikedVideos] = useState(() =>
@@ -162,6 +191,32 @@ export default function App() {
             `Could not load account data: ${error.message}`
           );
         }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setPlaylists([]);
+      setSelectedPlaylist(null);
+      setPlaylistVideos([]);
+      setPlaylistError("");
+      return undefined;
+    }
+
+    let active = true;
+    fetchPlaylists(currentUser.id)
+      .then((result) => {
+        if (active) {
+          setPlaylists(result);
+          setPlaylistError("");
+        }
+      })
+      .catch((error) => {
+        if (active) setPlaylistError(`Could not load playlists: ${error.message}`);
       });
 
     return () => {
@@ -1152,6 +1207,231 @@ export default function App() {
     setSidebarOpen(false);
   }
 
+  function showPlaylists() {
+    if (!currentUser?.id) {
+      setAccountDialog("register");
+      setToast("Create a profile to manage playlists.");
+      return;
+    }
+    setSelectedPlaylist(null);
+    setPlaylistVideos([]);
+    chooseView("Playlists");
+  }
+
+  async function openPlaylist(playlist) {
+    setSelectedPlaylist(playlist);
+    setPlaylistVideos([]);
+    setPlaylistLoading(true);
+    setPlaylistError("");
+    chooseView("Playlists");
+    try {
+      const result = await fetchPlaylistVideos(playlist.id);
+      setPlaylistVideos(result.map((item) => {
+        const existing = videos.find((video) => Number(video.videoId) === Number(item.videoId));
+        return {
+          ...existing,
+          ...item,
+          videoId: item.videoId,
+          channelId: existing?.channelId,
+          serverVideo: true,
+          createdAt: existing?.createdAt || item.addedAt,
+        };
+      }));
+    } catch (error) {
+      setPlaylistError(`Could not load playlist videos: ${error.message}`);
+    } finally {
+      setPlaylistLoading(false);
+    }
+  }
+
+  async function savePlaylist(form) {
+    if (!currentUser?.id) throw new Error("Create a profile before managing playlists.");
+
+    const wasEditing = Boolean(playlistEditor?.playlist);
+    const saved = wasEditing
+      ? await updatePlaylist(playlistEditor.playlist.id, form)
+      : await createPlaylist({ ...form, ownerId: Number(currentUser.id) });
+
+    setPlaylists((current) => [
+      saved,
+      ...current.filter((playlist) => playlist.id !== saved.id),
+    ]);
+
+    if (pendingPlaylistVideo) {
+      try {
+        await addVideoToPlaylist(saved.id, pendingPlaylistVideo.videoId);
+      } catch (error) {
+        setPlaylistEditor({ playlist: saved });
+        throw error;
+      }
+      setPlaylists((current) => current.map((playlist) =>
+        playlist.id === saved.id
+          ? { ...playlist, videoIds: [...(playlist.videoIds || []), pendingPlaylistVideo.videoId] }
+          : playlist
+      ));
+      setToast(`Saved to ${saved.title}.`);
+      setPendingPlaylistVideo(null);
+    } else if (selectedPlaylist?.id === saved.id) {
+      setSelectedPlaylist(saved);
+    }
+    setPlaylistEditor(null);
+  }
+
+  async function saveVideoToPlaylist(playlistId) {
+    if (!playlistPickerVideo) return;
+    await addVideoToPlaylist(playlistId, playlistPickerVideo.videoId);
+    setPlaylists((current) => current.map((playlist) =>
+      playlist.id === playlistId
+        ? { ...playlist, videoIds: [...(playlist.videoIds || []), Number(playlistPickerVideo.videoId)] }
+        : playlist
+    ));
+    setPlaylistPickerVideo(null);
+    setToast("Video saved to playlist.");
+  }
+
+  async function addVideoFromPlaylist(video) {
+    if (!playlistAddTarget) return;
+    const playlistId = playlistAddTarget.id;
+    await addVideoToPlaylist(playlistId, video.videoId);
+    const videoId = Number(video.videoId);
+    setPlaylists((current) => current.map((playlist) =>
+      playlist.id === playlistId
+        ? { ...playlist, videoIds: [...(playlist.videoIds || []), videoId] }
+        : playlist
+    ));
+    setSelectedPlaylist((current) => current?.id === playlistId
+      ? { ...current, videoIds: [...(current.videoIds || []), videoId] }
+      : current
+    );
+    if (selectedPlaylist?.id === playlistId) {
+      setPlaylistVideos((current) => [...current, video]);
+    }
+  }
+
+  async function openPlaylistVideoPicker() {
+    if (!selectedPlaylist) return;
+    setPlaylistAddTarget(selectedPlaylist);
+    setPlaylistAddLoading(true);
+    setPlaylistAddError("");
+
+    try {
+      const requests = [];
+      const publicQuery = buildVideoQuery({
+        search: "",
+        page: 0,
+        sort: "createdAt,desc",
+        publicOnly: true,
+      });
+      requests.push(apiRequest(publicQuery));
+
+      myChannels.forEach((channel) => {
+        requests.push(apiRequest(buildVideoQuery({
+          search: "",
+          page: 0,
+          sort: "createdAt,desc",
+          channelId: channel.channelId,
+          publicOnly: false,
+        })));
+      });
+
+      const firstPages = await Promise.all(requests);
+      const pages = await Promise.all(firstPages.map(async (firstPage, index) => {
+        const channel = myChannels[index - 1];
+        const remaining = Array.from(
+          { length: Math.max(0, firstPage.totalPages - 1) },
+          (_, offset) => offset + 1
+        );
+        return [
+          ...firstPage.content,
+          ...await Promise.all(remaining.map((page) => apiRequest(buildVideoQuery({
+            search: "",
+            page,
+            sort: "createdAt,desc",
+            ...(channel ? { channelId: channel.channelId, publicOnly: false } : { publicOnly: true }),
+          })))).then((results) => results.flatMap((result) => result.content)),
+        ];
+      }));
+      const uniqueVideos = new Map();
+      [...videos, ...pages.flatMap((page) => page.map((video) => mapApiVideo(video, categories)))]
+        .filter((video) => video.serverVideo)
+        .forEach((video) => uniqueVideos.set(Number(video.videoId), video));
+      setPlaylistAddVideos([...uniqueVideos.values()]);
+    } catch (error) {
+      setPlaylistAddVideos([]);
+      setPlaylistAddError(`Could not load videos: ${error.message}`);
+    } finally {
+      setPlaylistAddLoading(false);
+    }
+  }
+
+  async function deleteUserPlaylist(playlist) {
+    if (!window.confirm(`Delete "${playlist.title}"?`)) return;
+    try {
+      await deletePlaylist(playlist.id);
+      setPlaylists((current) => current.filter((item) => item.id !== playlist.id));
+      if (selectedPlaylist?.id === playlist.id) {
+        setSelectedPlaylist(null);
+        setPlaylistVideos([]);
+      }
+      setToast("Playlist deleted.");
+    } catch (error) {
+      setPlaylistError(`Could not delete playlist: ${error.message}`);
+    }
+  }
+
+  async function removePlaylistVideo(video) {
+    if (!selectedPlaylist) return;
+    try {
+      await removeVideoFromPlaylist(selectedPlaylist.id, video.videoId);
+      setPlaylistVideos((current) => current.filter((item) => item.videoId !== video.videoId));
+      setPlaylists((current) => current.map((playlist) =>
+        playlist.id === selectedPlaylist.id
+          ? { ...playlist, videoIds: (playlist.videoIds || []).filter((id) => Number(id) !== Number(video.videoId)) }
+          : playlist
+      ));
+      setSelectedPlaylist((current) => current?.id === selectedPlaylist.id
+        ? { ...current, videoIds: (current.videoIds || []).filter((id) => Number(id) !== Number(video.videoId)) }
+        : current
+      );
+    } catch (error) {
+      setPlaylistError(`Could not remove video: ${error.message}`);
+    }
+  }
+
+  async function movePlaylistVideo(index, direction) {
+    if (!selectedPlaylist) return;
+    const next = [...playlistVideos];
+    const target = index + direction;
+    [next[index], next[target]] = [next[target], next[index]];
+    setPlaylistVideos(next);
+    setPlaylistError("");
+    try {
+      await reorderPlaylistVideos(selectedPlaylist.id, next.map((video) => video.videoId));
+      const orderedIds = next.map((video) => Number(video.videoId));
+      setSelectedPlaylist((current) => current?.id === selectedPlaylist.id
+        ? { ...current, videoIds: orderedIds }
+        : current
+      );
+      setPlaylists((current) => current.map((playlist) =>
+        playlist.id === selectedPlaylist.id
+          ? { ...playlist, videoIds: orderedIds }
+          : playlist
+      ));
+    } catch (error) {
+      setPlaylistVideos(playlistVideos);
+      setPlaylistError(`Could not reorder playlist: ${error.message}`);
+    }
+  }
+
+  function startSaveToPlaylist(video) {
+    if (!currentUser?.id) {
+      setAccountDialog("register");
+      setToast("Create a profile to save videos to playlists.");
+      return;
+    }
+    setPlaylistPickerVideo(video);
+  }
+
   function showChannel(channel) {
     setView("Channel");
     setActiveChannelId(
@@ -1206,6 +1486,7 @@ export default function App() {
                 (open) => !open
               )
             }
+            aria-expanded={sidebarOpen}
             aria-label="Toggle menu"
           >
             <Icon name="menu" />
@@ -1372,14 +1653,16 @@ export default function App() {
         />
       )}
 
-      <div className="app-body">
+      <div className={`app-body ${sidebarOpen ? "sidebar-expanded" : "sidebar-collapsed"}`}>
         <aside
           className={`sidebar ${
             sidebarOpen
               ? "sidebar-open"
-              : ""
+              : "sidebar-closed"
           }`}
+          onMouseLeave={() => setYouPanelOpen(false)}
         >
+          <div className="sidebar-scroll-content">
           <nav
             className="nav-group"
             aria-label="Main navigation"
@@ -1455,8 +1738,27 @@ export default function App() {
 
           <div className="sidebar-rule" />
 
+          <button
+            type="button"
+            className={`nav-item sidebar-you-trigger ${youPanelOpen ? "nav-active" : ""}`}
+            aria-expanded={youPanelOpen}
+            onFocus={() => setYouPanelOpen(true)}
+            onClick={() => {
+              if (window.matchMedia("(max-width: 760px)").matches) {
+                chooseView("Your channel");
+              } else {
+                setYouPanelOpen((open) => !open);
+              }
+            }}
+          >
+            <Icon name="library" />
+            <span>You</span>
+          </button>
+
+          <div className="sidebar-rule sidebar-library-divider" />
+
           <nav
-            className="nav-group"
+            className="nav-group sidebar-library-items"
             aria-label="Your library"
           >
             <button
@@ -1513,6 +1815,14 @@ export default function App() {
               <span>
                 Liked videos
               </span>
+            </button>
+
+            <button
+              className={`nav-item ${view === "Playlists" ? "nav-active" : ""}`}
+              onClick={showPlaylists}
+            >
+              <Icon name="library" />
+              <span>Playlists</span>
             </button>
           </nav>
 
@@ -1614,6 +1924,20 @@ export default function App() {
               corner
             </span>
           </div>
+          </div>
+
+          {youPanelOpen && !sidebarOpen && (
+            <section className="you-library-flyout" aria-label="Your library">
+              <button className="you-library-heading" onClick={() => { chooseView("Your channel"); setYouPanelOpen(false); }}>
+                <span>You</span><Icon name="chevron" size={16} />
+              </button>
+              <button className={`nav-item ${view === "History" ? "nav-active" : ""}`} onClick={() => { chooseView("History"); setYouPanelOpen(false); }}><Icon name="history" /><span>History</span></button>
+              <button className={`nav-item ${view === "Playlists" ? "nav-active" : ""}`} onClick={() => { showPlaylists(); setYouPanelOpen(false); }}><Icon name="library" /><span>Playlists</span></button>
+              <button className={`nav-item ${view === "Liked videos" ? "nav-active" : ""}`} onClick={() => { chooseView("Liked videos"); setYouPanelOpen(false); }}><Icon name="like" /><span>Liked videos</span></button>
+              <button className={`nav-item ${view === "Your channel" ? "nav-active" : ""}`} onClick={() => { chooseView("Your channel"); setYouPanelOpen(false); }}><Icon name="video" /><span>Your videos</span></button>
+            </section>
+          )}
+
         </aside>
 
         <main className="main-content">
@@ -1750,6 +2074,28 @@ export default function App() {
             </section>
           ) : null}
 
+          {view === "Playlists" ? (
+            <PlaylistLibrary
+              playlists={playlists}
+              selectedPlaylist={selectedPlaylist}
+              videos={playlistVideos}
+              loading={playlistLoading}
+              error={playlistError}
+              onCreate={() => setPlaylistEditor({ playlist: null })}
+              onOpen={openPlaylist}
+              onBack={() => {
+                setSelectedPlaylist(null);
+                setPlaylistVideos([]);
+                setPlaylistError("");
+              }}
+              onEdit={(playlist) => setPlaylistEditor({ playlist })}
+              onDelete={deleteUserPlaylist}
+              onSelectVideo={selectVideo}
+              onRemoveVideo={removePlaylistVideo}
+              onMoveVideo={movePlaylistVideo}
+              onAddVideos={openPlaylistVideoPicker}
+            />
+          ) : <>
           <div
             className="category-scroller"
             aria-label="Video categories"
@@ -1933,6 +2279,7 @@ export default function App() {
                       onDelete={
                         deleteVideoFromCard
                       }
+                      onSavePlaylist={startSaveToPlaylist}
                       index={index}
                     />
                   )
@@ -2059,6 +2406,7 @@ export default function App() {
                 </nav>
               )}
           </section>
+          </>}
         </main>
       </div>
 
@@ -2082,6 +2430,46 @@ export default function App() {
             setCreateDialog(null)
           }
           onCreate={createVideo}
+        />
+      )}
+
+      {playlistEditor && (
+        <PlaylistDialog
+          playlist={playlistEditor.playlist}
+          onClose={() => {
+            setPlaylistEditor(null);
+            setPendingPlaylistVideo(null);
+          }}
+          onSave={savePlaylist}
+        />
+      )}
+
+      {playlistPickerVideo && (
+        <SaveToPlaylistDialog
+          video={playlistPickerVideo}
+          playlists={playlists}
+          onClose={() => setPlaylistPickerVideo(null)}
+          onSave={saveVideoToPlaylist}
+          onCreatePlaylist={() => {
+            setPendingPlaylistVideo(playlistPickerVideo);
+            setPlaylistPickerVideo(null);
+            setPlaylistEditor({ playlist: null });
+          }}
+        />
+      )}
+
+      {playlistAddTarget && (
+        <AddVideosToPlaylistDialog
+          playlist={playlistAddTarget}
+          videos={playlistAddVideos}
+          loading={playlistAddLoading}
+          loadError={playlistAddError}
+          onClose={() => {
+            setPlaylistAddTarget(null);
+            setPlaylistAddVideos([]);
+            setPlaylistAddError("");
+          }}
+          onAdd={addVideoFromPlaylist}
         />
       )}
 
@@ -2130,6 +2518,7 @@ export default function App() {
           onSubscribe={
             toggleSubscription
           }
+          onSavePlaylist={startSaveToPlaylist}
           liked={likedVideos.includes(
             selectedVideo.videoId
           )}

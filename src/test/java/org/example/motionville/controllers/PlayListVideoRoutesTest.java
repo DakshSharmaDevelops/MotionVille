@@ -33,7 +33,8 @@ class PlayListVideoRoutesTest {
     void setUp() {
         videoService = new StubPlayListVideoService();
         mockMvc = MockMvcBuilders.standaloneSetup(
-                new PlayListsController(new StubPlayListService(), videoService)).build();
+                new PlayListsController(new StubPlayListService(), videoService),
+                new PlayListVideoController(videoService)).build();
     }
 
     @Test
