@@ -24,6 +24,7 @@ public class CommentReactionServiceImplements implements CommentReactionService{
     private final CommentRepository commentRepository;
 
     private final AppUserRepository appUserRepository;
+    private final NotificationCreationService notificationCreationService;
 
 
     @Override
@@ -59,10 +60,14 @@ public class CommentReactionServiceImplements implements CommentReactionService{
                                 .user(user)
                                 .build());
 
+        ReactionType previousReaction = reaction.getReaction();
         reaction.setComment(comment);
         reaction.setUser(user);
         reaction.setReaction(reactionType);
         CommentReaction newReaction= commentReactionRepository.save(reaction);
+        if (previousReaction != reactionType) {
+            notificationCreationService.notifyCommentReaction(comment, user, reactionType);
+        }
         return new CommentReactionResponse(commentId,userId,newReaction.getReaction());
     }
 

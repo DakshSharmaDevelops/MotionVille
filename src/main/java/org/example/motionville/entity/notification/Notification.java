@@ -2,6 +2,7 @@ package org.example.motionville.entity.notification;
 
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.comment.Comment;
+import org.example.motionville.entity.video.Video;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -36,6 +37,10 @@ public class Notification {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="comment_id")
     private Comment comment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name="video_id")
+    private Video video;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false,length = 30)

@@ -53,6 +53,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleDataConflict(
             DataIntegrityViolationException exception, HttpServletRequest request) {
+        log.error("Data integrity violation while processing {}", request.getRequestURI(), exception);
         return response(HttpStatus.CONFLICT, "Request conflicts with existing data", request, List.of());
     }
 

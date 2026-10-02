@@ -7,6 +7,7 @@ import org.example.motionville.repo.channel.ChannelRepository;
 import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.NotificationCreationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -45,7 +46,8 @@ class VideoProcessingTest {
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         executor = mock(ThreadPoolTaskExecutor.class);
         service = new VideoService(videos, mock(ChannelRepository.class),
-                mock(CategoryRepository.class), assets, storage, manager, executor);
+                mock(CategoryRepository.class), assets, storage,
+                mock(NotificationCreationService.class), manager, executor);
         ReflectionTestUtils.setField(service, "ffmpeg", "ffmpeg");
         ReflectionTestUtils.setField(service, "ffprobe", "ffprobe");
         video = new Video();

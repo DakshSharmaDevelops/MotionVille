@@ -2,6 +2,7 @@ package org.example.motionville.services;
 
 import lombok.RequiredArgsConstructor;
 import org.example.motionville.dto.NotificationResponse;
+import org.example.motionville.dto.NotificationResponseCount;
 import org.example.motionville.entity.notification.Notification;
 import org.example.motionville.repo.notification.NotificationRepository;
 import org.springframework.stereotype.Service;
@@ -20,16 +21,24 @@ public class NotificationsServiceImplements implements NotificationsService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<NotificationResponse> getAllNotification() {
-        return notificationRepository.findAll().stream()
+    public List<NotificationResponse> getAllNotification(Long recipientId) {
+        return notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(recipientId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public NotificationResponseCount getNotificationCount(Long recipientId) {
+        NotificationResponseCount response = new NotificationResponseCount();
+        response.setCount(notificationRepository.countByRecipient_Id(recipientId));
+        return response;
+    }
+
+    @Override
     @Transactional
-    public NotificationResponse markAsRead(Long notificationId) {
-        Notification notification = notificationRepository.findById(notificationId)
+    public NotificationResponse markAsRead(Long notificationId, Long recipientId) {
+        Notification notification = notificationRepository.findByIdAndRecipient_Id(notificationId, recipientId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Notification not found"
@@ -43,13 +52,12 @@ public class NotificationsServiceImplements implements NotificationsService {
 
     @Override
     @Transactional
-    public List<NotificationResponse> markAllAsRead() {
-        List<Notification> notifications = notificationRepository.findAll();
+    public List<NotificationResponse> markAllAsRead(Long recipientId) {
+        List<Notification> unread = notificationRepository.findByRecipient_IdAndReadAtIsNull(recipientId);
         Instant readAt = Instant.now();
-        notifications.stream()
-                .filter(notification -> notification.getReadAt() == null)
-                .forEach(notification -> notification.setReadAt(readAt));
-        return notificationRepository.saveAll(notifications).stream()
+        unread.forEach(notification -> notification.setReadAt(readAt));
+        notificationRepository.saveAll(unread);
+        return notificationRepository.findByRecipient_IdOrderByCreatedAtDesc(recipientId).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -59,6 +67,7 @@ public class NotificationsServiceImplements implements NotificationsService {
                 notification.getId(),
                 notification.getRecipient() == null ? null : notification.getRecipient().getId(),
                 notification.getActor() == null ? null : notification.getActor().getId(),
+                notification.getVideo() == null ? null : notification.getVideo().getVideoId(),
                 notification.getComment() == null ? null : notification.getComment().getId(),
                 notification.getType(),
                 notification.getMessage(),

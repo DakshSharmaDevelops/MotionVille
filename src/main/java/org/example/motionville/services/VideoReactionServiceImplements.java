@@ -22,6 +22,7 @@ public class VideoReactionServiceImplements implements VideoReactionService {
     private final VideoReactionRepository videoReactionRepository;
     private final VideoRepository videoRepository;
     private final AppUserRepository appUserRepository;
+    private final NotificationCreationService notificationCreationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -46,10 +47,14 @@ public class VideoReactionServiceImplements implements VideoReactionService {
         VideoReaction reaction = videoReactionRepository
                 .findByVideo_VideoIdAndUser_Id(videoId, userId)
                 .orElseGet(() -> VideoReaction.builder().video(video).user(user).build());
+        ReactionType previousReaction = reaction.getReaction();
         reaction.setVideo(video);
         reaction.setUser(user);
         reaction.setReaction(reactionType);
         VideoReaction saved = videoReactionRepository.save(reaction);
+        if (previousReaction != reactionType) {
+            notificationCreationService.notifyVideoReaction(video, user, reactionType);
+        }
         return new VideoReactionResponse(videoId, userId, saved.getReaction());
     }
 

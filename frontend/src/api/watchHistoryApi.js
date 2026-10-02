@@ -10,3 +10,15 @@ export function recordWatchProgress(videoId, userId, lastPositionSeconds) {
     body: JSON.stringify({ userId, lastPositionSeconds }),
   });
 }
+
+export function removeWatchHistoryItem(userId, videoId) {
+  return apiRequest(`/users/${userId}/history/${videoId}`, {
+    method: "DELETE",
+  });
+}
+
+export function clearWatchHistory(userId) {
+  return apiRequest(`/users/${userId}/history`, {
+    method: "DELETE",
+  });
+}

@@ -27,7 +27,7 @@ public class AppUser {
     @Column(nullable = false, unique=true, length = 50)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(nullable = false, length = 255)
     private String password;
 
     @Column(name = "password_hash", nullable = false, length = 255)

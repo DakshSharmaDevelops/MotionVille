@@ -11,6 +11,7 @@ import org.example.motionville.repo.channel.ChannelRepository;
 import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.NotificationCreationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -53,6 +54,7 @@ VideoService {
     private final CategoryRepository categoryRepository;
     private final VideoAssetRepository videoAssetRepository;
     private final R2StorageService r2StorageService;
+    private final NotificationCreationService notificationCreationService;
     private final TransactionTemplate transactionTemplate;
 
     public VideoService(
@@ -61,6 +63,7 @@ VideoService {
             CategoryRepository categoryRepository,
             VideoAssetRepository videoAssetRepository,
             @Lazy R2StorageService r2StorageService,
+            NotificationCreationService notificationCreationService,
             PlatformTransactionManager transactionManager,
             @Qualifier("videoProcessingExecutor") ThreadPoolTaskExecutor processingExecutor
     ) {
@@ -70,6 +73,7 @@ VideoService {
         this.categoryRepository = categoryRepository;
         this.videoAssetRepository = videoAssetRepository;
         this.r2StorageService = r2StorageService;
+        this.notificationCreationService = notificationCreationService;
         this.transactionTemplate =
                 new TransactionTemplate(transactionManager);
     }
@@ -485,6 +489,7 @@ VideoService {
 
             return transactionTemplate.execute(status -> {
                 Video currentVideo = getVideoById(videoId);
+                boolean wasPublished = currentVideo.getPublishedAt() != null;
 
                 for (VideoAsset asset : assets) {
                     asset.setVideo(currentVideo);
@@ -500,6 +505,9 @@ VideoService {
                     currentVideo.setPublishedAt(Instant.now());
                 }
                 videoRepository.save(currentVideo);
+                if (!wasPublished && currentVideo.getPublishedAt() != null) {
+                    notificationCreationService.notifyNewVideo(currentVideo);
+                }
 
                 return savedAssets;
             });

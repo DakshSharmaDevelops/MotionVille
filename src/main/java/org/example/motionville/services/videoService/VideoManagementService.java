@@ -13,6 +13,7 @@ import org.example.motionville.repo.channel.ChannelRepository;
 import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.NotificationCreationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -32,18 +33,21 @@ public class VideoManagementService {
     private final CategoryRepository categoryRepository;
     private final VideoAssetRepository videoAssetRepository;
     private final R2StorageService r2StorageService;
+    private final NotificationCreationService notificationCreationService;
 
     public VideoManagementService(
             VideoRepository videoRepository,
             ChannelRepository channelRepository,
             CategoryRepository categoryRepository,
             VideoAssetRepository videoAssetRepository,
-            @Lazy R2StorageService r2StorageService) {
+            @Lazy R2StorageService r2StorageService,
+            NotificationCreationService notificationCreationService) {
         this.videoRepository = videoRepository;
         this.channelRepository = channelRepository;
         this.categoryRepository = categoryRepository;
         this.videoAssetRepository = videoAssetRepository;
         this.r2StorageService = r2StorageService;
+        this.notificationCreationService = notificationCreationService;
     }
 
     public VideoResponse getVideo(Long id) {
@@ -107,10 +111,13 @@ public class VideoManagementService {
                     "Change visibility to PUBLIC or UNLISTED before publishing"
             );
         }
-        if (video.getPublishedAt() == null) {
+        boolean newlyPublished = video.getPublishedAt() == null;
+        if (newlyPublished) {
             video.setPublishedAt(Instant.now());
         }
-        return toResponse(videoRepository.save(video));
+        Video savedVideo = videoRepository.save(video);
+        if (newlyPublished) notificationCreationService.notifyNewVideo(savedVideo);
+        return toResponse(savedVideo);
     }
 
     @Transactional
@@ -132,6 +139,7 @@ public class VideoManagementService {
             Long id,
             VideoProcessingStatusRequest request) {
         Video video = findVideo(id);
+        boolean wasPublished = video.getPublishedAt() != null;
         VideoProcessingStatus current = video.getProcessingStatus();
         VideoProcessingStatus target = request.processingStatus();
 
@@ -168,7 +176,11 @@ public class VideoManagementService {
         } else if (target == VideoProcessingStatus.FAILED) {
             video.setPublishedAt(null);
         }
-        return toResponse(videoRepository.save(video));
+        Video savedVideo = videoRepository.save(video);
+        if (!wasPublished && savedVideo.getPublishedAt() != null) {
+            notificationCreationService.notifyNewVideo(savedVideo);
+        }
+        return toResponse(savedVideo);
     }
 
     private void setVisibility(Video video, VideoVisibility visibility) {

@@ -273,7 +273,7 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, onWatchProgress, liked, subscribed, currentUser }) {
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, onWatchProgress, onNotificationsChanged, liked, subscribed, currentUser }) {
   const reactionUserId = Number(currentUser?.id);
   const hasReactionUser = Number.isInteger(reactionUserId) && reactionUserId > 0;
   const [comment, setComment] = useState("");
@@ -315,6 +315,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const resumeApplied = useRef(false);
   const saveInProgress = useRef(false);
   const [resumePosition, setResumePosition] = useState(0);
+  const [resumeReady, setResumeReady] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(!currentUser?.id || !video.serverVideo);
   const [historyError, setHistoryError] = useState("");
   const lastSavedPosition = useRef(0);
@@ -322,12 +323,14 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   useEffect(() => {
     if (!currentUser?.id || !video.serverVideo) {
       resumeApplied.current = false;
+      setResumeReady(false);
       setHistoryLoaded(true);
       return undefined;
     }
 
     let active = true;
     resumeApplied.current = false;
+    setResumeReady(false);
     setHistoryLoaded(false);
     setHistoryError("");
     setResumePosition(0);
@@ -354,7 +357,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   }, [currentUser?.id, video.serverVideo, video.videoId]);
 
   async function saveProgress(position, force = false) {
-    if (!currentUser?.id || !video.serverVideo || !Number.isFinite(position) || saveInProgress.current) return;
+    if (!currentUser?.id || !video.serverVideo || !resumeApplied.current
+        || !Number.isFinite(position) || saveInProgress.current) return;
 
     const seconds = Math.floor(position);
     if (!force && Math.abs(seconds - lastSavedPosition.current) < 10) return;
@@ -386,9 +390,11 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     if (resumePosition > 0 && resumePosition < player.duration - 5) {
       player.currentTime = resumePosition;
       lastPlaybackPosition.current = resumePosition;
+      setResumeReady(true);
       return;
     }
     lastPlaybackPosition.current = player.currentTime;
+    setResumeReady(true);
     saveProgress(player.currentTime, true);
   }
 
@@ -401,7 +407,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     const videoId = video.videoId;
     return () => {
       const position = lastPlaybackPosition.current;
-      if (!userId || !video.serverVideo || !Number.isFinite(position)) return;
+      if (!userId || !video.serverVideo || !resumeApplied.current
+          || !Number.isFinite(position)) return;
       recordWatchProgress(videoId, userId, Math.floor(position)).catch((error) => {
         console.error(`Could not save watch progress while closing the player: ${error.message}`);
       });
@@ -457,6 +464,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
       const summary = await fetchVideoReaction(video.videoId, reactionUserId);
       setVideoReactionState(summary);
       onLike?.(video.videoId, summary.userReaction === "LIKE");
+      onNotificationsChanged?.();
     } catch (error) {
       setReactionError(error.message);
     } finally {
@@ -630,6 +638,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
         ...current,
         [commentId]: summary,
       }));
+      onNotificationsChanged?.();
     } catch (error) {
       setCommentReactionError(error.message);
     } finally {
@@ -747,8 +756,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
               {playbackUrl && !playbackError
                 ? <video
                       ref={playerRef}
-                      controls
-                      autoPlay={historyLoaded}
+                      controls={resumeReady}
+                      autoPlay={resumeReady}
                       playsInline
                       poster={posterUrl || undefined}
                       onLoadedMetadata={onPlayerMetadata}

@@ -26,6 +26,7 @@ public class CommentServiceImplements implements CommentService {
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
     private final AppUserRepository appUserRepository;
+    private final NotificationCreationService notificationCreationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -60,7 +61,9 @@ public class CommentServiceImplements implements CommentService {
         Instant now = Instant.now();
         comment.setCreatedAt(now);
         comment.setUpdatedAt(now);
-        return toResponse(commentRepository.save(comment));
+        Comment savedComment = commentRepository.save(comment);
+        notificationCreationService.notifyNewComment(savedComment);
+        return toResponse(savedComment);
     }
 
     @Override
@@ -77,7 +80,9 @@ public class CommentServiceImplements implements CommentService {
         Instant now = Instant.now();
         reply.setCreatedAt(now);
         reply.setUpdatedAt(now);
-        return toResponse(commentRepository.save(reply));
+        Comment savedReply = commentRepository.save(reply);
+        notificationCreationService.notifyCommentReply(savedReply);
+        return toResponse(savedReply);
     }
 
     @Override

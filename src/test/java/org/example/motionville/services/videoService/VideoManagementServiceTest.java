@@ -13,6 +13,7 @@ import org.example.motionville.repo.channel.ChannelRepository;
 import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.NotificationCreationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -41,7 +42,8 @@ class VideoManagementServiceTest {
         assets = mock(VideoAssetRepository.class);
         r2StorageService = mock(R2StorageService.class);
         service = new VideoManagementService(
-                videos, channels, mock(CategoryRepository.class), assets, r2StorageService);
+                videos, channels, mock(CategoryRepository.class), assets, r2StorageService,
+                mock(NotificationCreationService.class));
 
         Channel channel = new Channel();
         channel.setChannelId(4L);

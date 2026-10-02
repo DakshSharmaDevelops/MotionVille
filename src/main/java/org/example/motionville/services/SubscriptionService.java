@@ -10,6 +10,7 @@ import org.example.motionville.repo.channel.ChannelRepository;
 import org.example.motionville.repo.channel.SubscriptionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -22,17 +23,21 @@ public class SubscriptionService {
     private final SubscriptionRepository subscriptionRepository;
     private final AppUserRepository appUserRepository;
     private final ChannelRepository channelRepository;
+    private final NotificationCreationService notificationCreationService;
 
     public SubscriptionService(
             SubscriptionRepository subscriptionRepository,
             AppUserRepository appUserRepository,
-            ChannelRepository channelRepository) {
+            ChannelRepository channelRepository,
+            NotificationCreationService notificationCreationService) {
 
         this.subscriptionRepository = subscriptionRepository;
         this.appUserRepository = appUserRepository;
         this.channelRepository = channelRepository;
+        this.notificationCreationService = notificationCreationService;
     }
 
+    @Transactional
     public void subscribe(Long userId, Long channelId) {
 
         AppUser user = appUserRepository.findById(userId)
@@ -69,8 +74,10 @@ public class SubscriptionService {
         subscription.setSubscribedAt(Instant.now());
 
         subscriptionRepository.save(subscription);
+        notificationCreationService.notifyNewSubscriber(channel, user);
     }
 
+    @Transactional
     public void unsubscribe(Long userId, Long channelId) {
 
         if (!appUserRepository.existsById(userId)) {

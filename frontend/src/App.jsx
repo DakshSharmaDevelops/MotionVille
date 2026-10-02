@@ -39,8 +39,15 @@ import {
   reorderPlaylistVideos,
   updatePlaylist,
 } from "./api/playlistApi.js";
-import { fetchWatchHistory } from "./api/watchHistoryApi.js";
-import { formatDuration } from "./utils/format.js";
+import { clearWatchHistory, fetchWatchHistory, removeWatchHistoryItem } from "./api/watchHistoryApi.js";
+import { formatAge, formatDuration } from "./utils/format.js";
+
+import {
+  fetchNotificationCount,
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "./api/notificationApi.js";
 
 function loadStoredIds(key) {
   try {
@@ -72,6 +79,10 @@ export default function App() {
   const [pendingPlaylistVideo, setPendingPlaylistVideo] = useState(null);
 
   const [backendLoaded, setBackendLoaded] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsError, setNotificationsError] = useState("");
 
   const [videoPage, setVideoPage] = useState({
     page: 0,
@@ -108,6 +119,9 @@ export default function App() {
   const [watchHistory, setWatchHistory] = useState([]);
   const [watchHistoryLoading, setWatchHistoryLoading] = useState(false);
   const [watchHistoryError, setWatchHistoryError] = useState("");
+  const [watchHistoryActionError, setWatchHistoryActionError] = useState("");
+  const [watchHistoryActionBusy, setWatchHistoryActionBusy] = useState(false);
+  const [removingHistoryVideoId, setRemovingHistoryVideoId] = useState(null);
 
   const [subscriptions, setSubscriptions] = useState(() =>
     loadStoredIds("motionville.subscriptions")
@@ -118,6 +132,100 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [accountDialog, setAccountDialog] = useState(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [notificationActionBusy, setNotificationActionBusy] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setNotifications([]);
+      setNotificationCount(0);
+      setNotificationsError("");
+      setNotificationsOpen(false);
+      return undefined;
+    }
+
+    let active = true;
+
+    async function loadNotifications() {
+      try {
+        const [items, countResponse] = await Promise.all([
+          fetchNotifications(currentUser.id),
+          fetchNotificationCount(currentUser.id),
+        ]);
+        if (active) {
+          setNotifications(items);
+          setNotificationCount(Number(countResponse.count) || 0);
+          setNotificationsError("");
+        }
+      } catch (error) {
+        if (active) setNotificationsError(error.message);
+      }
+    }
+
+    loadNotifications();
+    const intervalId = window.setInterval(loadNotifications, 30_000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [currentUser?.id]);
+
+  const unreadNotificationCount = notifications.filter(
+    (notification) => notification.readAt === null,
+  ).length;
+
+  async function handleMarkNotificationRead(notificationId) {
+    if (!currentUser?.id) return;
+    try {
+      const updated = await markNotificationRead(currentUser.id, notificationId);
+      setNotifications((items) =>
+        items.map((item) => item.id === updated.id ? updated : item),
+      );
+      setNotificationsError("");
+    } catch (error) {
+      setNotificationsError(error.message);
+    }
+  }
+
+  async function handleMarkAllNotificationsRead() {
+    if (!currentUser?.id || notificationActionBusy) return;
+    setNotificationActionBusy(true);
+    try {
+      const updated = await markAllNotificationsRead(currentUser.id);
+      setNotifications(updated);
+      setNotificationsError("");
+    } catch (error) {
+      setNotificationsError(error.message);
+    } finally {
+      setNotificationActionBusy(false);
+    }
+  }
+
+  async function handleNotificationClick(notification) {
+    if (notification.readAt === null) {
+      await handleMarkNotificationRead(notification.id);
+    }
+    setNotificationsOpen(false);
+    const linkedVideo = videos.find(
+      (video) => Number(video.videoId) === Number(notification.videoId),
+    );
+    if (linkedVideo) selectVideo(linkedVideo);
+  }
+
+  async function refreshNotifications() {
+    if (!currentUser?.id) return;
+    try {
+      const [items, countResponse] = await Promise.all([
+        fetchNotifications(currentUser.id),
+        fetchNotificationCount(currentUser.id),
+      ]);
+      setNotifications(items);
+      setNotificationCount(Number(countResponse.count) || 0);
+      setNotificationsError("");
+    } catch (error) {
+      setNotificationsError(error.message);
+    }
+  }
 
   const [myChannels, setMyChannels] = useState([]);
   const [subscriptionChannels, setSubscriptionChannels] = useState([]);
@@ -1290,6 +1398,40 @@ export default function App() {
     ]);
   }
 
+  async function removeHistoryVideo(video) {
+    if (!currentUser?.id || removingHistoryVideoId !== null) return;
+    if (!window.confirm(`Remove "${video.title}" from your watch history?`)) return;
+
+    setRemovingHistoryVideoId(video.videoId);
+    setWatchHistoryActionError("");
+    try {
+      await removeWatchHistoryItem(currentUser.id, video.videoId);
+      setWatchHistory((current) => current.filter(
+        (entry) => Number(entry.videoId) !== Number(video.videoId)
+      ));
+    } catch (error) {
+      setWatchHistoryActionError(`Could not remove video from watch history: ${error.message}`);
+    } finally {
+      setRemovingHistoryVideoId(null);
+    }
+  }
+
+  async function clearAllWatchHistory() {
+    if (!currentUser?.id || watchHistoryActionBusy) return;
+    if (!window.confirm("Clear your entire watch history? This cannot be undone.")) return;
+
+    setWatchHistoryActionBusy(true);
+    setWatchHistoryActionError("");
+    try {
+      await clearWatchHistory(currentUser.id);
+      setWatchHistory([]);
+    } catch (error) {
+      setWatchHistoryActionError(`Could not clear watch history: ${error.message}`);
+    } finally {
+      setWatchHistoryActionBusy(false);
+    }
+  }
+
   function chooseView(nextView) {
     setView(nextView);
     setActiveChannelId(null);
@@ -1680,12 +1822,69 @@ export default function App() {
                 <span>Create</span>
               </button>
 
-              <button
-                className="icon-button notification-button"
-                aria-label="Notifications"
-              >
-                <Icon name="bell" />
-              </button>
+              <div className="notification-menu">
+                <button
+                  className="icon-button notification-button"
+                  type="button"
+                  aria-label={`Notifications${unreadNotificationCount ? `, ${unreadNotificationCount} unread` : ""}`}
+                  aria-expanded={notificationsOpen}
+                  onClick={() => {
+                    const opening = !notificationsOpen;
+                    setNotificationsOpen(opening);
+                    if (opening) refreshNotifications();
+                  }}
+                >
+                  <Icon name="bell" />
+                  {unreadNotificationCount > 0 && (
+                    <span className="notification-unread-dot" aria-hidden="true" />
+                  )}
+                </button>
+
+                {notificationsOpen && (
+                  <section className="notification-panel" aria-label="Notifications">
+                    <header className="notification-panel-header">
+                      <strong>
+                        Notifications
+                        <span className="notification-total-count">{notificationCount}</span>
+                      </strong>
+                      {unreadNotificationCount > 0 && (
+                        <button
+                          type="button"
+                          disabled={notificationActionBusy}
+                          onClick={handleMarkAllNotificationsRead}
+                        >
+                          {notificationActionBusy ? "Marking…" : "Mark all as read"}
+                        </button>
+                      )}
+                    </header>
+
+                    {notificationsError && (
+                      <p className="notification-error" role="alert">{notificationsError}</p>
+                    )}
+                    {notifications.length === 0 ? (
+                      <p className="notification-empty">
+                        {notificationsError ? "Notifications could not be loaded." : "No notifications yet."}
+                      </p>
+                    ) : (
+                      <div className="notification-list">
+                        {notifications.map((notification) => (
+                          <button
+                            className={`notification-item ${notification.readAt === null ? "notification-unread" : ""}`}
+                            key={notification.id}
+                            type="button"
+                            onClick={() => handleNotificationClick(notification)}
+                          >
+                            <span className="notification-message">{notification.message}</span>
+                            <time dateTime={notification.createdAt}>
+                              {formatAge(notification.createdAt)}
+                            </time>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                )}
+              </div>
 
               <div style={{ position: "relative" }}>
                 <button
@@ -2287,6 +2486,16 @@ export default function App() {
               </div>
 
               <div className="feed-controls">
+                {view === "History" && currentUser?.id && watchHistory.length > 0 && (
+                  <button
+                    className="feed-filter"
+                    type="button"
+                    disabled={watchHistoryActionBusy || removingHistoryVideoId !== null}
+                    onClick={clearAllWatchHistory}
+                  >
+                    {watchHistoryActionBusy ? "Clearing…" : "Clear watch history"}
+                  </button>
+                )}
                 <select
                   className="feed-sort"
                   aria-label="Sort videos"
@@ -2335,6 +2544,9 @@ export default function App() {
               >
                 {visibleFeedError}
               </p>
+            )}
+            {view === "History" && watchHistoryActionError && (
+              <p className="feed-error" role="alert">{watchHistoryActionError}</p>
             )}
 
             {view === "History" && currentUser?.id && watchHistoryLoading ? (
@@ -2429,6 +2641,8 @@ export default function App() {
                         deleteVideoFromCard
                       }
                       onSavePlaylist={startSaveToPlaylist}
+                      onRemoveHistory={view === "History" && currentUser?.id ? removeHistoryVideo : undefined}
+                      removingHistoryVideoId={removingHistoryVideoId}
                       index={index}
                     />
                   )
@@ -2669,6 +2883,7 @@ export default function App() {
           }
           onSavePlaylist={startSaveToPlaylist}
           onWatchProgress={updateWatchHistory}
+          onNotificationsChanged={refreshNotifications}
           liked={likedVideos.includes(
             selectedVideo.videoId
           )}

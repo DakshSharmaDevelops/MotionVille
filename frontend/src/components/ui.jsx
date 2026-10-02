@@ -48,7 +48,7 @@ export function Avatar({ src, name, size = "normal" }) {
     : <span className={`avatar avatar-fallback avatar-${size}`}>{(name || "M").slice(0, 1).toUpperCase()}</span>;
 }
 
-export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSavePlaylist, index }) {
+export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSavePlaylist, onRemoveHistory, removingHistoryVideoId, index }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(video.thumbnailUrl || "");
 
   useEffect(() => {
@@ -94,6 +94,7 @@ export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSave
           )}
         </div>
         <div className="video-card-actions">
+          {onRemoveHistory && <button className="video-card-action video-card-delete" disabled={removingHistoryVideoId === video.videoId} onClick={() => onRemoveHistory(video)}>{removingHistoryVideoId === video.videoId ? "Removing…" : "Remove from history"}</button>}
           {video.serverVideo && onSavePlaylist && <button className="video-card-action" onClick={() => onSavePlaylist(video)}>Save</button>}
           {video.serverVideo && <>
             <button className="video-card-action" onClick={() => onManage(video)}>Edit</button>
