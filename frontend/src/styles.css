@@ -166,6 +166,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .channel-link:hover { color: #393940; }
 .video-card-text p { margin: 4px 0 0; color: #9a99a0; font-size: 9px; }
 .video-card-text p span { padding: 0 2px; }
+.watch-progress { display: grid; gap: 5px; margin-top: 7px; color: #77767e; font-size: 9px; }
+.watch-progress-track { display: block; width: 100%; height: 3px; overflow: hidden; border-radius: 3px; background: #ebe9e6; }
+.watch-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .video-card-actions { display: flex; flex: 0 0 auto; gap: 4px; }
 .playlist-library { padding: 24px 0; }
 .playlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 16px; }

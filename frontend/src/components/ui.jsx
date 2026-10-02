@@ -86,6 +86,12 @@ export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSave
           <button className="video-card-title" onClick={() => onSelect(video)}>{video.title}</button>
           <button className="channel-link">{channel?.name || "MotionVille creator"}</button>
           <p>{video.views == null ? formatAge(video.createdAt) : `${formatViews(video.views)} · ${formatAge(video.createdAt)}`}</p>
+          {Number.isFinite(video.resumePositionSeconds) && (
+            <div className="watch-progress">
+              <span>Continue watching · {formatDuration(video.resumePositionSeconds)}</span>
+              <span className="watch-progress-track"><span style={{ width: `${video.watchProgressPercent || 0}%` }} /></span>
+            </div>
+          )}
         </div>
         <div className="video-card-actions">
           {video.serverVideo && onSavePlaylist && <button className="video-card-action" onClick={() => onSavePlaylist(video)}>Save</button>}

@@ -38,6 +38,8 @@ import {
   reorderPlaylistVideos,
   updatePlaylist,
 } from "./api/playlistApi.js";
+import { fetchWatchHistory } from "./api/watchHistoryApi.js";
+import { formatDuration } from "./utils/format.js";
 
 function loadStoredIds(key) {
   try {
@@ -102,6 +104,9 @@ export default function App() {
   const [history, setHistory] = useState(() =>
     loadStoredIds("motionville.history")
   );
+  const [watchHistory, setWatchHistory] = useState([]);
+  const [watchHistoryLoading, setWatchHistoryLoading] = useState(false);
+  const [watchHistoryError, setWatchHistoryError] = useState("");
 
   const [subscriptions, setSubscriptions] = useState(() =>
     loadStoredIds("motionville.subscriptions")
@@ -191,6 +196,33 @@ export default function App() {
             `Could not load account data: ${error.message}`
           );
         }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setWatchHistory([]);
+      setWatchHistoryLoading(false);
+      setWatchHistoryError("");
+      return undefined;
+    }
+
+    let active = true;
+    setWatchHistoryLoading(true);
+    setWatchHistoryError("");
+    fetchWatchHistory(currentUser.id)
+      .then((items) => {
+        if (active) setWatchHistory(items);
+      })
+      .catch((error) => {
+        if (active) setWatchHistoryError(`Could not load watch history: ${error.message}`);
+      })
+      .finally(() => {
+        if (active) setWatchHistoryLoading(false);
       });
 
     return () => {
@@ -440,9 +472,29 @@ export default function App() {
           Number(activeChannelId)
       );
     } else if (view === "History") {
-      items = items.filter((video) =>
-        history.includes(video.videoId)
-      );
+      if (currentUser?.id) {
+        items = watchHistory.map((entry) => {
+          const existing = videos.find((video) => Number(video.videoId) === Number(entry.videoId));
+          const durationSeconds = Number(entry.durationSeconds || existing?.durationSeconds || 0);
+          const resumePositionSeconds = Number(entry.lastPositionSeconds || 0);
+          return {
+            ...existing,
+            videoId: Number(entry.videoId),
+            title: entry.videoTitle || existing?.title || "Video",
+            thumbnailUrl: entry.thumbnailUrl || existing?.thumbnailUrl || "",
+            durationSeconds,
+            channelId: existing?.channelId,
+            createdAt: entry.lastWatchedAt || existing?.createdAt,
+            serverVideo: true,
+            resumePositionSeconds,
+            watchProgressPercent: durationSeconds > 0
+              ? Math.min(100, (resumePositionSeconds / durationSeconds) * 100)
+              : 0,
+          };
+        });
+      } else {
+        items = items.filter((video) => history.includes(Number(video.videoId)));
+      }
     } else if (view === "Liked videos") {
       items = items.filter((video) =>
         likedVideos.includes(video.videoId)
@@ -455,7 +507,7 @@ export default function App() {
       );
     }
 
-    if (view === "History") {
+    if (view === "History" && !currentUser?.id) {
       items = [...items].sort(
         (a, b) =>
           history.indexOf(a.videoId) -
@@ -466,11 +518,13 @@ export default function App() {
     return items;
   }, [
     activeChannelId,
+    currentUser?.id,
     history,
     likedVideos,
     myChannels,
     subscriptions,
     videos,
+    watchHistory,
     view,
   ]);
 
@@ -1196,6 +1250,13 @@ export default function App() {
         (id) =>
           id !== video.videoId
       ),
+    ]);
+  }
+
+  function updateWatchHistory(entry) {
+    setWatchHistory((current) => [
+      entry,
+      ...current.filter((item) => Number(item.videoId) !== Number(entry.videoId)),
     ]);
   }
 
@@ -2202,7 +2263,20 @@ export default function App() {
               </p>
             )}
 
-            {!backendLoaded &&
+            {view === "History" && currentUser?.id && watchHistoryLoading ? (
+              <div className="empty-feed">
+                <span><Icon name="history" size={25} /></span>
+                <h2>Loading watch history</h2>
+                <p>Fetching your watch history and resume positions…</p>
+              </div>
+            ) : view === "History" && currentUser?.id && watchHistoryError ? (
+              <div className="empty-feed">
+                <span><Icon name="history" size={25} /></span>
+                <h2>Watch history is unavailable</h2>
+                <p>{watchHistoryError}</p>
+              </div>
+            ) : (view !== "History" || !currentUser?.id) &&
+            !backendLoaded &&
             !feedError &&
             !videosLoading ? (
               <div className="empty-feed">
@@ -2222,7 +2296,8 @@ export default function App() {
                   service…
                 </p>
               </div>
-            ) : !backendLoaded &&
+            ) : (view !== "History" || !currentUser?.id) &&
+              !backendLoaded &&
               feedError ? (
               <div className="empty-feed">
                 <span>
@@ -2519,6 +2594,7 @@ export default function App() {
             toggleSubscription
           }
           onSavePlaylist={startSaveToPlaylist}
+          onWatchProgress={updateWatchHistory}
           liked={likedVideos.includes(
             selectedVideo.videoId
           )}

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { API_BASE_URL, createVideoThumbnail, MAX_VIDEO_BYTES, readResponseError } from "../api/videoApi.js";
+import { fetchWatchHistory, recordWatchProgress } from "../api/watchHistoryApi.js";
 import { formatAge } from "../utils/format.js";
 import { Avatar, Icon, Modal, VideoCard } from "./ui.jsx";
 
@@ -272,7 +273,7 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, liked, subscribed, currentUser }) {
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, onWatchProgress, liked, subscribed, currentUser }) {
   const reactionUserId = Number(currentUser?.id);
   const hasReactionUser = Number.isInteger(reactionUserId) && reactionUserId > 0;
   const [comment, setComment] = useState("");
@@ -307,6 +308,105 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [commentReactions, setCommentReactions] = useState({});
   const [commentReactionError, setCommentReactionError] = useState("");
   const [commentReactionBusyId, setCommentReactionBusyId] = useState(null);
+
+  const playerRef = useRef(null);
+  const lastPlaybackPosition = useRef(0);
+  const playerMetadataReady = useRef(false);
+  const resumeApplied = useRef(false);
+  const saveInProgress = useRef(false);
+  const [resumePosition, setResumePosition] = useState(0);
+  const [historyLoaded, setHistoryLoaded] = useState(!currentUser?.id || !video.serverVideo);
+  const [historyError, setHistoryError] = useState("");
+  const lastSavedPosition = useRef(0);
+
+  useEffect(() => {
+    if (!currentUser?.id || !video.serverVideo) {
+      resumeApplied.current = false;
+      setHistoryLoaded(true);
+      return undefined;
+    }
+
+    let active = true;
+    resumeApplied.current = false;
+    setHistoryLoaded(false);
+    setHistoryError("");
+    setResumePosition(0);
+    lastSavedPosition.current = 0;
+    fetchWatchHistory(currentUser.id)
+      .then((items) => {
+        if (!active) return;
+        const item = items.find((entry) => Number(entry.videoId) === Number(video.videoId));
+        const position = item?.lastPositionSeconds || 0;
+        setResumePosition(position);
+        lastSavedPosition.current = position;
+        lastPlaybackPosition.current = position;
+      })
+      .catch((error) => {
+        if (active) setHistoryError(`Could not load watch progress: ${error.message}`);
+      })
+      .finally(() => {
+        if (active) setHistoryLoaded(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.id, video.serverVideo, video.videoId]);
+
+  async function saveProgress(position, force = false) {
+    if (!currentUser?.id || !video.serverVideo || !Number.isFinite(position) || saveInProgress.current) return;
+
+    const seconds = Math.floor(position);
+    if (!force && Math.abs(seconds - lastSavedPosition.current) < 10) return;
+
+    saveInProgress.current = true;
+    try {
+      const savedProgress = await recordWatchProgress(video.videoId, currentUser.id, seconds);
+      lastSavedPosition.current = seconds;
+      setHistoryError("");
+      onWatchProgress?.(savedProgress);
+    } catch (error) {
+      setHistoryError(`Could not save watch progress: ${error.message}`);
+    } finally {
+      saveInProgress.current = false;
+    }
+  }
+
+  function onPlayerMetadata() {
+    playerMetadataReady.current = true;
+    if (!historyLoaded) return;
+    resumePlayback();
+  }
+
+  function resumePlayback() {
+    const player = playerRef.current;
+    if (!player || !playerMetadataReady.current || !historyLoaded || resumeApplied.current) return;
+
+    resumeApplied.current = true;
+    if (resumePosition > 0 && resumePosition < player.duration - 5) {
+      player.currentTime = resumePosition;
+      lastPlaybackPosition.current = resumePosition;
+      return;
+    }
+    lastPlaybackPosition.current = player.currentTime;
+    saveProgress(player.currentTime, true);
+  }
+
+  useEffect(() => {
+    resumePlayback();
+  }, [historyLoaded, resumePosition]);
+
+  useEffect(() => {
+    const userId = currentUser?.id;
+    const videoId = video.videoId;
+    return () => {
+      const position = lastPlaybackPosition.current;
+      if (!userId || !video.serverVideo || !Number.isFinite(position)) return;
+      recordWatchProgress(videoId, userId, Math.floor(position)).catch((error) => {
+        console.error(`Could not save watch progress while closing the player: ${error.message}`);
+      });
+    };
+  }, [currentUser?.id, video.serverVideo, video.videoId]);
 
   useEffect(() => {
     if (!hasReactionUser) {
@@ -645,7 +745,30 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
           <div className="watch-primary">
             <div className="player-wrap">
               {playbackUrl && !playbackError
-                ? <video controls autoPlay playsInline poster={posterUrl || undefined} onError={() => setPlaybackError(true)}><source src={playbackUrl} type={playbackMimeType} />Your browser does not support video playback.</video>
+                ? <video
+                      ref={playerRef}
+                      controls
+                      autoPlay={historyLoaded}
+                      playsInline
+                      poster={posterUrl || undefined}
+                      onLoadedMetadata={onPlayerMetadata}
+                      onTimeUpdate={(event) => {
+                        lastPlaybackPosition.current = event.currentTarget.currentTime;
+                        saveProgress(event.currentTarget.currentTime);
+                      }}
+                      onPause={(event) => {
+                        lastPlaybackPosition.current = event.currentTarget.currentTime;
+                        saveProgress(event.currentTarget.currentTime, true);
+                      }}
+                      onEnded={() => {
+                        lastPlaybackPosition.current = 0;
+                        saveProgress(0, true);
+                      }}
+                      onError={() => setPlaybackError(true)}
+                  >
+                    <source src={playbackUrl} type={playbackMimeType} />
+                    Your browser does not support video playback.
+                  </video>
                 : video.serverVideo && !playbackError
                   ? <div className="player-preparing" role="status" aria-label="Preparing video for playback">
                     {posterUrl && <img src={posterUrl} alt="" onError={() => setPosterUrl("")} />}
@@ -656,6 +779,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                   </div>
                   : <div className="player-unavailable"><Icon name="video" size={34} /><strong>Video isn't playable</strong><span>{playbackError ? "Could not prepare this video. Check backend processing logs; the file may be damaged or use an unsupported codec." : "The video is being prepared for playback."}</span></div>}
             </div>
+            {historyError && <p className="inline-error" role="alert">{historyError}</p>}
             <h1 className="watch-title">{video.title}</h1>
             <div className="watch-meta-row">
               <div className="watch-channel"><Avatar src={channel?.avatarUrl} name={channel?.name} size="large" /><div><strong>{channel?.name || "MotionVille creator"}</strong><span>{channel?.handle || "@creator"}</span></div><button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button></div>
