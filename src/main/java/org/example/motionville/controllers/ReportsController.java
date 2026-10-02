@@ -19,15 +19,15 @@ public class ReportsController {
     private final ReportsService reportsService;
 
     @GetMapping
-    public List<ReportResponse> getAllReports() {
-
-        return reportsService.getAllReports();
+    public List<ReportResponse> getAllReports(@RequestParam Long userId) {
+        return reportsService.getAllReports(userId);
     }
 
     @GetMapping("/{reportId}")
-    public ReportResponse getReport(@PathVariable Long reportId) {
-
-        return reportsService.getReportById(reportId);
+    public ReportResponse getReport(
+            @PathVariable Long reportId,
+            @RequestParam Long userId) {
+        return reportsService.getReportById(reportId, userId);
     }
 
     @PostMapping
@@ -40,8 +40,8 @@ public class ReportsController {
     @PutMapping("/{reportId}/status")
     public ReportResponse updateReportStatus(
             @PathVariable Long reportId,
+            @RequestParam Long userId,
             @Valid @RequestBody ReportStatusUpdateRequest request) {
-
-        return reportsService.updateReportStatus(reportId, request);
+        return reportsService.updateReportStatus(reportId, userId, request);
     }
 }

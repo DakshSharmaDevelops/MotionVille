@@ -70,7 +70,7 @@ class ReportsControllerTest {
 
     @Test
     void listsReportsAsResponseDtos() throws Exception {
-        mockMvc.perform(get("/api/reports"))
+        mockMvc.perform(get("/api/reports").param("userId", "9"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].reason").value("SPAM"));
@@ -79,6 +79,7 @@ class ReportsControllerTest {
     @Test
     void updatesOnlyReportStatus() throws Exception {
         mockMvc.perform(put("/api/reports/1/status")
+                        .param("userId", "9")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"status":"RESOLVED"}
@@ -90,18 +91,18 @@ class ReportsControllerTest {
 
     @Test
     void returnsNotFoundForMissingReport() throws Exception {
-        mockMvc.perform(get("/api/reports/99"))
+        mockMvc.perform(get("/api/reports/99").param("userId", "9"))
                 .andExpect(status().isNotFound());
     }
 
     private static class StubReportsService implements ReportsService {
         @Override
-        public List<ReportResponse> getAllReports() {
+        public List<ReportResponse> getAllReports(Long requesterId) {
             return List.of(response(ReportStatus.OPEN));
         }
 
         @Override
-        public ReportResponse getReportById(Long reportId) {
+        public ReportResponse getReportById(Long reportId, Long requesterId) {
             if (reportId != 1L) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found");
             }
@@ -114,7 +115,10 @@ class ReportsControllerTest {
         }
 
         @Override
-        public ReportResponse updateReportStatus(Long reportId, ReportStatusUpdateRequest request) {
+        public ReportResponse updateReportStatus(
+                Long reportId,
+                Long requesterId,
+                ReportStatusUpdateRequest request) {
             if (reportId != 1L) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found");
             }

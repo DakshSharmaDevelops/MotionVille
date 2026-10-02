@@ -7,11 +7,11 @@ import org.example.motionville.dto.ReportStatusUpdateRequest;
 import java.util.List;
 
 public interface ReportsService {
-    List<ReportResponse> getAllReports();
+    List<ReportResponse> getAllReports(Long requesterId);
 
-    ReportResponse getReportById(Long reportId);
+    ReportResponse getReportById(Long reportId, Long requesterId);
 
     ReportResponse saveReport(ReportCreateRequest request);
 
-    ReportResponse updateReportStatus(Long reportId, ReportStatusUpdateRequest request);
+    ReportResponse updateReportStatus(Long reportId, Long requesterId, ReportStatusUpdateRequest request);
 }

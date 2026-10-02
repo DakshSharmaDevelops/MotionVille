@@ -13,6 +13,7 @@ import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.comment.CommentRepository;
 import org.example.motionville.repo.report.ReportRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,9 +31,13 @@ public class ReportsServiceImplements implements ReportsService {
     private final VideoRepository videoRepository;
     private final CommentRepository commentRepository;
 
+    @Value("${motionville.demo-admin-user-id}")
+    private Long demoAdminUserId;
+
     @Override
     @Transactional(readOnly = true)
-    public List<ReportResponse> getAllReports() {
+    public List<ReportResponse> getAllReports(Long requesterId) {
+        requireDemoAdmin(requesterId);
         return reportRepository.findAll().stream()
                 .map(this::toResponse)
                 .toList();
@@ -40,7 +45,8 @@ public class ReportsServiceImplements implements ReportsService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReportResponse getReportById(Long reportId) {
+    public ReportResponse getReportById(Long reportId, Long requesterId) {
+        requireDemoAdmin(requesterId);
         return toResponse(findReport(reportId));
     }
 
@@ -67,13 +73,23 @@ public class ReportsServiceImplements implements ReportsService {
 
     @Override
     @Transactional
-    public ReportResponse updateReportStatus(Long reportId, ReportStatusUpdateRequest request) {
+    public ReportResponse updateReportStatus(
+            Long reportId,
+            Long requesterId,
+            ReportStatusUpdateRequest request) {
+        requireDemoAdmin(requesterId);
         Report report = findReport(reportId);
         ReportStatus status = request.status();
         report.setStatus(status);
         report.setResolvedAt(status == ReportStatus.RESOLVED || status == ReportStatus.REJECTED
                 ? Instant.now() : null);
         return toResponse(reportRepository.save(report));
+    }
+
+    private void requireDemoAdmin(Long requesterId) {
+        if (!demoAdminUserId.equals(requesterId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required");
+        }
     }
 
     private Report findReport(Long reportId) {

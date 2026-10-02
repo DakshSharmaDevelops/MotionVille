@@ -21,6 +21,7 @@ import {
   CreateChannelDialog,
   CreateVideoDialog,
   ManageVideoDialog,
+  ReportDialog,
   WatchDialog,
 } from "./components/dialogs.jsx";
 import {
@@ -48,6 +49,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "./api/notificationApi.js";
+
+import ReportsAdminPanel from "./components/ReportsAdminPanel.jsx";
+
+const DEMO_ADMIN_USER_ID = Number(
+    import.meta.env.VITE_DEMO_ADMIN_USER_ID || 9,
+);
 
 function loadStoredIds(key) {
   try {
@@ -130,9 +137,12 @@ export default function App() {
   const [activeChannelId, setActiveChannelId] = useState(null);
 
   const [currentUser, setCurrentUser] = useState(null);
+  const [reportsAdminOpen, setReportsAdminOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
   const [accountDialog, setAccountDialog] = useState(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationActionBusy, setNotificationActionBusy] = useState(false);
+  const isDemoAdmin = Number(currentUser?.id) === DEMO_ADMIN_USER_ID;
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -904,6 +914,20 @@ export default function App() {
     setView("Home");
 
     setToast("Signed out.");
+  }
+
+  function openReport(target) {
+    if (!currentUser?.id) {
+      setAccountDialog("auth");
+      setToast("Create a profile or sign in to submit a report.");
+      return;
+    }
+    setReportTarget(target);
+  }
+
+  function handleReportSubmitted() {
+    setReportTarget(null);
+    setToast("Your report was submitted.");
   }
 
   async function subscribeToChannel(channelId) {
@@ -1822,6 +1846,16 @@ export default function App() {
                 <span>Create</span>
               </button>
 
+              {isDemoAdmin && (
+                <button
+                  className="create-button"
+                  type="button"
+                  onClick={() => setReportsAdminOpen(true)}
+                >
+                  Manage reports
+                </button>
+              )}
+
               <div className="notification-menu">
                 <button
                   className="icon-button notification-button"
@@ -2641,6 +2675,9 @@ export default function App() {
                         deleteVideoFromCard
                       }
                       onSavePlaylist={startSaveToPlaylist}
+                      onReport={(reportedVideo) => openReport({
+                        videoId: Number(reportedVideo.videoId),
+                      })}
                       onRemoveHistory={view === "History" && currentUser?.id ? removeHistoryVideo : undefined}
                       removingHistoryVideoId={removingHistoryVideoId}
                       index={index}
@@ -2882,6 +2919,12 @@ export default function App() {
             toggleSubscription
           }
           onSavePlaylist={startSaveToPlaylist}
+          onReportVideo={() => openReport({
+            videoId: Number(selectedVideo.videoId),
+          })}
+          onReportComment={(reportedComment) => openReport({
+            commentId: Number(reportedComment.id),
+          })}
           onWatchProgress={updateWatchHistory}
           onNotificationsChanged={refreshNotifications}
           liked={likedVideos.includes(
@@ -2926,6 +2969,15 @@ export default function App() {
         />
       )}
 
+      {reportTarget && currentUser?.id && (
+        <ReportDialog
+          userId={currentUser.id}
+          target={reportTarget}
+          onClose={() => setReportTarget(null)}
+          onSubmitted={handleReportSubmitted}
+        />
+      )}
+
       {subscriberDialog && (
         <SubscribersDialog
           channel={
@@ -2937,6 +2989,13 @@ export default function App() {
           onClose={() =>
             setSubscriberDialog(null)
           }
+        />
+      )}
+
+      {reportsAdminOpen && isDemoAdmin && (
+        <ReportsAdminPanel
+          userId={Number(currentUser.id)}
+          onClose={() => setReportsAdminOpen(false)}
         />
       )}
 

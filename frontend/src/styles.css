@@ -76,6 +76,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .notification-item time { color: var(--muted); font-size: 9px; }
 .notification-empty, .notification-error { margin: 0; padding: 17px 15px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .notification-error { color: #a3423c; }
+.reports-admin-backdrop { z-index: 40; }
+.reports-admin-dialog { width: min(100%, 720px); }
+.report-queue-message { margin: 18px 0; color: var(--muted); font-size: 11px; }
+.report-list { display: grid; max-height: min(55vh, 560px); gap: 10px; overflow-y: auto; padding: 2px; }
+.report-item { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fdfcfb; }
+.report-item-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #39383e; font-size: 11px; }
+.report-item-heading span { color: #a35b4e; font-size: 9px; font-weight: 700; }
+.report-item-target { margin: 7px 0; color: #59575e; font-size: 10px; font-weight: 700; }
+.report-item-details { margin: 0; color: #55545b; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.report-item-meta { margin: 8px 0; color: var(--muted); font-size: 9px; }
+.report-item-actions { display: flex; align-items: end; justify-content: space-between; gap: 10px; }
+.report-item-actions label { display: grid; gap: 5px; color: #55545b; font-size: 9px; font-weight: 700; }
+.report-item-actions select { min-height: 34px; min-width: 145px; padding: 0 9px; border: 1px solid #e7e5e2; border-radius: 7px; background: #fff; font-size: 10px; }
+.report-item-actions .button { min-height: 34px; }
+.report-item-actions .button:disabled { cursor: not-allowed; opacity: .55; }
 
 .avatar { display: block; width: 39px; height: 39px; flex: 0 0 39px; overflow: hidden; border-radius: 50%; object-fit: cover; background: #f1d8cc; }
 .avatar-fallback { display: grid; place-items: center; color: #9c594c; background: #f1ddd3; font: 700 14px "Manrope", sans-serif; }

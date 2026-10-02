@@ -21,6 +21,7 @@ import {
   setCommentReaction,
   removeCommentReaction,
 } from "../api/reactionApi.js";
+import { createReport } from "../api/reportApi.js";
 
 export function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
@@ -273,7 +274,78 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, onWatchProgress, onNotificationsChanged, liked, subscribed, currentUser }) {
+export function ReportDialog({ userId, target, onClose, onSubmitted }) {
+  const [reason, setReason] = useState("OTHER");
+  const [details, setDetails] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await createReport({
+        reporterId: Number(userId),
+        ...target,
+        reason,
+        details: details.trim() || null,
+      });
+      onSubmitted();
+    } catch (submitError) {
+      setError(submitError.message || "Could not submit your report.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <section className="dialog create-dialog" role="dialog" aria-modal="true" aria-labelledby="report-dialog-title">
+        <div className="dialog-topline">
+          <span className="dialog-step">Community report</span>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close" disabled={busy}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <h2 id="report-dialog-title">Report {target.videoId != null ? "video" : "comment"}</h2>
+        <p className="dialog-subtitle">Tell us what is wrong. Reports are reviewed by the MotionVille team.</p>
+        <form className="dialog-form" onSubmit={submit}>
+          <label>
+            Reason
+            <select value={reason} onChange={(event) => setReason(event.target.value)}>
+              <option value="SPAM">Spam</option>
+              <option value="HARASSMENT">Harassment</option>
+              <option value="HATE">Hate speech</option>
+              <option value="VIOLENCE">Violence</option>
+              <option value="COPYRIGHT">Copyright</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+          <label>
+            Details <span className="optional">Optional</span>
+            <textarea
+              value={details}
+              onChange={(event) => setDetails(event.target.value)}
+              maxLength={10000}
+              rows={4}
+              placeholder="Add context to help us review this report."
+            />
+          </label>
+          {error && <p className="inline-error" role="alert">{error}</p>}
+          <div className="dialog-actions">
+            <button type="button" className="text-button" onClick={onClose} disabled={busy}>Cancel</button>
+            <button className="button button-primary" type="submit" disabled={busy}>
+              {busy ? "Submitting…" : "Submit report"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </Modal>
+  );
+}
+
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, onReportVideo, onReportComment, onWatchProgress, onNotificationsChanged, liked, subscribed, currentUser }) {
   const reactionUserId = Number(currentUser?.id);
   const hasReactionUser = Number.isInteger(reactionUserId) && reactionUserId > 0;
   const [comment, setComment] = useState("");
@@ -818,6 +890,11 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                     <span>Save</span>
                   </button>
                 )}
+                {video.serverVideo && onReportVideo && (
+                  <button className="action-pill" type="button" onClick={() => onReportVideo(video)}>
+                    <span>Report</span>
+                  </button>
+                )}
 
                 {reactionError && <p className="inline-error" role="alert">{reactionError}</p>}</div>
             </div>
@@ -903,6 +980,11 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                 {replyingTo === item.id ? "Hide replies" : "Reply"}
                               </button>
                               <button className="comment-action" type="button" onClick={() => beginEdit(item)}>Edit</button>
+                              {onReportComment && (
+                                <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(item)}>
+                                  Report
+                                </button>
+                              )}
                               <button
                                 className="comment-action comment-action-delete"
                                 type="button"
@@ -965,6 +1047,11 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                           Dislike {commentReactions[reply.id]?.dislikeCount ?? 0}
                                         </button>
                                         <button className="comment-action" type="button" onClick={() => beginEdit(reply)}>Edit</button>
+                                        {onReportComment && (
+                                          <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(reply)}>
+                                            Report
+                                          </button>
+                                        )}
                                         <button
                                           className="comment-action comment-action-delete"
                                           type="button"
