@@ -2138,6 +2138,7 @@ export default function App() {
               selectedVideo.channelId
             )
           )}
+          currentUser={currentUser}
         />
       )}
 

@@ -21,8 +21,6 @@ import {
   removeCommentReaction,
 } from "../api/reactionApi.js";
 
-const COMMENT_AUTHOR_ID = Number(import.meta.env.VITE_COMMENT_AUTHOR_ID ?? 1);
-
 export function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
   const [error, setError] = useState("");
@@ -274,7 +272,9 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, liked, subscribed }) {
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, liked, subscribed, currentUser }) {
+  const reactionUserId = Number(currentUser?.id);
+  const hasReactionUser = Number.isInteger(reactionUserId) && reactionUserId > 0;
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -309,11 +309,17 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [commentReactionBusyId, setCommentReactionBusyId] = useState(null);
 
   useEffect(() => {
+    if (!hasReactionUser) {
+      setVideoReactionLoading(false);
+      setVideoReactionState({ likeCount: 0, dislikeCount: 0, userReaction: null });
+      return undefined;
+    }
+
     let active = true;
     setVideoReactionLoading(true);
     setReactionError("");
     setVideoReactionState({ likeCount: 0, dislikeCount: 0, userReaction: null });
-    fetchVideoReaction(video.videoId)
+    fetchVideoReaction(video.videoId, reactionUserId)
       .then((summary) => {
         if (active) {
           setVideoReactionState(summary);
@@ -330,21 +336,25 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     return () => {
       active = false;
     };
-  }, [video.videoId]);
+  }, [hasReactionUser, reactionUserId, video.videoId]);
 
   async function reactToVideo(reaction) {
+    if (!hasReactionUser) {
+      setReactionError("Create a profile before reacting to videos.");
+      return;
+    }
     if (videoReactionBusy) return;
     setVideoReactionBusy(true);
     setReactionError("");
 
     try {
       if (videoReaction.userReaction === reaction) {
-        await removeVideoReaction(video.videoId);
+        await removeVideoReaction(video.videoId, reactionUserId);
       } else {
-        await setVideoReaction(video.videoId, reaction);
+        await setVideoReaction(video.videoId, reaction, reactionUserId);
       }
 
-      const summary = await fetchVideoReaction(video.videoId);
+      const summary = await fetchVideoReaction(video.videoId, reactionUserId);
       setVideoReactionState(summary);
       onLike?.(video.videoId, summary.userReaction === "LIKE");
     } catch (error) {
@@ -355,9 +365,10 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   }
 
   async function loadCommentReactionSummaries(items) {
+    if (!hasReactionUser) return;
     const results = await Promise.all(items.map(async (item) => {
       try {
-        return [item.id, await fetchCommentReaction(item.id)];
+        return [item.id, await fetchCommentReaction(item.id, reactionUserId)];
       } catch (error) {
         setCommentReactionError(error.message);
         return [item.id, { likeCount: 0, dislikeCount: 0, userReaction: null }];
@@ -387,7 +398,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
       });
 
     return () => controller.abort();
-  }, [video.videoId]);
+  }, [hasReactionUser, reactionUserId, video.videoId]);
 
   useEffect(() => {
     if (!video.serverVideo) return undefined;
@@ -451,8 +462,9 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     const body = comment.trim();
     if (!body) return;
 
-    if (!Number.isInteger(COMMENT_AUTHOR_ID) || COMMENT_AUTHOR_ID <= 0) {
-      setCommentsError("Set VITE_COMMENT_AUTHOR_ID to an existing user ID.");
+    const authorId = Number(currentUser?.id);
+    if (!Number.isInteger(authorId) || authorId <= 0) {
+      setCommentsError("Create a profile before commenting.");
       return;
     }
 
@@ -462,7 +474,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     try {
       const savedComment = await createComment(
           video.videoId,
-          COMMENT_AUTHOR_ID,
+          authorId,
           body,
       );
       setComments((current) => [...current, savedComment]);
@@ -499,17 +511,21 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   }
 
   async function reactToComment(commentId, currentReaction, nextReaction) {
+    if (!hasReactionUser) {
+      setCommentReactionError("Create a profile before reacting to comments.");
+      return;
+    }
     if (commentReactionBusyId === commentId) return;
     setCommentReactionBusyId(commentId);
     setCommentReactionError("");
     try {
       if (currentReaction === nextReaction) {
-        await removeCommentReaction(commentId);
+        await removeCommentReaction(commentId, reactionUserId);
       } else {
-        await setCommentReaction(commentId, nextReaction);
+        await setCommentReaction(commentId, nextReaction, reactionUserId);
       }
 
-      const summary = await fetchCommentReaction(commentId);
+      const summary = await fetchCommentReaction(commentId, reactionUserId);
       setCommentReactions((current) => ({
         ...current,
         [commentId]: summary,
@@ -526,8 +542,9 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     const body = replyText.trim();
     if (!body || replyingTo === null) return;
 
-    if (!Number.isInteger(COMMENT_AUTHOR_ID) || COMMENT_AUTHOR_ID <= 0) {
-      setReplyError("Set VITE_COMMENT_AUTHOR_ID to an existing user ID.");
+    const authorId = Number(currentUser?.id);
+    if (!Number.isInteger(authorId) || authorId <= 0) {
+      setReplyError("Create a profile before replying.");
       return;
     }
 
@@ -535,7 +552,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     setReplyError("");
 
     try {
-      const savedReply = await createReply(replyingTo, COMMENT_AUTHOR_ID, body);
+      const savedReply = await createReply(replyingTo, authorId, body);
       setRepliesByComment((current) => ({
         ...current,
         [replyingTo]: [...(current[replyingTo] || []), savedReply],
