@@ -13,6 +13,7 @@ import { Avatar, Icon, VideoCard } from "./components/ui.jsx";
 
 import {
   AccountDialog,
+  AccountMenu,
   SubscribersDialog,
 } from "./components/account.jsx";
 
@@ -116,6 +117,7 @@ export default function App() {
 
   const [currentUser, setCurrentUser] = useState(null);
   const [accountDialog, setAccountDialog] = useState(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   const [myChannels, setMyChannels] = useState([]);
   const [subscriptionChannels, setSubscriptionChannels] = useState([]);
@@ -642,7 +644,7 @@ export default function App() {
 
   async function createChannel(form) {
     if (!currentUser?.id) {
-      setAccountDialog("register");
+      setAccountDialog("auth");
       setToast("Create a profile first.");
       return;
     }
@@ -716,10 +718,35 @@ export default function App() {
     );
 
     setCurrentUser(user);
-    setAccountDialog("profile");
+    setAccountDialog(null);
+    setAccountMenuOpen(false);
+    setView("Home");
+    setYouPanelOpen(false);
     setToast(
-      "Profile created successfully."
+      "Account created successfully."
     );
+  }
+
+  async function loginUser(form) {
+    const user = await apiRequest("/users/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: form.username.trim(),
+        password: form.password,
+      }),
+    });
+
+    localStorage.setItem(
+      "motionville.currentUserId",
+      String(user.id)
+    );
+
+    setCurrentUser(user);
+    setAccountDialog(null);
+    setAccountMenuOpen(false);
+    setView("Home");
+    setYouPanelOpen(false);
+    setToast("Signed in successfully.");
   }
 
   async function updateUser(form) {
@@ -764,13 +791,16 @@ export default function App() {
     setSubscriptionChannels([]);
     setSubscriptions([]);
     setAccountDialog(null);
+    setAccountMenuOpen(false);
+    setYouPanelOpen(false);
+    setView("Home");
 
     setToast("Signed out.");
   }
 
   async function subscribeToChannel(channelId) {
     if (!currentUser?.id) {
-      setAccountDialog("register");
+      setAccountDialog("auth");
       setToast(
         "Create a profile before subscribing."
       );
@@ -1270,7 +1300,7 @@ export default function App() {
 
   function showPlaylists() {
     if (!currentUser?.id) {
-      setAccountDialog("register");
+      setAccountDialog("auth");
       setToast("Create a profile to manage playlists.");
       return;
     }
@@ -1486,7 +1516,7 @@ export default function App() {
 
   function startSaveToPlaylist(video) {
     if (!currentUser?.id) {
-      setAccountDialog("register");
+      setAccountDialog("auth");
       setToast("Create a profile to save videos to playlists.");
       return;
     }
@@ -1631,76 +1661,121 @@ export default function App() {
         </form>
 
         <div className="topbar-actions">
-          <button
-            className="create-button"
-            onClick={() => {
-              if (!currentUser) {
-                setAccountDialog(
-                  "register"
-                );
-                setToast(
-                  "Create a profile first."
-                );
-                return;
-              }
+          {currentUser ? (
+            <>
+              <button
+                className="create-button"
+                onClick={() =>
+                  setCreateDialog(
+                    hasBackendChannels
+                      ? "video"
+                      : "channel"
+                  )
+                }
+              >
+                <Icon
+                  name="plus"
+                  size={18}
+                />
+                <span>Create</span>
+              </button>
 
-              setCreateDialog(
-                hasBackendChannels
-                  ? "video"
-                  : "channel"
-              );
-            }}
-          >
-            <Icon
-              name="plus"
-              size={18}
-            />
-            <span>Create</span>
-          </button>
+              <button
+                className="icon-button notification-button"
+                aria-label="Notifications"
+              >
+                <Icon name="bell" />
+              </button>
 
-          <button
-            className="icon-button notification-button"
-            aria-label="Notifications"
-          >
-            <Icon name="bell" />
-          </button>
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  aria-label="Open account menu"
+                  aria-expanded={accountMenuOpen}
+                  onClick={() =>
+                    setAccountMenuOpen((open) => !open)
+                  }
+                  style={{
+                    border: 0,
+                    background: "transparent",
+                    padding: 0,
+                    cursor: "pointer",
+                    borderRadius: "50%",
+                  }}
+                >
+                  <Avatar
+                    src={currentUser.avatarUrl}
+                    name={
+                      currentUser.displayName ||
+                      currentUser.username ||
+                      "M"
+                    }
+                    size="small"
+                  />
+                </button>
 
-          <button
-            type="button"
-            aria-label={
-              currentUser
-                ? "Open profile"
-                : "Create profile"
-            }
-            onClick={() =>
-              setAccountDialog(
-                currentUser
-                  ? "profile"
-                  : "register"
-              )
-            }
-            style={{
-              border: 0,
-              background:
-                "transparent",
-              padding: 0,
-              cursor: "pointer",
-              borderRadius:
-                "50%",
-            }}
-          >
-            <Avatar
-              src={
-                currentUser?.avatarUrl
-              }
-              name={
-                currentUser?.displayName ||
-                currentUser?.username ||
-                "M"
-              }
-              size="small"
-            />
-          </button>
+                {accountMenuOpen && (
+                  <AccountMenu
+                    user={currentUser}
+                    myChannels={myChannels}
+                    subscriptionChannels={subscriptionChannels}
+                    onProfile={() => {
+                      setAccountMenuOpen(false);
+                      setAccountDialog("profile");
+                    }}
+                    onHome={() => {
+                      setAccountMenuOpen(false);
+                      chooseView("Home");
+                    }}
+                    onChannel={() => {
+                      setAccountMenuOpen(false);
+                      chooseView("Your channel");
+                    }}
+                    onHistory={() => {
+                      setAccountMenuOpen(false);
+                      chooseView("History");
+                    }}
+                    onLiked={() => {
+                      setAccountMenuOpen(false);
+                      chooseView("Liked videos");
+                    }}
+                    onPlaylists={() => {
+                      setAccountMenuOpen(false);
+                      showPlaylists();
+                    }}
+                    onSubscriptions={() => {
+                      setAccountMenuOpen(false);
+                      chooseView("Subscriptions");
+                    }}
+                    onLogout={logoutUser}
+                  />
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <button
+                className="create-button"
+                type="button"
+                onClick={() =>
+                  setAccountDialog("register")
+                }
+              >
+                <Icon name="plus" size={18} />
+                <span>Create account</span>
+              </button>
+
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={() =>
+                  setAccountDialog("login")
+                }
+              >
+                Sign in
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -1803,24 +1878,23 @@ export default function App() {
             type="button"
             className={`nav-item sidebar-you-trigger ${youPanelOpen ? "nav-active" : ""}`}
             aria-expanded={youPanelOpen}
-            onFocus={() => setYouPanelOpen(true)}
             onClick={() => {
-              if (window.matchMedia("(max-width: 760px)").matches) {
-                chooseView("Your channel");
-              } else {
-                setYouPanelOpen((open) => !open);
-              }
+              setYouPanelOpen((open) => !open);
             }}
           >
             <Icon name="library" />
             <span>You</span>
           </button>
 
-          <div className="sidebar-rule sidebar-library-divider" />
+          <div
+            className="sidebar-rule sidebar-library-divider"
+            style={{ display: youPanelOpen ? "block" : "none" }}
+          />
 
           <nav
             className="nav-group sidebar-library-items"
             aria-label="Your library"
+            style={{ display: youPanelOpen ? "grid" : "none" }}
           >
             <button
               className={`nav-item ${
@@ -2618,6 +2692,9 @@ export default function App() {
           onClose={() =>
             setAccountDialog(null)
           }
+          onLogin={loginUser}
+          onSwitchLogin={() => setAccountDialog("login")}
+          onSwitchRegister={() => setAccountDialog("register")}
           onRegister={registerUser}
           onUpdate={updateUser}
           onLogout={logoutUser}

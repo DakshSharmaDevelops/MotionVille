@@ -53,6 +53,20 @@ public class AppUserService {
         return convertToResponse(savedUser);
     }
 
+    public UserResponse login(String username, String password) {
+        AppUser user = appUserRepository.findByUsername(username)
+                .orElseGet(() -> appUserRepository.findByEmail(username).orElse(null));
+
+        if (user == null || !user.getPassword().equals(password)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid username/email or password"
+            );
+        }
+
+        return convertToResponse(user);
+    }
+
     public UserResponse getUserById(Long id) {
 
         AppUser user = appUserRepository.findById(id)

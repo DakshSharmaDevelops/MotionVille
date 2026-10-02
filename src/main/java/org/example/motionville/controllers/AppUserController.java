@@ -2,6 +2,7 @@ package org.example.motionville.controllers;
 
 import jakarta.validation.Valid;
 import org.example.motionville.dto.ChannelResponse;
+import org.example.motionville.dto.LoginRequest;
 import org.example.motionville.dto.UserCreateRequest;
 import org.example.motionville.dto.UserResponse;
 import org.example.motionville.dto.UserUpdateRequest;
@@ -36,6 +37,18 @@ public class AppUserController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<UserResponse> login(
+            @Valid @RequestBody LoginRequest request) {
+
+        UserResponse response =
+                appUserService.login(
+                        request.getUsername(),
+                        request.getPassword());
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
