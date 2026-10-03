@@ -52,6 +52,21 @@ Configuration can be overridden with environment variables. Use the shared **Mot
 
 Video uploads require the R2 settings above. The browser receives a 15-minute presigned PUT URL, uploads directly to R2, and notifies the backend to verify object size and content type. The backend reports `READY` after generating and storing playable assets. Playback URLs are freshly signed for one hour. Configure bucket CORS to allow your frontend origin, `PUT`, `GET`, and `HEAD`; allow the `Content-Type` and `Range` headers, and expose `Content-Length` and `Content-Range` for browser playback.
 
+### Optional Cloudflare CDN streaming
+
+The backend generates on-demand HLS renditions alongside the MP4 playback asset. To serve HLS through Cloudflare, configure a **separate** R2 delivery bucket, connect it to a Cloudflare custom domain, and provide all four settings below. The bucket holding original uploads and private MP4 assets must remain private and must not be connected to a public domain.
+
+| Variable | Purpose |
+|---|---|
+| `R2_CDN_BUCKET` | Separate R2 bucket for published HLS playlists and segments |
+| `R2_CDN_BASE_URL` | HTTPS custom-domain origin for that bucket, without a trailing slash |
+| `CLOUDFLARE_ZONE_ID` | Zone ID for the custom domain |
+| `CLOUDFLARE_API_TOKEN` | Secret API token with cache-purge permission for the zone |
+
+Configure CORS on the delivery bucket/custom domain to allow the frontend origin and `GET`, `HEAD`, and `OPTIONS`. HLS playlists use short-lived caching and segments use immutable, long-lived caching. The backend purges the relevant CDN URLs when videos are unpublished, made private, or deleted. Keep the API token in a deployment secret manager; do not put it in frontend configuration or commit it. Either configure all four settings or leave all four unset. With them unset, HLS is still generated in the private origin bucket and playback uses the existing signed MP4 path.
+
+Only public, published HLS is copied to the delivery bucket. Unlisted and private videos continue to use signed MP4 playback. The CDN-backed player uses native HLS support where available and `hls.js` in browsers that do not support HLS natively.
+
 For a no-sign-in local demo, start the backend with `DEV_CHANNEL_BOOTSTRAP_ENABLED=true`. The **Create channel** UI then creates a backend-backed development channel, ready for upload. Video upload and playback endpoints are unauthenticated; do not expose them to the public internet or use private visibility as access control until authentication and authorization are implemented. The bootstrap defaults off and should remain off in deployed environments.
 
 For PostgreSQL, set the database URL and credentials, then run with the `prod` profile:

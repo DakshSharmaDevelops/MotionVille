@@ -63,6 +63,11 @@ public class VideoAssetManagementService {
     public void delete(Long videoId, Long assetId) {
         VideoAsset asset = assetRepository.findByIdAndVideo_VideoId(assetId, videoId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Video asset not found"));
+        if ("hls".equals(asset.getQuality())) {
+            String prefix = "videos/" + videoId + "/hls/";
+            r2StorageService.deleteCdnPrefixAfterCommit(prefix);
+            r2StorageService.deleteOriginPrefixAfterCommit(prefix);
+        }
         r2StorageService.deleteAfterCommit(List.of(asset.getAssetUrl()));
         assetRepository.delete(asset);
     }

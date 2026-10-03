@@ -52,6 +52,7 @@ import {
 } from "./api/notificationApi.js";
 
 import ReportsAdminPanel from "./components/ReportsAdminPanel.jsx";
+import { LiveStudio, LiveWatchDialog, LiveBroadcastList } from "./components/live.jsx";
 
 const DEMO_ADMIN_USER_ID = Number(
     import.meta.env.VITE_DEMO_ADMIN_USER_ID || 9,
@@ -145,6 +146,7 @@ export default function App() {
   const [view, setView] = useState(() => routeView(window.location.pathname));
 
   const [createDialog, setCreateDialog] = useState(null);
+  const [liveStreamDialogOpen, setLiveStreamDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [youPanelOpen, setYouPanelOpen] = useState(false);
   const [toast, setToast] = useState("");
@@ -2545,6 +2547,7 @@ export default function App() {
         </aside>
 
         <main className="main-content">
+          <LiveBroadcastList onWatch={(id) => navigate(`${location.pathname}?live=${id}`)} />
           {view === "Home" ||
           view === "Explore" ? (
             <div className="welcome-strip">
@@ -2648,6 +2651,14 @@ export default function App() {
                           onClick={() => showChannel(ownChannel)}
                         >
                           View channel
+                        </button>
+                        <button
+                          type="button"
+                          className="button button-live"
+                          onClick={() => setLiveStreamDialogOpen(true)}
+                        >
+                          <span className="live-status-dot" aria-hidden="true" />
+                          Start live stream
                         </button>
                       </div>
                     </div>
@@ -3148,6 +3159,15 @@ export default function App() {
           }
           onCreate={createVideo}
         />
+      )}
+
+      {liveStreamDialogOpen && (
+        <LiveStudio channel={ownChannel} user={currentUser} onClose={() => setLiveStreamDialogOpen(false)} />
+      )}
+
+      {new URLSearchParams(location.search).get("live") && (
+        <LiveWatchDialog id={new URLSearchParams(location.search).get("live")}
+          onClose={() => navigate(location.pathname, { replace: true })} />
       )}
 
       {playlistEditor && (

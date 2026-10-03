@@ -246,6 +246,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .button { min-height: 39px; justify-content: center; gap: 7px; padding: 0 15px; border: 0; border-radius: 8px; font-size: 11px; font-weight: 700; }
 .button-primary { color: #fff; background: var(--accent); }
 .button-primary:hover { background: var(--accent-strong); }
+.button-live { min-height: 32px; padding: 0 11px; color: #fff; background: #c92d35; font-size: 10px; }
+.button-live:hover { background: #ad2028; }
+.live-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; }
 .button-dark { color: #fff; background: #29292e; }
 .button-dark:hover { background: #44444b; }
 .button-subscribed { border: 1px solid #e5e2de; color: #54535a; background: #f5f4f2; }
@@ -261,6 +264,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .dialog-step { gap: 6px; color: #aa765f; font-size: 9px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
 .dialog h2 { margin: 0 0 7px; color: #2b2a30; font: 800 24px "Manrope", sans-serif; letter-spacing: -.8px; }
 .dialog-subtitle { margin: 0 0 20px; color: #85848b; font-size: 11px; line-height: 1.6; }
+.live-dialog { width: min(760px, 95vw); }
+.live-player { display: block; width: 100%; aspect-ratio: 16 / 9; background: #111; border-radius: 12px; }
+.live-broadcast-list { margin: 20px 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dialog-form { display: flex; flex-direction: column; gap: 13px; }
 .dialog-form label { display: flex; flex-direction: column; gap: 6px; color: #55545b; font-size: 10px; font-weight: 700; }
 .dialog-form input, .dialog-form textarea, .dialog-form select { width: 100%; min-height: 39px; padding: 9px 11px; border: 1px solid #e7e5e2; border-radius: 8px; outline: 0; color: #29292f; background: #fff; font-size: 11px; font-weight: 400; }
