@@ -1014,7 +1014,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                 ? <video
                       ref={playerRef}
                       controls={false}
-                      controlsList="nodownload"
+                      controlsList="nodownload noremoteplayback"
+                      disableRemotePlayback
                       autoPlay={resumeReady}
                       playsInline
                       poster={posterUrl || undefined}
