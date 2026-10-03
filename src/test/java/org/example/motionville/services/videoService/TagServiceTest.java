@@ -39,12 +39,12 @@ class TagServiceTest {
 
     @Test
     void createsTrimmedTag() {
-        when(tagRepository.existsByNameIgnoreCase("Java")).thenReturn(false);
+        when(tagRepository.existsByNameIgnoreCase("java")).thenReturn(false);
 
         var response = service.create(new TagRequest(" Java "));
 
         assertEquals(5L, response.id());
-        assertEquals("Java", response.name());
+        assertEquals("java", response.name());
     }
 
     @Test

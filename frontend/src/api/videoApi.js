@@ -177,6 +177,38 @@ export function mapApiCategory(category) {
   return { id: category.id, name: category.name };
 }
 
+export function fetchChannels(search) {
+  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+  return apiRequest(`/channels${query}`);
+}
+
+export function fetchTags() {
+  return apiRequest("/tags");
+}
+
+export function fetchVideoTags(videoId) {
+  return apiRequest(`/videos/${videoId}/tags`);
+}
+
+export function addTagToVideo(videoId, tagId) {
+  return apiRequest(`/videos/${videoId}/tags/${tagId}`, { method: "POST" });
+}
+
+export function removeTagFromVideo(videoId, tagId) {
+  return apiRequest(`/videos/${videoId}/tags/${tagId}`, { method: "DELETE" });
+}
+
+export function fetchVideosByTag(tagId) {
+  return apiRequest(`/tags/${tagId}/videos`);
+}
+
+export function createTag(name) {
+  return apiRequest("/tags", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
 export function uploadFile(uploadUrl, file, mimeType, onProgress) {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();

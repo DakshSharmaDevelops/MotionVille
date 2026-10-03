@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @Transactional(readOnly = true)
@@ -79,7 +80,7 @@ public class TagService {
     }
 
     private String normalizeName(String name) {
-        return name.trim();
+        return name.trim().toLowerCase(Locale.ROOT);
     }
 
     private TagResponse toResponse(Tag tag) {

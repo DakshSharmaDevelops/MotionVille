@@ -81,6 +81,15 @@ public class VideoViewServiceImplements implements VideoViewService {
                 viewer == null ? null : viewer.getId(), saved.getViewedAt());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public long getViewCount(Long videoId) {
+        if (!videoRepository.existsById(videoId)) {
+            throw notFound("Video", videoId);
+        }
+        return videoViewRepository.countByVideo_VideoId(videoId);
+    }
+
     private int requiredWatchSeconds(Integer durationSeconds) {
         if (durationSeconds != null && durationSeconds > 0 && durationSeconds < 30) {
             return (durationSeconds + 1) / 2;

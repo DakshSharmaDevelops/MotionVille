@@ -5,4 +5,6 @@ import org.example.motionville.dto.VideoViewResponse;
 
 public interface VideoViewService {
     VideoViewResponse recordView(Long videoId, VideoViewRequest request);
+
+    long getViewCount(Long videoId);
 }

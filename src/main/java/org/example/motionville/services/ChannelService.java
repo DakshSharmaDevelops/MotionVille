@@ -82,8 +82,16 @@ public class ChannelService {
     }
 
     public List<ChannelResponse> getAllChannels() {
+        return getAllChannels(null);
+    }
 
-        List<Channel> channels = channelRepository.findAll();
+    public List<ChannelResponse> getAllChannels(String search) {
+        List<Channel> channels;
+        if (search != null && !search.trim().isEmpty()) {
+            channels = channelRepository.searchChannels(search.trim());
+        } else {
+            channels = channelRepository.findAll();
+        }
 
         List<ChannelResponse> responses = new ArrayList<>();
 

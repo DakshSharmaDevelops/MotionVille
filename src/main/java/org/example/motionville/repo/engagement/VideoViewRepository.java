@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface VideoViewRepository extends JpaRepository<VideoView, Long> {
     Optional<VideoView> findByVideo_VideoIdAndSessionId(Long videoId, String sessionId);
+
+    long countByVideo_VideoId(Long videoId);
 }

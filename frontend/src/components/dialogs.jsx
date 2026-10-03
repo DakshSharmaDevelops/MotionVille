@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { API_BASE_URL, createVideoThumbnail, MAX_VIDEO_BYTES, readResponseError } from "../api/videoApi.js";
+import {
+  API_BASE_URL,
+  createVideoThumbnail,
+  MAX_VIDEO_BYTES,
+  readResponseError,
+  fetchVideoTags,
+  fetchTags,
+  addTagToVideo,
+  removeTagFromVideo,
+  createTag,
+} from "../api/videoApi.js";
 import { fetchWatchHistory, recordWatchProgress } from "../api/watchHistoryApi.js";
-import { formatAge } from "../utils/format.js";
+import { fetchVideoViews } from "../api/videoViewApi.js";
+import { formatAge, formatViews } from "../utils/format.js";
 import { Avatar, Icon, Modal, VideoCard } from "./ui.jsx";
 
 import {
@@ -100,10 +111,41 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
 
   useEffect(() => () => {
     if (generatedThumbnailUrl) URL.revokeObjectURL(generatedThumbnailUrl);
   }, [generatedThumbnailUrl]);
+
+  function handleAddTag() {
+    const trimmed = tagInput.trim().replace(/^#/, "");
+    if (!trimmed) return;
+    const parts = trimmed.split(",").map((s) => s.trim().replace(/^#/, "")).filter(Boolean);
+    setTags((current) => {
+      const set = new Set(current.map((t) => t.toLowerCase()));
+      const next = [...current];
+      for (const part of parts) {
+        if (!set.has(part.toLowerCase())) {
+          set.add(part.toLowerCase());
+          next.push(part);
+        }
+      }
+      return next;
+    });
+    setTagInput("");
+  }
+
+  function handleRemoveTag(tagToRemove) {
+    setTags((current) => current.filter((t) => t !== tagToRemove));
+  }
+
+  function handleTagKeyDown(event) {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      handleAddTag();
+    }
+  }
 
   function update(event) {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
@@ -138,7 +180,8 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
       setError("Wait for the thumbnail preview to finish generating.");
       return;
     }
-    if (!form.channelId || !uploadChannels.some((channel) => String(channel.channelId) === form.channelId)) {
+    const targetChannelId = form.channelId || (uploadChannels[0]?.channelId ? String(uploadChannels[0].channelId) : "");
+    if (!targetChannelId || !uploadChannels.some((channel) => String(channel.channelId) === targetChannelId)) {
       setError("Create a channel first, then you can upload a video.");
       return;
     }
@@ -158,7 +201,7 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
     setError("");
     setBusy(true);
     try {
-      await onCreate({ ...form, mimeType }, file, setUploadProgress, generatedThumbnail);
+      await onCreate({ ...form, channelId: targetChannelId, tags, mimeType }, file, setUploadProgress, generatedThumbnail);
     } catch (uploadError) {
       setError(uploadError.message || "Video upload failed.");
     } finally {
@@ -176,14 +219,73 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
           <label>Video title<input name="title" value={form.title} onChange={update} maxLength="255" placeholder="Give your video a title" required /></label>
           <label>Video file<input type="file" accept="video/*,.mp4,.webm,.mov,.mkv,.avi,.m4v,.mpeg,.mpg,.wmv,.flv,.3gp,.3g2,.ts,.mts,.m2ts,.ogv" onChange={selectVideoFile} required /><small>{file ? `${file.name} · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : "MP4, WebM, MOV, MKV, AVI and other video formats, up to 500 MB."}</small></label>
           <div className="form-two-col">
-            <label>Channel<select name="channelId" value={form.channelId} onChange={update} required disabled={!uploadChannels.length}>
-              <option value="">Select a channel</option>
-              {uploadChannels.map((channel) => <option key={channel.channelId} value={channel.channelId}>{channel.name} · {channel.handle}</option>)}
-            </select></label>
-          </div>
-          <div className="form-two-col">
             <label>Category<select name="categoryId" value={form.categoryId} onChange={update}><option value="">No category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
             <label>Visibility<select name="visibility" value={form.visibility} onChange={update}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
+          </div>
+          <div className="tags-input-group" style={{ marginTop: "0.25rem", marginBottom: "0.5rem" }}>
+            <label style={{ display: "block", marginBottom: "0.35rem", fontWeight: 600 }}>
+              Tags <span className="optional" style={{ fontWeight: 400, opacity: 0.7 }}>Optional</span>
+            </label>
+            {tags.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "0.5rem" }}>
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      background: "rgba(62, 166, 255, 0.15)",
+                      color: "#3ea6ff",
+                      borderRadius: "14px",
+                      padding: "2px 10px",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    #{tag}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(tag)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ff4444",
+                        cursor: "pointer",
+                        padding: "0 2px",
+                        fontWeight: "bold",
+                        fontSize: "1rem",
+                        lineHeight: 1,
+                      }}
+                      aria-label={`Remove tag ${tag}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                placeholder="Add tags (press Enter or comma)"
+                maxLength={50}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={!tagInput.trim()}
+                onClick={handleAddTag}
+              >
+                Add
+              </button>
+            </div>
+            <small style={{ display: "block", marginTop: "4px", opacity: 0.7 }}>
+              Tags help viewers discover your video in search.
+            </small>
           </div>
           <label>Thumbnail URL <span className="optional">Optional</span><input name="thumbnailUrl" type="url" value={form.thumbnailUrl} onChange={update} placeholder="https://example.com/thumbnail.jpg" /></label>
           {form.thumbnailUrl && !previewError && <img className="thumbnail-preview" src={form.thumbnailUrl} alt="Thumbnail preview" onError={() => setPreviewError(true)} />}
@@ -210,6 +312,54 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [videoTags, setVideoTags] = useState([]);
+  const [newTagName, setNewTagName] = useState("");
+  const [tagBusy, setTagBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const vid = Number(video.id || video.videoId);
+    if (vid) {
+      fetchVideoTags(vid)
+        .then((items) => {
+          if (active && Array.isArray(items)) setVideoTags(items);
+        })
+        .catch(() => {});
+    }
+    return () => { active = false; };
+  }, [video.id, video.videoId]);
+
+  async function handleRemoveTag(tagId) {
+    const vid = Number(video.id || video.videoId);
+    setTagBusy(true);
+    try {
+      await removeTagFromVideo(vid, tagId);
+      setVideoTags((current) => current.filter((t) => t.id !== tagId));
+    } catch (e) {
+      setError(e.message || "Could not remove tag.");
+    } finally {
+      setTagBusy(false);
+    }
+  }
+
+  async function handleAddTag(e) {
+    e.preventDefault();
+    if (!newTagName.trim()) return;
+    const vid = Number(video.id || video.videoId);
+    setTagBusy(true);
+    setError("");
+    try {
+      const created = await createTag(newTagName.trim());
+      await addTagToVideo(vid, created.id);
+      setNewTagName("");
+      const updated = await fetchVideoTags(vid);
+      setVideoTags(updated);
+    } catch (e) {
+      setError(e.message || "Could not add tag.");
+    } finally {
+      setTagBusy(false);
+    }
+  }
 
   async function run(action) {
     setBusy(true);
@@ -258,6 +408,58 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
           <label>Thumbnail URL<input type="text" value={form.thumbnailUrl} onChange={(event) => setForm((current) => ({ ...current, thumbnailUrl: event.target.value }))} maxLength="255" /></label>
           <label>Category<select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}><option value="">No category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
           <label>Visibility<select value={form.visibility} onChange={(event) => setForm((current) => ({ ...current, visibility: event.target.value }))}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
+
+          <div className="tags-management-section" style={{ marginTop: "0.5rem" }}>
+            <label style={{ display: "block", marginBottom: "0.4rem", fontWeight: 600 }}>Video tags</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "0.5rem" }}>
+              {videoTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    background: "rgba(62, 166, 255, 0.15)",
+                    color: "#3ea6ff",
+                    borderRadius: "14px",
+                    padding: "2px 10px",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  #{tag.name}
+                  <button
+                    type="button"
+                    disabled={tagBusy}
+                    onClick={() => handleRemoveTag(tag.id)}
+                    style={{ background: "none", border: "none", color: "#ff4444", cursor: "pointer", padding: "0 2px", fontWeight: "bold" }}
+                    aria-label={`Remove tag ${tag.name}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {videoTags.length === 0 && <small style={{ opacity: 0.6 }}>No tags assigned yet.</small>}
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="text"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                placeholder="Add tag (e.g. gaming, tutorial)"
+                maxLength={50}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={tagBusy || !newTagName.trim()}
+                onClick={handleAddTag}
+              >
+                Add tag
+              </button>
+            </div>
+          </div>
+
           {error && <p className="inline-error" role="alert">{error}</p>}
           <div className="video-management-actions">
             <button type="button" className="text-button danger-text" disabled={busy} onClick={() => {
@@ -353,9 +555,11 @@ export function ReportDialog({ userId, target, onClose, onSubmitted }) {
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onSelectChannel, onGoHome, onClose, onLike, onSubscribe, onSavePlaylist, onReportVideo, onManageVideo, onDeleteVideo, onReportComment, onWatchProgress, onNotificationsChanged, liked, subscribed, currentUser }) {
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onSelectChannel, onGoHome, onClose, onLike, onSubscribe, onSavePlaylist, onReportVideo, onManageVideo, onDeleteVideo, onReportComment, onWatchProgress, onNotificationsChanged, onSearchTag, liked, subscribed, currentUser }) {
   const reactionUserId = Number(currentUser?.id);
   const hasReactionUser = Number.isInteger(reactionUserId) && reactionUserId > 0;
+  const [videoTags, setVideoTags] = useState([]);
+  const [watchViews, setWatchViews] = useState(null);
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -397,12 +601,43 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     dislikeCount: 0,
     userReaction: null,
   });
+
+  useEffect(() => {
+    let active = true;
+    const vid = Number(video.id || video.videoId);
+    if (vid) {
+      fetchVideoTags(vid)
+        .then((items) => {
+          if (active && Array.isArray(items)) setVideoTags(items);
+        })
+        .catch(() => {});
+      fetchVideoViews(vid)
+        .then((cnt) => {
+          if (active && typeof cnt === "number") setWatchViews(cnt);
+        })
+        .catch(() => {});
+    }
+    return () => { active = false; };
+  }, [video.id, video.videoId]);
   const [videoReactionLoading, setVideoReactionLoading] = useState(false);
   const [videoReactionBusy, setVideoReactionBusy] = useState(false);
   const [reactionError, setReactionError] = useState("");
   const [commentReactions, setCommentReactions] = useState({});
   const [commentReactionError, setCommentReactionError] = useState("");
   const [commentReactionBusyId, setCommentReactionBusyId] = useState(null);
+  const [activeCommentMenuId, setActiveCommentMenuId] = useState(null);
+  const commentMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (activeCommentMenuId === null) return undefined;
+    function closeCommentMenuOutside(event) {
+      if (!commentMenuRef.current?.contains(event.target)) {
+        setActiveCommentMenuId(null);
+      }
+    }
+    document.addEventListener("pointerdown", closeCommentMenuOutside);
+    return () => document.removeEventListener("pointerdown", closeCommentMenuOutside);
+  }, [activeCommentMenuId]);
 
   useEffect(() => {
     if (!videoActionsOpen) return undefined;
@@ -524,6 +759,9 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
         viewSessionId.current,
       );
       viewRequestAttempted.current = result.counted;
+      if (result?.counted) {
+        setWatchViews((curr) => (curr == null ? 1 : curr + 1));
+      }
     } catch (error) {
       viewRequestAttempted.current = true;
       setViewError(error.message);
@@ -1295,7 +1533,34 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
 
                 {reactionError && <p className="inline-error" role="alert">{reactionError}</p>}</div>
             </div>
-            <div className="watch-description"><span>{formatAge(video.createdAt)}{video.category ? ` · ${video.category}` : ""}</span><p>{video.description || "No description added yet."}</p>{video.tags?.length > 0 && <div className="tag-row">{video.tags.map((tag) => <span key={tag}>#{tag.replace(/\s+/g, "")}</span>)}</div>}</div>
+            <div className="watch-description">
+              <span>{watchViews != null ? `${formatViews(watchViews)} • ` : ""}{formatAge(video.createdAt)}{video.category ? ` • ${video.category}` : ""}</span>
+              <p>{video.description || "No description added yet."}</p>
+              {videoTags.length > 0 && (
+                <div className="tag-row" style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+                  {videoTags.map((t) => (
+                    <button
+                      key={t.id || t.name}
+                      type="button"
+                      className="tag-pill"
+                      onClick={() => onSearchTag?.(t.name)}
+                      style={{
+                        background: "rgba(62, 166, 255, 0.12)",
+                        border: "1px solid rgba(62, 166, 255, 0.28)",
+                        color: "#3ea6ff",
+                        borderRadius: "14px",
+                        padding: "2px 10px",
+                        fontSize: "0.82rem",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      #{t.name.replace(/\s+/g, "")}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <section className="comments-section">
               <h2>{comments.length} Comments</h2>
@@ -1378,22 +1643,131 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                               >
                                 {replyingTo === item.id ? "Hide replies" : "Reply"}
                               </button>
-                              {!item.deleted && <>
-                                <button className="comment-action" type="button" onClick={() => beginEdit(item)}>Edit</button>
-                                {onReportComment && (
-                                  <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(item)}>
-                                    Report
-                                  </button>
-                                )}
-                                <button
-                                  className="comment-action comment-action-delete"
-                                  type="button"
-                                  disabled={commentActionId === item.id}
-                                  onClick={() => removeComment(item)}
+                              {!item.deleted && (
+                                <div
+                                  className="comment-menu-wrap"
+                                  ref={activeCommentMenuId === item.id ? commentMenuRef : null}
+                                  style={{ position: "relative", marginLeft: "auto" }}
                                 >
-                                  Delete
-                                </button>
-                              </>}
+                                  <button
+                                    className="comment-more-btn"
+                                    type="button"
+                                    aria-label="Comment options"
+                                    onClick={() => setActiveCommentMenuId((prev) => (prev === item.id ? null : item.id))}
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      color: "#77767e",
+                                      cursor: "pointer",
+                                      padding: "3px 6px",
+                                      borderRadius: "50%",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <Icon name="more" size={16} />
+                                  </button>
+                                  {activeCommentMenuId === item.id && (
+                                    <div
+                                      className="comment-menu-dropdown"
+                                      role="menu"
+                                      style={{
+                                        position: "absolute",
+                                        zIndex: 30,
+                                        right: 0,
+                                        top: "100%",
+                                        minWidth: "120px",
+                                        padding: "4px",
+                                        background: "#fff",
+                                        border: "1px solid #e9e6e2",
+                                        borderRadius: "8px",
+                                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "2px",
+                                      }}
+                                    >
+                                      {Number(item.authorId) === Number(currentUser?.id) && (
+                                        <button
+                                          className="comment-menu-item"
+                                          type="button"
+                                          role="menuitem"
+                                          onClick={() => {
+                                            setActiveCommentMenuId(null);
+                                            beginEdit(item);
+                                          }}
+                                          style={{
+                                            display: "block",
+                                            width: "100%",
+                                            padding: "6px 12px",
+                                            border: "none",
+                                            background: "transparent",
+                                            color: "#303036",
+                                            fontSize: "12px",
+                                            textAlign: "left",
+                                            cursor: "pointer",
+                                            borderRadius: "4px",
+                                          }}
+                                        >
+                                          Edit
+                                        </button>
+                                      )}
+                                      {onReportComment && (
+                                        <button
+                                          className="comment-menu-item"
+                                          type="button"
+                                          role="menuitem"
+                                          onClick={() => {
+                                            setActiveCommentMenuId(null);
+                                            onReportComment(item);
+                                          }}
+                                          style={{
+                                            display: "block",
+                                            width: "100%",
+                                            padding: "6px 12px",
+                                            border: "none",
+                                            background: "transparent",
+                                            color: "#303036",
+                                            fontSize: "12px",
+                                            textAlign: "left",
+                                            cursor: "pointer",
+                                            borderRadius: "4px",
+                                          }}
+                                        >
+                                          Report
+                                        </button>
+                                      )}
+                                      {(Number(item.authorId) === Number(currentUser?.id) || currentUser?.role === "ADMIN" || Number(channel?.ownerId) === Number(currentUser?.id)) && (
+                                        <button
+                                          className="comment-menu-item danger-text"
+                                          type="button"
+                                          role="menuitem"
+                                          disabled={commentActionId === item.id}
+                                          onClick={() => {
+                                            setActiveCommentMenuId(null);
+                                            removeComment(item);
+                                          }}
+                                          style={{
+                                            display: "block",
+                                            width: "100%",
+                                            padding: "6px 12px",
+                                            border: "none",
+                                            background: "transparent",
+                                            color: "#a3423c",
+                                            fontSize: "12px",
+                                            textAlign: "left",
+                                            cursor: "pointer",
+                                            borderRadius: "4px",
+                                          }}
+                                        >
+                                          {commentActionId === item.id ? "Deleting…" : "Delete"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </>}
 
@@ -1448,20 +1822,129 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                           >
                                             Dislike {commentReactions[reply.id]?.dislikeCount ?? 0}
                                           </button>
-                                          <button className="comment-action" type="button" onClick={() => beginEdit(reply)}>Edit</button>
-                                          {onReportComment && (
-                                            <button className="comment-action comment-action-report" type="button" onClick={() => onReportComment(reply)}>
-                                              Report
-                                            </button>
-                                          )}
-                                          <button
-                                            className="comment-action comment-action-delete"
-                                            type="button"
-                                            disabled={commentActionId === reply.id}
-                                            onClick={() => removeComment(reply, item.id)}
+                                          <div
+                                            className="comment-menu-wrap"
+                                            ref={activeCommentMenuId === reply.id ? commentMenuRef : null}
+                                            style={{ position: "relative", marginLeft: "auto" }}
                                           >
-                                            Delete
-                                          </button>
+                                            <button
+                                              className="comment-more-btn"
+                                              type="button"
+                                              aria-label="Reply options"
+                                              onClick={() => setActiveCommentMenuId((prev) => (prev === reply.id ? null : reply.id))}
+                                              style={{
+                                                background: "transparent",
+                                                border: "none",
+                                                color: "#77767e",
+                                                cursor: "pointer",
+                                                padding: "3px 6px",
+                                                borderRadius: "50%",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                              }}
+                                            >
+                                              <Icon name="more" size={16} />
+                                            </button>
+                                            {activeCommentMenuId === reply.id && (
+                                              <div
+                                                className="comment-menu-dropdown"
+                                                role="menu"
+                                                style={{
+                                                  position: "absolute",
+                                                  zIndex: 30,
+                                                  right: 0,
+                                                  top: "100%",
+                                                  minWidth: "120px",
+                                                  padding: "4px",
+                                                  background: "#fff",
+                                                  border: "1px solid #e9e6e2",
+                                                  borderRadius: "8px",
+                                                  boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                                                  display: "flex",
+                                                  flexDirection: "column",
+                                                  gap: "2px",
+                                                }}
+                                              >
+                                                {Number(reply.authorId) === Number(currentUser?.id) && (
+                                                  <button
+                                                    className="comment-menu-item"
+                                                    type="button"
+                                                    role="menuitem"
+                                                    onClick={() => {
+                                                      setActiveCommentMenuId(null);
+                                                      beginEdit(reply);
+                                                    }}
+                                                    style={{
+                                                      display: "block",
+                                                      width: "100%",
+                                                      padding: "6px 12px",
+                                                      border: "none",
+                                                      background: "transparent",
+                                                      color: "#303036",
+                                                      fontSize: "12px",
+                                                      textAlign: "left",
+                                                      cursor: "pointer",
+                                                      borderRadius: "4px",
+                                                    }}
+                                                  >
+                                                    Edit
+                                                  </button>
+                                                )}
+                                                {onReportComment && (
+                                                  <button
+                                                    className="comment-menu-item"
+                                                    type="button"
+                                                    role="menuitem"
+                                                    onClick={() => {
+                                                      setActiveCommentMenuId(null);
+                                                      onReportComment(reply);
+                                                    }}
+                                                    style={{
+                                                      display: "block",
+                                                      width: "100%",
+                                                      padding: "6px 12px",
+                                                      border: "none",
+                                                      background: "transparent",
+                                                      color: "#303036",
+                                                      fontSize: "12px",
+                                                      textAlign: "left",
+                                                      cursor: "pointer",
+                                                      borderRadius: "4px",
+                                                    }}
+                                                  >
+                                                    Report
+                                                  </button>
+                                                )}
+                                                {(Number(reply.authorId) === Number(currentUser?.id) || currentUser?.role === "ADMIN" || Number(channel?.ownerId) === Number(currentUser?.id)) && (
+                                                  <button
+                                                    className="comment-menu-item danger-text"
+                                                    type="button"
+                                                    role="menuitem"
+                                                    disabled={commentActionId === reply.id}
+                                                    onClick={() => {
+                                                      setActiveCommentMenuId(null);
+                                                      removeComment(reply, item.id);
+                                                    }}
+                                                    style={{
+                                                      display: "block",
+                                                      width: "100%",
+                                                      padding: "6px 12px",
+                                                      border: "none",
+                                                      background: "transparent",
+                                                      color: "#a3423c",
+                                                      fontSize: "12px",
+                                                      textAlign: "left",
+                                                      cursor: "pointer",
+                                                      borderRadius: "4px",
+                                                    }}
+                                                  >
+                                                    {commentActionId === reply.id ? "Deleting…" : "Delete"}
+                                                  </button>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
                                         </>}
                                       </div>
                                     </>}

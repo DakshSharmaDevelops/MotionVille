@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatAge, formatDuration, formatViews } from "../utils/format.js";
 import { API_BASE_URL, readResponseError } from "../api/videoApi.js";
+import { fetchVideoViews } from "../api/videoViewApi.js";
 
 export function Icon({ name, size = 21, filled = false }) {
   const shared = {
@@ -51,7 +52,22 @@ export function Avatar({ src, name, size = "normal" }) {
 export function VideoCard({ video, channel, onSelect, onSelectChannel, onManage, onDelete, canManage, onSavePlaylist, onReport, onRemoveHistory, removingHistoryVideoId, index }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(video.thumbnailUrl || "");
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [viewCount, setViewCount] = useState(video.views ?? null);
   const actionsRef = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    if (viewCount === null && video.videoId) {
+      fetchVideoViews(video.videoId)
+        .then((cnt) => {
+          if (active && typeof cnt === "number") setViewCount(cnt);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [video.videoId, viewCount]);
 
   useEffect(() => {
     setThumbnailUrl(video.thumbnailUrl || "");
@@ -103,7 +119,7 @@ export function VideoCard({ video, channel, onSelect, onSelectChannel, onManage,
           >
             {channel?.name || "MotionVille creator"}
           </button>
-          <p>{video.views == null ? formatAge(video.createdAt) : `${formatViews(video.views)} · ${formatAge(video.createdAt)}`}</p>
+          <p>{viewCount == null ? formatAge(video.createdAt) : `${formatViews(viewCount)} • ${formatAge(video.createdAt)}`}</p>
           {Number.isFinite(video.resumePositionSeconds) && (
             <div className="watch-progress">
               <span>Continue watching · {formatDuration(video.resumePositionSeconds)}</span>

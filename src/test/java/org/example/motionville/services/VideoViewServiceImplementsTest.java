@@ -64,6 +64,14 @@ class VideoViewServiceImplementsTest {
         verify(videoViewRepository, never()).save(any(VideoView.class));
     }
 
+    @Test
+    void returnsViewCountForExistingVideo() {
+        when(videoRepository.existsById(4L)).thenReturn(true);
+        when(videoViewRepository.countByVideo_VideoId(4L)).thenReturn(42L);
+
+        assertEquals(42L, service.getViewCount(4L));
+    }
+
     private Video readyVideo() {
         Video video = new Video();
         video.setVideoId(4L);

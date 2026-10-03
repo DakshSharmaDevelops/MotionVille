@@ -47,10 +47,11 @@ public class ChannelController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ChannelResponse>> getAllChannels() {
+    public ResponseEntity<List<ChannelResponse>> getAllChannels(
+            @RequestParam(required = false, defaultValue = "") String search) {
 
         List<ChannelResponse> responses =
-                channelService.getAllChannels();
+                channelService.getAllChannels(search);
 
         return ResponseEntity.ok(responses);
     }

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.motionville.dto.VideoViewRequest;
 import org.example.motionville.dto.VideoViewResponse;
 import org.example.motionville.services.VideoViewService;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,5 +23,10 @@ public class VideoViewController {
     public VideoViewResponse recordView(@PathVariable Long videoId,
                                         @Valid @RequestBody VideoViewRequest request) {
         return videoViewService.recordView(videoId, request);
+    }
+
+    @GetMapping("/{videoId}/views")
+    public long getViewCount(@PathVariable Long videoId) {
+        return videoViewService.getViewCount(videoId);
     }
 }

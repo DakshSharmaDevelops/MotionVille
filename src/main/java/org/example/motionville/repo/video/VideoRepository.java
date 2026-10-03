@@ -32,9 +32,12 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
             value = """
                     select v from Video v
                     left join v.category c
+                    join v.channel ch
                     where (:search = ''
                         or lower(v.title) like lower(concat('%', :search, '%')) escape '!'
-                        or lower(coalesce(v.description, '')) like lower(concat('%', :search, '%')) escape '!')
+                        or lower(coalesce(v.description, '')) like lower(concat('%', :search, '%')) escape '!'
+                        or lower(ch.name) like lower(concat('%', :search, '%')) escape '!'
+                        or lower(ch.handle) like lower(concat('%', :search, '%')) escape '!')
                     and (:categoryId is null or c.id = :categoryId)
                     and (:channelId is null or v.channel.channelId = :channelId)
                     and (:publicOnly = false or (
@@ -46,9 +49,12 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
             countQuery = """
                     select count(v) from Video v
                     left join v.category c
+                    join v.channel ch
                     where (:search = ''
                         or lower(v.title) like lower(concat('%', :search, '%')) escape '!'
-                        or lower(coalesce(v.description, '')) like lower(concat('%', :search, '%')) escape '!')
+                        or lower(coalesce(v.description, '')) like lower(concat('%', :search, '%')) escape '!'
+                        or lower(ch.name) like lower(concat('%', :search, '%')) escape '!'
+                        or lower(ch.handle) like lower(concat('%', :search, '%')) escape '!')
                     and (:categoryId is null or c.id = :categoryId)
                     and (:channelId is null or v.channel.channelId = :channelId)
                     and (:publicOnly = false or (

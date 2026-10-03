@@ -6,3 +6,7 @@ export function recordVideoView(videoId, watchedSeconds, viewerId, sessionId) {
     body: JSON.stringify({ watchedSeconds, viewerId, sessionId }),
   });
 }
+
+export function fetchVideoViews(videoId) {
+  return apiRequest(`/videos/${videoId}/views`);
+}

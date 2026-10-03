@@ -8,6 +8,9 @@ import {
   mapApiChannel,
   mapApiVideo,
   uploadFile,
+  createTag,
+  addTagToVideo,
+  fetchTags,
 } from "./api/videoApi.js";
 
 import { Avatar, Icon, VideoCard } from "./components/ui.jsx";
@@ -70,7 +73,7 @@ function routeView(pathname) {
   if (pathname === "/your-videos") return "Your channel";
   if (pathname === "/recent") return "Recently added";
   if (/^\/channel\/\d+\/?$/.test(pathname)) return "Channel";
-  if (pathname === "/search") return "Home";
+  if (pathname === "/search") return "Search";
   return "Home";
 }
 
@@ -84,6 +87,7 @@ function routeForView(view) {
     case "Liked videos": return "/liked";
     case "Your channel": return "/your-videos";
     case "Recently added": return "/recent";
+    case "Search": return "/search";
     default: return "/";
   }
 }
@@ -141,7 +145,11 @@ export default function App() {
   const [channelError, setChannelError] = useState("");
   const [categoryError, setCategoryError] = useState("");
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    return window.location.pathname === "/search" && q ? q : "";
+  });
+  const [searchInput, setSearchInput] = useState(search);
   const [activeCategory, setActiveCategory] = useState("All");
   const [view, setView] = useState(() => routeView(window.location.pathname));
 
@@ -208,7 +216,9 @@ export default function App() {
 
     const query = new URLSearchParams(location.search);
     if (path === "/search") {
-      setSearch(query.get("q") || "");
+      const q = query.get("q") || "";
+      setSearch(q);
+      setSearchInput(q);
     }
     if (path === "/login") setAccountDialog("login");
     else if (path === "/register") setAccountDialog("register");
@@ -753,6 +763,16 @@ export default function App() {
       ),
     [channels]
   );
+
+  const matchingChannels = useMemo(() => {
+    if (!search.trim()) return [];
+    const query = search.trim().toLowerCase();
+    return channels.filter((ch) =>
+      ch.name.toLowerCase().includes(query) ||
+      ch.handle.toLowerCase().includes(query) ||
+      (ch.description && ch.description.toLowerCase().includes(query))
+    );
+  }, [search, channels]);
 
   const visibleFeedError =
     feedError ||
@@ -1389,6 +1409,35 @@ export default function App() {
       }
     );
 
+    if (Array.isArray(form.tags) && form.tags.length > 0) {
+      try {
+        const existingTags = await fetchTags();
+        for (const tagItem of form.tags) {
+          const tagName = String(tagItem).trim();
+          if (!tagName) continue;
+          let matched = Array.isArray(existingTags) ? existingTags.find((t) => t.name.toLowerCase() === tagName.toLowerCase()) : null;
+          let tagId = matched?.id;
+          if (!tagId) {
+            try {
+              const created = await createTag(tagName);
+              tagId = created.id;
+            } catch {
+              // tag might have been created concurrently
+            }
+          }
+          if (tagId) {
+            try {
+              await addTagToVideo(upload.videoId, tagId);
+            } catch {
+              // ignore duplicate association
+            }
+          }
+        }
+      } catch {
+        // ignore tag sync failure so video creation succeeds
+      }
+    }
+
     const savedVideo =
       mapApiVideo(
         await apiRequest(
@@ -1983,6 +2032,8 @@ export default function App() {
   }
 
   function showChannel(channel) {
+    setSearch("");
+    setSearchInput("");
     setView("Channel");
     navigate(`/channel/${channel.channelId}`);
     setActiveChannelId(
@@ -2021,10 +2072,14 @@ export default function App() {
                 ? "Recently watched"
                 : view === "Subscriptions"
                   ? "From your subscriptions"
-                  : activeCategory ===
-                      "All"
-                    ? "Videos"
-                    : activeCategory;
+                  : view === "Search"
+                    ? search
+                      ? `Results for "${search}"`
+                      : "Search"
+                    : activeCategory ===
+                        "All"
+                      ? "Videos"
+                      : activeCategory;
 
   return (
     <div className="app">
@@ -2077,7 +2132,8 @@ export default function App() {
           onSubmit={(event) => {
             event.preventDefault();
             setPageIndex(0);
-            const query = search.trim();
+            const query = searchInput.trim();
+            setSearch(query);
             navigate(query ? `/search?q=${encodeURIComponent(query)}` : "/search");
           }}
         >
@@ -2088,24 +2144,25 @@ export default function App() {
             />
 
             <input
-              value={search}
+              value={searchInput}
               onChange={(event) => {
-                setSearch(
-                  event.target.value
-                );
-                setPageIndex(0);
+                setSearchInput(event.target.value);
               }}
               placeholder="Search videos, creators, and more"
               aria-label="Search"
             />
 
-            {search && (
+            {searchInput && (
               <button
                 type="button"
                 className="search-clear"
                 onClick={() => {
+                  setSearchInput("");
                   setSearch("");
                   setPageIndex(0);
+                  if (location.pathname === "/search") {
+                    navigate("/");
+                  }
                 }}
               >
                 <Icon
@@ -2868,7 +2925,9 @@ export default function App() {
                 <p className="section-eyebrow">
                   {view === "Home"
                     ? "Picked for you"
-                    : view}
+                    : view === "Search"
+                      ? "Search results"
+                      : view}
                 </p>
 
                 <h2>{feedTitle}</h2>
@@ -3006,42 +3065,102 @@ export default function App() {
                   Try again
                 </button>
               </div>
-            ) : visibleVideos.length ? (
-              <div className="video-grid">
-                {visibleVideos.map(
-                  (video, index) => (
-                    <VideoCard
-                      key={
-                        video.videoId
-                      }
-                      video={video}
-                      channel={channelById.get(
-                        Number(
-                          video.channelId
-                        )
-                      )}
-                      onSelect={
-                        selectVideo
-                      }
-                      onSelectChannel={showChannel}
-                      onManage={
-                        setManageVideo
-                      }
-                      canManage={Number(channelById.get(Number(video.channelId))?.ownerId) === Number(currentUser?.id)}
-                      onDelete={
-                        deleteVideoFromCard
-                      }
-                      onSavePlaylist={startSaveToPlaylist}
-                      onReport={(reportedVideo) => openReport({
-                        videoId: Number(reportedVideo.videoId),
-                      })}
-                      onRemoveHistory={view === "History" && currentUser?.id ? removeHistoryVideo : undefined}
-                      removingHistoryVideoId={removingHistoryVideoId}
-                      index={index}
-                    />
-                  )
+            ) : (visibleVideos.length || (view === "Search" && search.trim() && matchingChannels.length > 0)) ? (
+              <>
+                {view === "Search" && search.trim() && matchingChannels.length > 0 && (
+                  <div className="search-channels-container" style={{ marginBottom: "1.75rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <h3 style={{ fontSize: "1rem", fontWeight: 600, opacity: 0.8, margin: "0 0 0.25rem 0" }}>Channels</h3>
+                    {matchingChannels.map((ch) => (
+                      <div
+                        key={ch.channelId}
+                        className="search-channel-result"
+                        onClick={() => showChannel(ch)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "1.25rem",
+                          padding: "1rem 1.25rem",
+                          background: "var(--card-bg, rgba(255, 255, 255, 0.05))",
+                          borderRadius: "12px",
+                          border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+                          cursor: "pointer",
+                          transition: "background 0.2s ease",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "56px",
+                            height: "56px",
+                            borderRadius: "50%",
+                            background: "linear-gradient(135deg, #e50914, #990000)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#fff",
+                            fontSize: "22px",
+                            fontWeight: "bold",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {ch.name ? ch.name.charAt(0).toUpperCase() : "C"}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ margin: "0 0 4px 0", fontSize: "1.15rem", fontWeight: 600, cursor: "pointer", display: "inline-block" }}>
+                            {ch.name}
+                          </h4>
+                          <div style={{ fontSize: "0.85rem", opacity: 0.75, display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                            <span>{ch.handle ? (ch.handle.startsWith("@") ? ch.handle : `@${ch.handle}`) : ""}</span>
+                            <span>•</span>
+                            <span>Channel</span>
+                          </div>
+                          {ch.description && (
+                            <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {ch.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
+                {visibleVideos.length > 0 && (
+                  <div className="video-grid">
+                    {visibleVideos.map(
+                      (video, index) => (
+                        <VideoCard
+                          key={
+                            video.videoId
+                          }
+                          video={video}
+                          channel={channelById.get(
+                            Number(
+                              video.channelId
+                            )
+                          )}
+                          onSelect={
+                            selectVideo
+                          }
+                          onSelectChannel={showChannel}
+                          onManage={
+                            setManageVideo
+                          }
+                          canManage={Number(channelById.get(Number(video.channelId))?.ownerId) === Number(currentUser?.id)}
+                          onDelete={
+                            deleteVideoFromCard
+                          }
+                          onSavePlaylist={startSaveToPlaylist}
+                          onReport={(reportedVideo) => openReport({
+                            videoId: Number(reportedVideo.videoId),
+                          })}
+                          onRemoveHistory={view === "History" && currentUser?.id ? removeHistoryVideo : undefined}
+                          removingHistoryVideoId={removingHistoryVideoId}
+                          index={index}
+                        />
+                      )
+                    )}
+                  </div>
+                )}
+              </>
             ) : videosLoading ? (
               <div className="empty-feed">
                 <span>
@@ -3312,6 +3431,13 @@ export default function App() {
           })}
           onWatchProgress={updateWatchHistory}
           onNotificationsChanged={refreshNotifications}
+          onSearchTag={(tagName) => {
+            closeVideo();
+            setSearchInput(tagName);
+            setSearch(tagName);
+            setPageIndex(0);
+            navigate(`/search?q=${encodeURIComponent(tagName)}`);
+          }}
           liked={likedVideos.includes(
             selectedVideo.videoId
           )}
