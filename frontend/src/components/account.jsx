@@ -337,9 +337,11 @@ export function AccountDialog({
               </span>
 
               <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                <button type="button" className="feed-filter" onClick={onCreateChannel}>
-                  Create channel
-                </button>
+                {myChannels.length === 0 && (
+                  <button type="button" className="feed-filter" onClick={onCreateChannel}>
+                    Create channel
+                  </button>
+                )}
                 <button type="button" className="feed-filter" onClick={onShowSubscriptions}>
                   View subscriptions
                 </button>
@@ -447,7 +449,6 @@ export function AccountMenu({
   subscriptionChannels,
   onProfile,
   onHome,
-  onChannel,
   onHistory,
   onLiked,
   onPlaylists,
@@ -543,7 +544,6 @@ export function AccountMenu({
         }}
       >
         <AccountMenuItem icon="home" label="Home" onClick={onHome} />
-        <AccountMenuItem icon="library" label="Your channel" onClick={onChannel} />
         <AccountMenuItem icon="history" label="History" onClick={onHistory} />
         <AccountMenuItem icon="like" label="Liked videos" onClick={onLiked} />
         <AccountMenuItem icon="library" label="Playlists" onClick={onPlaylists} />

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   apiRequest,
@@ -56,6 +56,8 @@ import ReportsAdminPanel from "./components/ReportsAdminPanel.jsx";
 const DEMO_ADMIN_USER_ID = Number(
     import.meta.env.VITE_DEMO_ADMIN_USER_ID || 9,
 );
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const LAST_ACTIVITY_STORAGE_KEY = "motionville.lastActivityAt";
 
 function routeView(pathname) {
   if (pathname === "/explore") return "Explore";
@@ -173,7 +175,23 @@ export default function App() {
   const [accountDialog, setAccountDialog] = useState(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [notificationActionBusy, setNotificationActionBusy] = useState(false);
+  const accountMenuRef = useRef(null);
+  const notificationMenuRef = useRef(null);
   const isDemoAdmin = Number(currentUser?.id) === DEMO_ADMIN_USER_ID;
+
+  useEffect(() => {
+    function closeMenusOutside(event) {
+      if (!accountMenuRef.current?.contains(event.target)) {
+        setAccountMenuOpen(false);
+      }
+      if (!notificationMenuRef.current?.contains(event.target)) {
+        setNotificationsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", closeMenusOutside);
+    return () => document.removeEventListener("pointerdown", closeMenusOutside);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -423,6 +441,19 @@ export default function App() {
     );
 
     if (!storedId) return;
+    const lastActivityAt = Number(
+      localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY)
+    );
+    if (
+      Number.isFinite(lastActivityAt) &&
+      lastActivityAt > 0 &&
+      Date.now() - lastActivityAt >= SESSION_IDLE_TIMEOUT_MS
+    ) {
+      localStorage.removeItem("motionville.currentUserId");
+      localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
 
     apiRequest(`/users/${storedId}`)
       .then((user) => {
@@ -430,6 +461,7 @@ export default function App() {
       })
       .catch(() => {
         localStorage.removeItem("motionville.currentUserId");
+        localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
         setCurrentUser(null);
       });
   }, []);
@@ -919,6 +951,11 @@ export default function App() {
       setToast("Create a profile first.");
       return;
     }
+    if (myChannels.length > 0) {
+      setCreateDialog(null);
+      setToast("You can create only one channel per account.");
+      return;
+    }
 
     const handle = form.handle.startsWith("@")
       ? form.handle
@@ -988,6 +1025,7 @@ export default function App() {
       "motionville.currentUserId",
       String(user.id)
     );
+    localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
 
     setCurrentUser(user);
     setAccountDialog(null);
@@ -1013,6 +1051,7 @@ export default function App() {
       "motionville.currentUserId",
       String(user.id)
     );
+    localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
 
     setCurrentUser(user);
     setAccountDialog(null);
@@ -1059,6 +1098,7 @@ export default function App() {
     localStorage.removeItem(
       "motionville.currentUserId"
     );
+    localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
 
     setCurrentUser(null);
     setMyChannels([]);
@@ -1072,6 +1112,58 @@ export default function App() {
 
     setToast("Signed out.");
   }
+
+  const logoutUserRef = useRef(logoutUser);
+  logoutUserRef.current = logoutUser;
+
+  useEffect(() => {
+    if (!currentUser?.id) return undefined;
+
+    let timeoutId;
+    function scheduleLogout() {
+      window.clearTimeout(timeoutId);
+      const lastActivityAt = Number(
+        localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY)
+      );
+      const elapsed = Date.now() - lastActivityAt;
+      const remaining = Math.max(0, SESSION_IDLE_TIMEOUT_MS - elapsed);
+      timeoutId = window.setTimeout(() => {
+        localStorage.removeItem("motionville.currentUserId");
+        localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
+        logoutUserRef.current();
+        setToast("You were signed out after 30 minutes of inactivity.");
+      }, remaining);
+    }
+
+    function recordActivity() {
+      localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
+      scheduleLogout();
+    }
+
+    function syncSession(event) {
+      if (event.key === LAST_ACTIVITY_STORAGE_KEY) {
+        scheduleLogout();
+      } else if (event.key === "motionville.currentUserId" && !event.newValue) {
+        logoutUserRef.current();
+      }
+    }
+
+    recordActivity();
+    window.addEventListener("pointerdown", recordActivity);
+    window.addEventListener("keydown", recordActivity);
+    window.addEventListener("touchstart", recordActivity);
+    window.addEventListener("scroll", recordActivity, true);
+    window.addEventListener("storage", syncSession);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener("pointerdown", recordActivity);
+      window.removeEventListener("keydown", recordActivity);
+      window.removeEventListener("touchstart", recordActivity);
+      window.removeEventListener("scroll", recordActivity, true);
+      window.removeEventListener("storage", syncSession);
+    };
+  }, [currentUser?.id]);
 
   function openReport(target) {
     if (!currentUser?.id) {
@@ -1876,9 +1968,9 @@ export default function App() {
           Number(activeChannelId)
         )
       : null;
+  const ownChannel = myChannels[0] || null;
 
-  const hasBackendChannels =
-    channels.length > 0;
+  const hasOwnedChannel = myChannels.length > 0;
 
   const feedTitle =
     view === "Trending"
@@ -1926,6 +2018,9 @@ export default function App() {
             onClick={(event) => {
               event.preventDefault();
               chooseView("Home");
+              setActiveChannelId(null);
+              setSidebarOpen(false);
+              setYouPanelOpen(false);
             }}
             aria-label="MotionVille home"
           >
@@ -2006,7 +2101,7 @@ export default function App() {
                 className="create-button"
                 onClick={() =>
                   setCreateDialog(
-                    hasBackendChannels
+                    hasOwnedChannel
                       ? "video"
                       : "channel"
                   )
@@ -2029,7 +2124,7 @@ export default function App() {
                 </button>
               )}
 
-              <div className="notification-menu">
+              <div className="notification-menu" ref={notificationMenuRef}>
                 <button
                   className="icon-button notification-button"
                   type="button"
@@ -2038,6 +2133,7 @@ export default function App() {
                   onClick={() => {
                     const opening = !notificationsOpen;
                     setNotificationsOpen(opening);
+                    if (opening) setAccountMenuOpen(false);
                     if (opening) refreshNotifications();
                   }}
                 >
@@ -2093,14 +2189,16 @@ export default function App() {
                 )}
               </div>
 
-              <div style={{ position: "relative" }}>
+              <div ref={accountMenuRef} style={{ position: "relative" }}>
                 <button
                   type="button"
                   aria-label="Open account menu"
                   aria-expanded={accountMenuOpen}
-                  onClick={() =>
-                    setAccountMenuOpen((open) => !open)
-                  }
+                  onClick={() => {
+                    const opening = !accountMenuOpen;
+                    setAccountMenuOpen(opening);
+                    if (opening) setNotificationsOpen(false);
+                  }}
                   style={{
                     border: 0,
                     background: "transparent",
@@ -2130,10 +2228,6 @@ export default function App() {
                       setAccountDialog("profile");
                     }}
                     onHome={() => {
-                      setAccountMenuOpen(false);
-                      chooseView("Home");
-                    }}
-                    onChannel={() => {
                       setAccountMenuOpen(false);
                       chooseView("Your channel");
                     }}
@@ -2367,80 +2461,53 @@ export default function App() {
 
           <section className="sidebar-channels">
             <div className="sidebar-section-heading">
-              <span>Channels</span>
+              <span>Your channel</span>
 
-              <button
-                className="small-add"
-                onClick={() =>
-                  currentUser
-                    ? setCreateDialog(
-                        "channel"
-                      )
-                    : setAccountDialog(
-                        "register"
-                      )
-                }
-                aria-label="Create channel"
-              >
-                <Icon
-                  name="plus"
-                  size={17}
-                />
-              </button>
+              {myChannels.length === 0 && (
+                <button
+                  className="small-add"
+                  onClick={() =>
+                    currentUser
+                      ? setCreateDialog("channel")
+                      : setAccountDialog("register")
+                  }
+                  aria-label="Create channel"
+                >
+                  <Icon name="plus" size={17} />
+                </button>
+              )}
             </div>
 
-            {channels
-              .slice(0, 5)
-              .map((channel) => (
-                <button
-                  className="nav-item channel-nav-item"
-                  key={
-                    channel.channelId
-                  }
-                  onClick={() =>
-                    showChannel(
-                      channel
-                    )
-                  }
-                >
-                  <Avatar
-                    src={
-                      channel.avatarUrl
-                    }
-                    name={
-                      channel.name
-                    }
-                    size="tiny"
-                  />
-                  <span>
-                    {channel.name}
-                  </span>
-                </button>
-              ))}
-
-            <button
-              className="nav-item add-channel-nav"
-              onClick={() =>
-                currentUser
-                  ? setCreateDialog(
-                      "channel"
-                    )
-                  : setAccountDialog(
-                      "register"
-                    )
-              }
-            >
-              <span className="add-channel-icon">
-                <Icon
-                  name="plus"
-                  size={16}
+            {myChannels.map((channel) => (
+              <button
+                className="nav-item channel-nav-item"
+                key={channel.channelId}
+                onClick={() => showChannel(channel)}
+              >
+                <Avatar
+                  src={channel.avatarUrl}
+                  name={channel.name}
+                  size="tiny"
                 />
-              </span>
+                <span>{channel.name}</span>
+              </button>
+            ))}
 
-              <span>
-                Create a channel
-              </span>
-            </button>
+            {myChannels.length === 0 && (
+              <button
+                className="nav-item add-channel-nav"
+                onClick={() =>
+                  currentUser
+                    ? setCreateDialog("channel")
+                    : setAccountDialog("register")
+                }
+              >
+                <span className="add-channel-icon">
+                  <Icon name="plus" size={16} />
+                </span>
+                <span>Create a channel</span>
+              </button>
+            )}
           </section>
 
           <div className="sidebar-bottom">
@@ -2524,6 +2591,85 @@ export default function App() {
                 </span>
               </div>
             </div>
+          ) : view === "Your channel" ? (
+            <>
+              <section className="account-profile-card" aria-label="Your profile">
+                <Avatar
+                  src={currentUser?.avatarUrl}
+                  name={currentUser?.displayName || currentUser?.username || "M"}
+                  size="profile"
+                />
+                <div className="account-profile-details">
+                  <p className="section-eyebrow">YOUR PROFILE</p>
+                  <h1>{currentUser?.displayName || currentUser?.username || "Your profile"}</h1>
+                  <p>@{currentUser?.username || "username"}</p>
+                  {currentUser?.email && <span>{currentUser.email}</span>}
+                </div>
+                {currentUser && (
+                  <button
+                    type="button"
+                    className="feed-filter account-profile-edit"
+                    onClick={() => setAccountDialog("profile")}
+                  >
+                    Edit profile
+                  </button>
+                )}
+              </section>
+
+              {ownChannel ? (
+                <section className="channel-banner">
+                  {ownChannel.bannerUrl && (
+                    <img src={ownChannel.bannerUrl} alt="" />
+                  )}
+                  <div className="channel-banner-content">
+                    <Avatar
+                      src={ownChannel.avatarUrl}
+                      name={ownChannel.name}
+                      size="banner"
+                    />
+                    <div>
+                      <p className="channel-profile-label">YOUR CHANNEL</p>
+                      <h2>{ownChannel.name}</h2>
+                      <p>{ownChannel.handle}</p>
+                      {ownChannel.description && <span>{ownChannel.description}</span>}
+                      <div className="channel-profile-actions">
+                        <span>
+                          {subscriberCounts[ownChannel.channelId] || 0}{" "}
+                          {Number(subscriberCounts[ownChannel.channelId] || 0) === 1
+                            ? "subscriber"
+                            : "subscribers"}
+                        </span>
+                        {ownChannel.createdAt && (
+                          <span>Created {formatAge(ownChannel.createdAt)}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="feed-filter"
+                          onClick={() => showChannel(ownChannel)}
+                        >
+                          View channel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : (
+                <section className="your-channel-empty">
+                  <h2>You don’t have a channel yet</h2>
+                  <p>Create a channel to publish videos and share your profile with viewers.</p>
+                  {currentUser && myChannels.length === 0 && (
+                    <button
+                      type="button"
+                      className="button button-primary"
+                      onClick={() => setCreateDialog("channel")}
+                    >
+                      <Icon name="plus" size={17} />
+                      Create a channel
+                    </button>
+                  )}
+                </section>
+              )}
+            </>
           ) : view ===
               "Channel" &&
             activeChannel ? (
@@ -2837,9 +2983,11 @@ export default function App() {
                       onSelect={
                         selectVideo
                       }
+                      onSelectChannel={showChannel}
                       onManage={
                         setManageVideo
                       }
+                      canManage={Number(channelById.get(Number(video.channelId))?.ownerId) === Number(currentUser?.id)}
                       onDelete={
                         deleteVideoFromCard
                       }
@@ -2886,7 +3034,7 @@ export default function App() {
                 </h2>
 
                 <p>
-                  {hasBackendChannels
+                  {hasOwnedChannel
                     ? "Try another category or search, or upload a video."
                     : "Create a channel to get started."}
                 </p>
@@ -2896,7 +3044,7 @@ export default function App() {
                   onClick={() =>
                     currentUser
                       ? setCreateDialog(
-                          hasBackendChannels
+                          hasOwnedChannel
                             ? "video"
                             : "channel"
                         )
@@ -2910,7 +3058,7 @@ export default function App() {
                     size={17}
                   />
 
-                  {hasBackendChannels
+                  {hasOwnedChannel
                     ? "Post a video"
                     : "Create a channel"}
                 </button>
@@ -3080,6 +3228,15 @@ export default function App() {
           onSelectRecommendation={
             selectVideo
           }
+          onSelectChannel={showChannel}
+          onGoHome={() => {
+            setSelectedVideo(null);
+            setActiveChannelId(null);
+            setSidebarOpen(false);
+            setYouPanelOpen(false);
+            setView("Home");
+            navigate("/");
+          }}
           onClose={() =>
             closeVideo()
           }
@@ -3088,6 +3245,16 @@ export default function App() {
             toggleSubscription
           }
           onSavePlaylist={startSaveToPlaylist}
+          onManageVideo={(video) => {
+            setManageVideo(video);
+            closeVideo();
+          }}
+          onDeleteVideo={(video) => {
+            if (!window.confirm(`Delete "${video.title}" permanently?`)) return;
+            deleteVideo(video)
+              .then(closeVideo)
+              .catch((error) => setFeedError(`Could not delete video: ${error.message}`));
+          }}
           onReportVideo={() => openReport({
             videoId: Number(selectedVideo.videoId),
           })}

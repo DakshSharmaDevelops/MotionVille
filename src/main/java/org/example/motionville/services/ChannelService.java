@@ -31,13 +31,6 @@ public class ChannelService {
     public ChannelResponse createChannel(
             ChannelCreateRequest request) {
 
-        if (channelRepository.existsByHandle(request.getHandle())) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Handle already exists"
-            );
-        }
-
         AppUser owner = appUserRepository.findById(request.getOwnerId())
                 .orElseThrow(() ->
                         new ResponseStatusException(
@@ -45,6 +38,20 @@ public class ChannelService {
                                 "User not found"
                         )
                 );
+
+        if (channelRepository.existsByOwner_Id(owner.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Each user can create only one channel"
+            );
+        }
+
+        if (channelRepository.existsByHandle(request.getHandle())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Handle already exists"
+            );
+        }
 
         Channel channel = new Channel();
 

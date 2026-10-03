@@ -11,5 +11,7 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     boolean existsByHandleAndChannelIdNot(String handle, Long id);
 
+    boolean existsByOwner_Id(Long ownerId);
+
     List<Channel> findByOwner_Id(Long ownerId);
 }

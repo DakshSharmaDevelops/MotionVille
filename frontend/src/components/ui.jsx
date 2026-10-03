@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatAge, formatDuration, formatViews } from "../utils/format.js";
 import { API_BASE_URL, readResponseError } from "../api/videoApi.js";
 
@@ -48,8 +48,10 @@ export function Avatar({ src, name, size = "normal" }) {
     : <span className={`avatar avatar-fallback avatar-${size}`}>{(name || "M").slice(0, 1).toUpperCase()}</span>;
 }
 
-export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSavePlaylist, onReport, onRemoveHistory, removingHistoryVideoId, index }) {
+export function VideoCard({ video, channel, onSelect, onSelectChannel, onManage, onDelete, canManage, onSavePlaylist, onReport, onRemoveHistory, removingHistoryVideoId, index }) {
   const [thumbnailUrl, setThumbnailUrl] = useState(video.thumbnailUrl || "");
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsRef = useRef(null);
 
   useEffect(() => {
     setThumbnailUrl(video.thumbnailUrl || "");
@@ -71,6 +73,15 @@ export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSave
     };
   }, [video.serverVideo, video.thumbnailUrl, video.videoId]);
 
+  useEffect(() => {
+    if (!actionsOpen) return undefined;
+    function closeOutside(event) {
+      if (!actionsRef.current?.contains(event.target)) setActionsOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [actionsOpen]);
+
   return (
     <article className="video-card" style={{ "--card-order": index }}>
       <button className="video-thumb" onClick={() => onSelect(video)} aria-label={`Watch ${video.title}`}>
@@ -84,7 +95,14 @@ export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSave
         <Avatar src={channel?.avatarUrl} name={channel?.name} />
         <div className="video-card-text">
           <button className="video-card-title" onClick={() => onSelect(video)}>{video.title}</button>
-          <button className="channel-link">{channel?.name || "MotionVille creator"}</button>
+          <button
+            className="channel-link"
+            type="button"
+            onClick={() => channel && onSelectChannel?.(channel)}
+            disabled={!channel}
+          >
+            {channel?.name || "MotionVille creator"}
+          </button>
           <p>{video.views == null ? formatAge(video.createdAt) : `${formatViews(video.views)} · ${formatAge(video.createdAt)}`}</p>
           {Number.isFinite(video.resumePositionSeconds) && (
             <div className="watch-progress">
@@ -93,14 +111,46 @@ export function VideoCard({ video, channel, onSelect, onManage, onDelete, onSave
             </div>
           )}
         </div>
-        <div className="video-card-actions">
-          {onRemoveHistory && <button className="video-card-action video-card-delete" disabled={removingHistoryVideoId === video.videoId} onClick={() => onRemoveHistory(video)}>{removingHistoryVideoId === video.videoId ? "Removing…" : "Remove from history"}</button>}
-          {video.serverVideo && onSavePlaylist && <button className="video-card-action" onClick={() => onSavePlaylist(video)}>Save</button>}
-          {video.serverVideo && onReport && <button className="video-card-action" onClick={() => onReport(video)}>Report</button>}
-          {video.serverVideo && <>
-            <button className="video-card-action" onClick={() => onManage(video)}>Edit</button>
-            <button className="video-card-action video-card-delete" onClick={() => onDelete(video)}>Delete</button>
-          </>}
+        <div className="video-card-actions" ref={actionsRef}>
+          <button
+            className="more-button"
+            type="button"
+            aria-label={`More options for ${video.title}`}
+            aria-expanded={actionsOpen}
+            onClick={() => setActionsOpen((open) => !open)}
+          >
+            <Icon name="more" size={19} />
+          </button>
+          {actionsOpen && (
+            <div className="video-actions-menu" role="menu">
+              {onRemoveHistory && (
+                <button
+                  className="video-actions-menu-item video-actions-danger"
+                  type="button"
+                  role="menuitem"
+                  disabled={removingHistoryVideoId === video.videoId}
+                  onClick={() => {
+                    setActionsOpen(false);
+                    onRemoveHistory(video);
+                  }}
+                >
+                  {removingHistoryVideoId === video.videoId ? "Removing…" : "Remove from history"}
+                </button>
+              )}
+              {video.serverVideo && onSavePlaylist && (
+                <button className="video-actions-menu-item" type="button" role="menuitem" onClick={() => { setActionsOpen(false); onSavePlaylist(video); }}>Save to playlist</button>
+              )}
+              {video.serverVideo && onReport && (
+                <button className="video-actions-menu-item" type="button" role="menuitem" onClick={() => { setActionsOpen(false); onReport(video); }}>Report</button>
+              )}
+              {video.serverVideo && canManage && (
+                <>
+                  <button className="video-actions-menu-item" type="button" role="menuitem" onClick={() => { setActionsOpen(false); onManage(video); }}>Edit video</button>
+                  <button className="video-actions-menu-item video-actions-danger" type="button" role="menuitem" onClick={() => { setActionsOpen(false); onDelete(video); }}>Delete video</button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </article>

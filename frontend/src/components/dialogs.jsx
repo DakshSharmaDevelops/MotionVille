@@ -346,7 +346,7 @@ export function ReportDialog({ userId, target, onClose, onSubmitted }) {
   );
 }
 
-export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onClose, onLike, onSubscribe, onSavePlaylist, onReportVideo, onReportComment, onWatchProgress, onNotificationsChanged, liked, subscribed, currentUser }) {
+export function WatchDialog({ video, channel, recommendations, onSelectRecommendation, onSelectChannel, onGoHome, onClose, onLike, onSubscribe, onSavePlaylist, onReportVideo, onManageVideo, onDeleteVideo, onReportComment, onWatchProgress, onNotificationsChanged, liked, subscribed, currentUser }) {
   const reactionUserId = Number(currentUser?.id);
   const hasReactionUser = Number.isInteger(reactionUserId) && reactionUserId > 0;
   const [comment, setComment] = useState("");
@@ -366,6 +366,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [commentActionError, setCommentActionError] = useState("");
   const [playbackError, setPlaybackError] = useState(false);
   const [viewError, setViewError] = useState("");
+  const [videoActionsOpen, setVideoActionsOpen] = useState(false);
+  const videoActionsRef = useRef(null);
 
   const [playbackUrl, setPlaybackUrl] = useState("");
   const [playbackMimeType, setPlaybackMimeType] = useState("video/mp4");
@@ -382,6 +384,17 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [commentReactions, setCommentReactions] = useState({});
   const [commentReactionError, setCommentReactionError] = useState("");
   const [commentReactionBusyId, setCommentReactionBusyId] = useState(null);
+
+  useEffect(() => {
+    if (!videoActionsOpen) return undefined;
+    function closeOutside(event) {
+      if (!videoActionsRef.current?.contains(event.target)) {
+        setVideoActionsOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [videoActionsOpen]);
 
   const playerRef = useRef(null);
   const lastPlaybackPosition = useRef(0);
@@ -854,7 +867,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   return (
     <Modal onClose={onClose} className="watch-backdrop">
       <section className="watch-modal" role="dialog" aria-modal="true" aria-label={video.title}>
-        <div className="watch-bar"><a className="brand brand-small"><span className="brand-symbol"><Icon name="play" size={14} filled /></span><span>Motion<span className="brand-red">Ville</span></span></a><button className="icon-button" onClick={onClose} aria-label="Close player"><Icon name="close" /></button></div>
+        <div className="watch-bar"><a className="brand brand-small" href="/" onClick={(event) => { event.preventDefault(); onGoHome(); }} aria-label="MotionVille home"><span className="brand-symbol"><Icon name="play" size={14} filled /></span><span>Motion<span className="brand-red">Ville</span></span></a><button className="icon-button" onClick={onClose} aria-label="Close player"><Icon name="close" /></button></div>
         <div className="watch-content">
           <div className="watch-primary">
             <div className="player-wrap">
@@ -898,7 +911,21 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
             {viewError && <p className="inline-error" role="alert">Could not record this video view: {viewError}</p>}
             <h1 className="watch-title">{video.title}</h1>
             <div className="watch-meta-row">
-              <div className="watch-channel"><Avatar src={channel?.avatarUrl} name={channel?.name} size="large" /><div><strong>{channel?.name || "MotionVille creator"}</strong><span>{channel?.handle || "@creator"}</span></div><button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button></div>
+              <div className="watch-channel">
+                <button
+                  type="button"
+                  className="watch-channel-identity"
+                  onClick={() => channel && onSelectChannel?.(channel)}
+                  disabled={!channel}
+                >
+                  <Avatar src={channel?.avatarUrl} name={channel?.name} size="large" />
+                  <span>
+                    <strong>{channel?.name || "MotionVille creator"}</strong>
+                    <span>{channel?.handle || "@creator"}</span>
+                  </span>
+                </button>
+                <button className={`button subscribe-button ${subscribed ? "button-subscribed" : "button-dark"}`} onClick={() => onSubscribe(channel?.channelId)}>{subscribed ? "Subscribed" : "Subscribe"}</button>
+              </div>
               <div className="watch-actions">
                 <button
                     className={`action-pill ${videoReaction.userReaction === "LIKE" ? "action-pill-selected" : ""}`}
@@ -919,16 +946,44 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                   <span>Dislike {videoReaction.dislikeCount}</span>
                 </button>
 
-                {video.serverVideo && onSavePlaylist && (
-                  <button className="action-pill" onClick={() => onSavePlaylist(video)}>
-                    <Icon name="library" size={17} />
-                    <span>Save</span>
-                  </button>
-                )}
-                {video.serverVideo && onReportVideo && (
-                  <button className="action-pill" type="button" onClick={() => onReportVideo(video)}>
-                    <span>Report</span>
-                  </button>
+                {video.serverVideo && (
+                  <div className="watch-video-menu" ref={videoActionsRef}>
+                    <button
+                      className="action-pill"
+                      type="button"
+                      aria-label="More video options"
+                      aria-expanded={videoActionsOpen}
+                      onClick={() => setVideoActionsOpen((open) => !open)}
+                    >
+                      <Icon name="more" size={19} />
+                    </button>
+                    {videoActionsOpen && (
+                      <div className="video-actions-menu" role="menu">
+                        {onSavePlaylist && (
+                          <button className="video-actions-menu-item" type="button" role="menuitem" onClick={() => { setVideoActionsOpen(false); onSavePlaylist(video); }}>
+                            Save to playlist
+                          </button>
+                        )}
+                        {onReportVideo && (
+                          <button className="video-actions-menu-item" type="button" role="menuitem" onClick={() => { setVideoActionsOpen(false); onReportVideo(video); }}>
+                            Report
+                          </button>
+                        )}
+                        {Number(channel?.ownerId) === Number(currentUser?.id) && onManageVideo && (
+                          <>
+                            <button className="video-actions-menu-item" type="button" role="menuitem" onClick={() => { setVideoActionsOpen(false); onManageVideo(video); }}>
+                              Edit video
+                            </button>
+                            {onDeleteVideo && (
+                              <button className="video-actions-menu-item video-actions-danger" type="button" role="menuitem" onClick={() => { setVideoActionsOpen(false); onDeleteVideo(video); }}>
+                                Delete video
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {reactionError && <p className="inline-error" role="alert">{reactionError}</p>}</div>
@@ -1133,7 +1188,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
             {recommendations.length
               ? <div className="recommendations-grid">{recommendations.map((item, index) => (
                 <VideoCard key={item.videoId} video={item} channel={item.channel}
-                  onSelect={onSelectRecommendation} onManage={() => {}} onDelete={() => {}} index={index} />
+                  onSelect={onSelectRecommendation} onSelectChannel={onSelectChannel} index={index} />
               ))}</div>
               : <p className="recommendations-empty">No other videos to show yet.</p>}
           </section>

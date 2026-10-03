@@ -19,8 +19,8 @@ export async function apiRequest(path, options = {}) {
     },
   });
   if (!response.ok) throw new Error(await readApiError(response));
-  if (response.status === 204 || response.status === 202) return null;
-  return response.json();
+  const body = await response.text();
+  return body ? JSON.parse(body) : null;
 }
 
 export function buildVideoQuery({ search, page, sort, channelId, categoryId, publicOnly }) {
