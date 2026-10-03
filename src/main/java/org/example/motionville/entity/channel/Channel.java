@@ -40,10 +40,10 @@ public class Channel {
     @Column(name="created_at", nullable = false)
     private Instant createdAt;
 
-    @OneToMany(mappedBy = "channel")
+    @OneToMany(mappedBy = "channel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Video> videos;
 
-    @OneToMany(mappedBy = "channel")
+    @OneToMany(mappedBy = "channel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Subscription> subscriptions;
 
     public void addVideo(Video video) {

@@ -164,8 +164,17 @@ public class VideoController {
 
     @PreAuthorize("@authorizationService.canViewVideo(#id, authentication)")
     @GetMapping("/play/{id}")
-    public List<VideoAsset> playVideo(@PathVariable Long id) {
-        return videoService.playVideo(id);
+    public List<VideoAssetResponse> playVideo(@PathVariable Long id) {
+        return videoService.playVideo(id).stream()
+                .map(asset -> new VideoAssetResponse(
+                        asset.getId(),
+                        asset.getVideo().getVideoId(),
+                        asset.getAssetUrl(),
+                        asset.getQuality(),
+                        asset.getMimeType(),
+                        asset.getSizeBytes(),
+                        asset.getCreatedAt()))
+                .toList();
     }
 
     @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")

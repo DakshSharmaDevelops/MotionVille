@@ -1163,12 +1163,26 @@ export default function App() {
       }
     }
 
+    function handleUnauthorized() {
+      if (currentUser?.id) {
+        logoutUserRef.current();
+        setToast("Your session has expired. Please sign in again.");
+        setAccountDialog("auth");
+      }
+    }
+
+    function handleForbidden(event) {
+      setToast(event?.detail?.message || "Access denied: You do not have permission for this resource.");
+    }
+
     recordActivity();
     window.addEventListener("pointerdown", recordActivity);
     window.addEventListener("keydown", recordActivity);
     window.addEventListener("touchstart", recordActivity);
     window.addEventListener("scroll", recordActivity, true);
     window.addEventListener("storage", syncSession);
+    window.addEventListener("motionville:unauthorized", handleUnauthorized);
+    window.addEventListener("motionville:forbidden", handleForbidden);
 
     return () => {
       window.clearTimeout(timeoutId);
@@ -1177,6 +1191,8 @@ export default function App() {
       window.removeEventListener("touchstart", recordActivity);
       window.removeEventListener("scroll", recordActivity, true);
       window.removeEventListener("storage", syncSession);
+      window.removeEventListener("motionville:unauthorized", handleUnauthorized);
+      window.removeEventListener("motionville:forbidden", handleForbidden);
     };
   }, [currentUser?.id]);
 

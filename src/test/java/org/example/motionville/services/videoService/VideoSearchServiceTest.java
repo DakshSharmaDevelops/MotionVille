@@ -22,12 +22,14 @@ import static org.mockito.Mockito.*;
 class VideoSearchServiceTest {
 
     private VideoRepository videoRepository;
+    private org.example.motionville.security.AuthorizationService authorizationService;
     private VideoSearchService service;
 
     @BeforeEach
     void setUp() {
         videoRepository = mock(VideoRepository.class);
-        service = new VideoSearchService(videoRepository);
+        authorizationService = mock(org.example.motionville.security.AuthorizationService.class);
+        service = new VideoSearchService(videoRepository, authorizationService);
     }
 
     @Test
@@ -69,7 +71,7 @@ class VideoSearchServiceTest {
     @Test
     void escapesLikeWildcardsAndUsesDefaultSort() {
         when(videoRepository.searchVideos(
-                eq("100!%!_!!"), isNull(), isNull(), eq(false), eq(VideoVisibility.PUBLIC),
+                eq("100!%!_!!"), isNull(), isNull(), eq(true), eq(VideoVisibility.PUBLIC),
                 eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
@@ -81,7 +83,7 @@ class VideoSearchServiceTest {
                 eq("100!%!_!!"),
                 isNull(),
                 isNull(),
-                eq(false),
+                eq(true),
                 eq(VideoVisibility.PUBLIC),
                 eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 pageable.capture());

@@ -9,12 +9,14 @@ import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.channel.ChannelRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@Transactional
 public class ChannelService {
 
     private final ChannelRepository channelRepository;

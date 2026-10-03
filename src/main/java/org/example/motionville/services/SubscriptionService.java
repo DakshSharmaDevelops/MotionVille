@@ -56,6 +56,13 @@ public class SubscriptionService {
                         )
                 );
 
+        if (channel.getOwner() != null && channel.getOwner().getId().equals(userId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Cannot subscribe to your own channel"
+            );
+        }
+
         if (subscriptionRepository
                 .existsBySubscriber_IdAndChannel_ChannelId(
                         userId,

@@ -35,8 +35,11 @@ public class Comment {
     @Column(nullable = false, columnDefinition = "boolean not null default false")
     private boolean deleted = false;
 
-    @OneToMany(mappedBy = "parentComment")
+    @OneToMany(mappedBy = "parentComment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Comment> replies;
+
+    @OneToMany(mappedBy = "comment", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CommentReaction> reactions;
 
     @Column(nullable = false,columnDefinition = "TEXT")
     private String body;

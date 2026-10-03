@@ -107,6 +107,11 @@ public class AppUserController {
         return ResponseEntity.ok(responses);
     }
     private void requireCurrentUser(Long id, UserDetails principal) {
+        if (principal != null && principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return;
+        }
+
         UserResponse currentUser =
                 appUserService.getUserByUsername(principal.getUsername());
 

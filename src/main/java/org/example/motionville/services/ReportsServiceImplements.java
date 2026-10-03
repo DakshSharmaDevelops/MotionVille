@@ -35,7 +35,7 @@ public class ReportsServiceImplements implements ReportsService {
     private final VideoRepository videoRepository;
     private final CommentRepository commentRepository;
 
-    @Value("${motionville.demo-admin-user-id}")
+    @Value("${motionville.demo-admin-user-id:1}")
     private Long demoAdminUserId;
 
     @Override
@@ -104,6 +104,12 @@ public class ReportsServiceImplements implements ReportsService {
     }
 
     private void requireDemoAdmin(Long requesterId) {
+        if (requesterId != null) {
+            AppUser user = appUserRepository.findById(requesterId).orElse(null);
+            if (user != null && "ADMIN".equalsIgnoreCase(user.getRole())) {
+                return;
+            }
+        }
         if (!demoAdminUserId.equals(requesterId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required");
         }

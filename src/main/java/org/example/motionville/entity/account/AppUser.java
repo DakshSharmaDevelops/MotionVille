@@ -1,5 +1,6 @@
 package org.example.motionville.entity.account;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.playlist.PlayList;
@@ -27,9 +28,11 @@ public class AppUser {
     @Column(nullable = false, unique=true, length = 50)
     private String username;
 
+    @JsonIgnore
     @Column(nullable = false, length = 255)
     private String password;
 
+    @JsonIgnore
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
@@ -48,13 +51,13 @@ public class AppUser {
     @Column(nullable = false, length = 20)
     private String role = "USER";
 
-    @OneToMany(mappedBy="owner")
+    @OneToMany(mappedBy="owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Channel> channels;
 
-    @OneToMany(mappedBy = "owner")
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PlayList> playLists;
 
-    @OneToMany(mappedBy = "author")
+    @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Comment> comments;
 
     public void addChannel(Channel channel) {

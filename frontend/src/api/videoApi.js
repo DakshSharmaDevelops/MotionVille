@@ -1,27 +1,130 @@
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 export const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 
-async function readApiError(response) {
-  try {
-    const body = await response.json();
-    return body.message || `Request failed (${response.status}).`;
-  } catch {
-    return `Request failed (${response.status}).`;
+export class ApiError extends Error {
+  constructor(message, status, data = null, details = []) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
+    this.details = Array.isArray(details) ? details : [];
+  }
+
+  get isUnauthorized() {
+    return this.status === 401;
+  }
+
+  get isForbidden() {
+    return this.status === 403;
+  }
+
+  get isValidationError() {
+    return this.status === 400;
   }
 }
 
+export function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Parses JSON error envelope from backend (timestamp, status, error, message, details)
+ */
+async function parseApiError(response) {
+  let message = `Request failed (${response.status}).`;
+  let data = null;
+  let details = [];
+
+  try {
+    data = await response.json();
+    if (data && typeof data === "object") {
+      details = Array.isArray(data.details) ? data.details : [];
+      if (details.length > 0) {
+        message = `${data.message || "Validation failed"}: ${details.join("; ")}`;
+      } else {
+        message = data.message || data.error || message;
+      }
+    }
+  } catch {
+    // Non-JSON response body
+  }
+
+  // Prevent internal stack trace / system detail exposure on 5xx errors
+  if (response.status >= 500) {
+    message = "An unexpected server error occurred. Please try again later.";
+  } else if (response.status === 401 && (!data || !data.message)) {
+    message = "Your session has expired or authentication is required. Please log in.";
+  } else if (response.status === 403 && (!data || !data.message)) {
+    message = "Access denied: You do not have permission to access or modify this resource.";
+  } else if (response.status === 404 && (!data || !data.message)) {
+    message = "The requested resource was not found.";
+  }
+
+  return new ApiError(message, response.status, data, details);
+}
+
 export async function apiRequest(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: "include",
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
-  if (!response.ok) throw new Error(await readApiError(response));
+  const method = (options.method || "GET").toUpperCase();
+  const csrfToken = getCsrfToken();
+
+  const headers = {
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...options.headers,
+  };
+
+  // Attach XSRF token for mutating requests
+  if (csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+    headers["X-XSRF-TOKEN"] = csrfToken;
+  }
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      credentials: "include",
+      ...options,
+      headers,
+    });
+  } catch (networkError) {
+    // Handle network drop, offline state, or unreachable server gracefully
+    throw new ApiError(
+      "Unable to connect to the server. Please check your network connection.",
+      0,
+      null,
+      [networkError.message]
+    );
+  }
+
+  if (!response.ok) {
+    const error = await parseApiError(response);
+
+    // Validation failure (400): notify app of invalid input
+    if (error.isValidationError) {
+      window.dispatchEvent(new CustomEvent("motionville:validation-error", { detail: error }));
+    }
+
+    // Authentication failure (401): notify app to reset auth state (except when checking /auth/me)
+    if (error.isUnauthorized && !path.includes("/auth/me")) {
+      window.dispatchEvent(new CustomEvent("motionville:unauthorized", { detail: error }));
+    }
+
+    // Authorization failure (403): wrong owner or insufficient permissions
+    if (error.isForbidden) {
+      window.dispatchEvent(new CustomEvent("motionville:forbidden", { detail: error }));
+    }
+
+    throw error;
+  }
+
+  if (response.status === 204 || response.status === 202) return null;
   const body = await response.text();
   return body ? JSON.parse(body) : null;
+}
+
+export async function readResponseError(response) {
+  const error = await parseApiError(response);
+  return error.message;
+
 }
 
 export function buildVideoQuery({ search, page, sort, channelId, categoryId, publicOnly }) {
@@ -172,8 +275,4 @@ export async function createVideoThumbnail(file, title) {
     video.load();
     URL.revokeObjectURL(sourceUrl);
   }
-}
-
-export async function readResponseError(response) {
-  return readApiError(response);
 }
