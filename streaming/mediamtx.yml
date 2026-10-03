@@ -12,7 +12,8 @@ rtmpAddress: 127.0.0.1:1935
 hls: true
 hlsAddress: 127.0.0.1:8888
 hlsAllowOrigins: [http://localhost:5173]
-hlsVariant: mpegts
+# Browser WebRTC audio is Opus; MPEG-TS HLS only supports AAC.
+hlsVariant: fmp4
 hlsAlwaysRemux: true
 hlsSegmentDuration: 2s
 webrtc: true
