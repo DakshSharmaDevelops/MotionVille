@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -340,6 +341,26 @@ VideoService {
                             "Requested playback quality is not available"
                     ));
         } else {
+            if (video.getVisibility() == VideoVisibility.PUBLIC
+                    && video.getPublishedAt() != null
+                    && r2StorageService.cdnConfigured()) {
+                VideoAsset hlsAsset = assets.stream()
+                        .filter(candidate -> "hls".equals(candidate.getQuality()))
+                        .findFirst()
+                        .orElse(null);
+                if (hlsAsset != null) {
+                    String hlsKey = objectKey(hlsAsset.getAssetUrl());
+                    if (r2StorageService.cdnObjectExists(hlsKey)) {
+                        return new VideoPlaybackResponse(
+                                videoId,
+                                r2StorageService.cdnObjectUrl(hlsKey),
+                                hlsAsset.getMimeType(),
+                                hlsAsset.getQuality(),
+                                hlsAsset.getSizeBytes()
+                        );
+                    }
+                }
+            }
             // Prefer the normalized playable asset when no quality is requested.
             asset = assets.stream()
                     .filter(candidate -> "playback".equals(candidate.getQuality()))
@@ -374,6 +395,9 @@ VideoService {
         videoAssetRepository.findByVideo(video).stream()
                 .map(VideoAsset::getAssetUrl)
                 .forEach(objectLocators::add);
+        String hlsPrefix = "videos/" + id + "/hls/";
+        r2StorageService.deleteCdnPrefixAfterCommit(hlsPrefix);
+        r2StorageService.deleteOriginPrefixAfterCommit(hlsPrefix);
         r2StorageService.deleteAfterCommit(objectLocators);
         videoRepository.delete(video);
     }
@@ -506,10 +530,14 @@ VideoService {
                 ));
             }
 
+            List<VideoAsset> hlsAssets = createHlsAssets(
+                    video, directory, original, sourceHeight, generatedKeys);
+            assets.addAll(hlsAssets);
+
             int durationSeconds = (int) Math.ceil(duration);
 
 
-            return transactionTemplate.execute(status -> {
+            List<VideoAsset> savedAssets = transactionTemplate.execute(status -> {
                 Video currentVideo = getVideoById(videoId);
                 boolean wasPublished = currentVideo.getPublishedAt() != null;
 
@@ -517,7 +545,7 @@ VideoService {
                     asset.setVideo(currentVideo);
                 }
 
-                List<VideoAsset> savedAssets =
+                List<VideoAsset> persistedAssets =
                         videoAssetRepository.saveAll(assets);
 
                 currentVideo.setDurationSeconds(durationSeconds);
@@ -531,8 +559,18 @@ VideoService {
                     notificationCreationService.notifyNewVideo(currentVideo);
                 }
 
-                return savedAssets;
+                return persistedAssets;
             });
+            if (savedAssets != null
+                    && video.getVisibility() == VideoVisibility.PUBLIC
+                    && r2StorageService.cdnConfigured()) {
+                try {
+                    r2StorageService.publishCdnPrefix("videos/" + videoId + "/hls/");
+                } catch (RuntimeException exception) {
+                    log.error("Video {} is ready, but its HLS renditions could not be published to the CDN", videoId, exception);
+                }
+            }
+            return savedAssets;
 
         } catch (Exception exception) {
 
@@ -560,6 +598,105 @@ VideoService {
         } finally {
             deleteTemporaryFiles(directory);
         }
+    }
+
+    private List<VideoAsset> createHlsAssets(
+            Video video,
+            Path directory,
+            Path source,
+            int sourceHeight,
+            List<String> generatedKeys
+    ) throws IOException, InterruptedException {
+        Path hlsRoot = directory.resolve("hls/v1");
+        Files.createDirectories(hlsRoot);
+        int maxHeight = sourceHeight - sourceHeight % 2;
+        List<Integer> heights = new ArrayList<>();
+        for (int height : new int[]{360, 480, 720, 1080}) {
+            if (maxHeight >= height) {
+                heights.add(height);
+            }
+        }
+        if (heights.isEmpty()) {
+            heights.add(Math.max(2, maxHeight));
+        }
+
+        StringBuilder master = new StringBuilder("#EXTM3U\n#EXT-X-VERSION:3\n");
+        for (int height : heights) {
+            String quality = height + "p";
+            Path variantDirectory = hlsRoot.resolve(quality);
+            Files.createDirectories(variantDirectory);
+            Path playlist = variantDirectory.resolve("index.m3u8");
+            transcodeHls(directory, source, playlist, variantDirectory, height);
+            master.append("#EXT-X-STREAM-INF:BANDWIDTH=")
+                    .append(estimatedBandwidth(height))
+                    .append("\n")
+                    .append(quality)
+                    .append("/index.m3u8\n");
+        }
+
+        Path masterPlaylist = hlsRoot.resolve("master.m3u8");
+        Files.writeString(masterPlaylist, master, StandardCharsets.UTF_8);
+        String hlsKeyPrefix = "videos/" + video.getVideoId() + "/hls/v1/";
+        List<Path> hlsFiles;
+        try (var paths = Files.walk(hlsRoot)) {
+            hlsFiles = paths.filter(Files::isRegularFile)
+                    .sorted(Comparator.naturalOrder())
+                    .toList();
+        }
+        for (Path file : hlsFiles) {
+            String relativePath = hlsRoot.relativize(file).toString()
+                    .replace(file.getFileSystem().getSeparator(), "/");
+            String key = hlsKeyPrefix + relativePath;
+            generatedKeys.add(key);
+            r2StorageService.upload(
+                    file,
+                    key,
+                    relativePath.endsWith(".m3u8")
+                            ? "application/vnd.apple.mpegurl"
+                            : "video/mp2t",
+                    relativePath.endsWith(".m3u8")
+                            ? "public, max-age=60"
+                            : "public, max-age=31536000, immutable"
+            );
+        }
+
+        return List.of(VideoAsset.builder()
+                .video(video)
+                .assetUrl(r2StorageService.objectLocator(hlsKeyPrefix + "master.m3u8"))
+                .quality("hls")
+                .mimeType("application/vnd.apple.mpegurl")
+                .sizeBytes(Files.size(masterPlaylist))
+                .createdAt(Instant.now())
+                .build());
+    }
+
+    private void transcodeHls(
+            Path directory,
+            Path source,
+            Path playlist,
+            Path variantDirectory,
+            int height
+    ) throws IOException, InterruptedException {
+        runCommand(directory, 7200, ffmpeg, "-nostdin", "-y", "-v", "error",
+                "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS, "-i", source.toString(),
+                "-map", "0:v:0", "-map", "0:a:0?", "-vf", "scale=-2:" + height,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
+                "-sc_threshold", "0", "-force_key_frames", "expr:gte(t,n_forced*6)",
+                "-f", "hls", "-hls_time", "6", "-hls_playlist_type", "vod",
+                "-hls_flags", "independent_segments",
+                "-hls_segment_filename", variantDirectory.resolve("segment_%05d.ts").toString(),
+                playlist.toString());
+    }
+
+    private int estimatedBandwidth(int height) {
+        return switch (height) {
+            case 360 -> 800_000;
+            case 480 -> 1_200_000;
+            case 720 -> 2_500_000;
+            case 1080 -> 5_000_000;
+            default -> Math.max(400_000, height * height * 5);
+        };
     }
 
     private void transcode(Path directory, Path source, Path output, String scale)

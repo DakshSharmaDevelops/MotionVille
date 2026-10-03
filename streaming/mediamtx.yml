@@ -1,0 +1,24 @@
+# Local OBS -> MediaMTX -> HLS playback. All listeners stay on this computer.
+logLevel: warn
+api: true
+apiAddress: 127.0.0.1:9997
+authMethod: http
+authHTTPAddress: http://127.0.0.1:8080/api/live/authorize
+authHTTPExclude:
+  - action: api
+rtsp: false
+rtmp: true
+rtmpAddress: 127.0.0.1:1935
+hls: true
+hlsAddress: 127.0.0.1:8888
+hlsAllowOrigins: [http://localhost:5173]
+hlsVariant: mpegts
+hlsAlwaysRemux: true
+hlsSegmentDuration: 2s
+webrtc: false
+srt: false
+moq: false
+pathDefaults:
+  overridePublisher: false
+# Spring creates exact paths through the loopback-only control API.
+paths: {}

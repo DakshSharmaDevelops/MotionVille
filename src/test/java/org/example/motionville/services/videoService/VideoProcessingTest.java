@@ -1,5 +1,6 @@
 package org.example.motionville.services.videoService;
 
+import org.example.motionville.dto.VideoPlaybackResponse;
 import org.example.motionville.entity.video.Video;
 import org.example.motionville.entity.video.VideoAsset;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
@@ -70,8 +71,12 @@ class VideoProcessingTest {
                 "-c:v", "mpeg4", "-c:a", "pcm_s16le", source.toString());
         supplyOriginal(source);
         List<VideoAsset> converted = service.videoProcessing(1L);
-        assertEquals(List.of("playback", "360p", "480p"), converted.stream().map(VideoAsset::getQuality).toList());
-        assertTrue(converted.stream().allMatch(asset -> asset.getVideo() == video && asset.getMimeType().equals("video/mp4")));
+        assertEquals(List.of("playback", "360p", "480p", "hls"), converted.stream().map(VideoAsset::getQuality).toList());
+        assertTrue(converted.stream().allMatch(asset -> asset.getVideo() == video));
+        assertEquals("application/vnd.apple.mpegurl", converted.get(3).getMimeType());
+        Path masterPlaylist = directory.resolve("videos_1_hls_v1_master.m3u8");
+        assertTrue(Files.exists(masterPlaylist));
+        assertTrue(Files.readString(masterPlaylist).contains("360p/index.m3u8"));
         String codecs = run("ffprobe", "-v", "error", "-show_entries", "stream=codec_name,pix_fmt",
                 "-of", "default=noprint_wrappers=1", directory.resolve("playback.mp4").toString());
         assertTrue(codecs.contains("h264"));
@@ -87,7 +92,7 @@ class VideoProcessingTest {
         run("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=s=320x240:r=10",
                 "-t", "0.5", "-c:v", "mpeg4", source.toString());
         supplyOriginal(source);
-        assertEquals(List.of("playback"), service.videoProcessing(1L).stream().map(VideoAsset::getQuality).toList());
+        assertEquals(List.of("playback", "hls"), service.videoProcessing(1L).stream().map(VideoAsset::getQuality).toList());
         assertEquals(VideoProcessingStatus.READY, video.getProcessingStatus());
     }
 
@@ -110,6 +115,51 @@ class VideoProcessingTest {
                 VideoAsset.builder().quality("playback").mimeType("video/mp4").assetUrl("r2://test/videos/1/playback.mp4").build()));
         when(storage.createPlaybackUrl("videos/1/playback.mp4")).thenReturn("test-playback-url");
         assertEquals("test-playback-url", service.getPlayback(1L).assetUrl());
+    }
+
+    @Test
+    void publicPublishedVideoUsesItsHlsMasterFromTheCdn() {
+        video.setProcessingStatus(VideoProcessingStatus.READY);
+        video.setVisibility(org.example.motionville.entity.video.enums.VideoVisibility.PUBLIC);
+        video.setPublishedAt(Instant.now());
+        when(storage.cdnConfigured()).thenReturn(true);
+        when(storage.cdnObjectExists("videos/1/hls/v1/master.m3u8")).thenReturn(true);
+        when(storage.cdnObjectUrl("videos/1/hls/v1/master.m3u8"))
+                .thenReturn("https://media.example.test/videos/1/hls/v1/master.m3u8");
+        VideoAsset hls = VideoAsset.builder()
+                .quality("hls")
+                .mimeType("application/vnd.apple.mpegurl")
+                .assetUrl("r2://test/videos/1/hls/v1/master.m3u8")
+                .sizeBytes(100L)
+                .build();
+        when(assets.findByVideo(video)).thenReturn(List.of(
+                hls,
+                VideoAsset.builder().quality("playback").mimeType("video/mp4")
+                        .assetUrl("r2://test/videos/1/playback.mp4").build()));
+
+        VideoPlaybackResponse playback = service.getPlayback(1L);
+
+        assertEquals("https://media.example.test/videos/1/hls/v1/master.m3u8", playback.assetUrl());
+        assertEquals("application/vnd.apple.mpegurl", playback.mimeType());
+        assertEquals("hls", playback.quality());
+    }
+
+    @Test
+    void privateVideoKeepsUsingSignedMp4InsteadOfCdn() {
+        video.setProcessingStatus(VideoProcessingStatus.READY);
+        when(storage.cdnConfigured()).thenReturn(true);
+        when(assets.findByVideo(video)).thenReturn(List.of(
+                VideoAsset.builder().quality("hls").mimeType("application/vnd.apple.mpegurl")
+                        .assetUrl("r2://test/videos/1/hls/v1/master.m3u8").build(),
+                VideoAsset.builder().quality("playback").mimeType("video/mp4")
+                        .assetUrl("r2://test/videos/1/playback.mp4").build()));
+        when(storage.createPlaybackUrl("videos/1/playback.mp4")).thenReturn("signed-private-url");
+
+        VideoPlaybackResponse playback = service.getPlayback(1L);
+
+        assertEquals("signed-private-url", playback.assetUrl());
+        assertEquals("video/mp4", playback.mimeType());
+        verify(storage, never()).cdnObjectExists(anyString());
     }
 
     @Test
@@ -201,6 +251,12 @@ class VideoProcessingTest {
             Files.copy(file, directory.resolve(file.getFileName()));
             return "r2://test/" + call.getArgument(1);
         }).when(storage).upload(any(Path.class), anyString(), eq("video/mp4"));
+        doAnswer(call -> {
+            Path file = call.getArgument(0);
+            Path destination = directory.resolve(call.getArgument(1, String.class).replace('/', '_'));
+            Files.copy(file, destination);
+            return "r2://test/" + call.getArgument(1);
+        }).when(storage).upload(any(Path.class), anyString(), anyString(), anyString());
     }
 
     private String run(String... command) throws Exception {

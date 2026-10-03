@@ -791,6 +791,46 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     };
   }, [video.serverVideo, video.videoId]);
 
+  useEffect(() => {
+    if (!playbackUrl || playbackMimeType !== "application/vnd.apple.mpegurl") {
+      return undefined;
+    }
+    const player = playerRef.current;
+    if (!player) return undefined;
+
+    if (player.canPlayType("application/vnd.apple.mpegurl")) {
+      player.src = playbackUrl;
+      return () => {
+        player.removeAttribute("src");
+        player.load();
+      };
+    }
+
+    let active = true;
+    let hls;
+    import("hls.js")
+      .then(({ default: Hls }) => {
+        if (!active) return;
+        if (!Hls.isSupported()) {
+          setPlaybackError(true);
+          return;
+        }
+        hls = new Hls();
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) setPlaybackError(true);
+        });
+        hls.loadSource(playbackUrl);
+        hls.attachMedia(player);
+      })
+      .catch(() => {
+        if (active) setPlaybackError(true);
+      });
+    return () => {
+      active = false;
+      hls?.destroy();
+    };
+  }, [playbackMimeType, playbackUrl]);
+
   async function changePlaybackQuality(quality) {
     if (quality === selectedQuality) return;
     const player = playerRef.current;
@@ -1014,7 +1054,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                 ? <video
                       ref={playerRef}
                       controls={false}
-                      controlsList="nodownload"
+                      controlsList="nodownload noremoteplayback"
+                      disableRemotePlayback
                       autoPlay={resumeReady}
                       playsInline
                       poster={posterUrl || undefined}
@@ -1041,7 +1082,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                       }}
                       onError={() => setPlaybackError(true)}
                   >
-                    <source src={playbackUrl} type={playbackMimeType} />
+                    {playbackMimeType !== "application/vnd.apple.mpegurl"
+                      && <source src={playbackUrl} type={playbackMimeType} />}
                     Your browser does not support video playback.
                   </video>
                 : video.serverVideo && !playbackError

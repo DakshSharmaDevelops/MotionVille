@@ -171,6 +171,7 @@ class VideoManagementServiceTest {
                 "r2://bucket/videos/12/thumbnail.jpg",
                 "r2://bucket/videos/12/playback.mp4"));
         verify(videos).delete(video);
+        verify(r2StorageService).deleteOriginPrefixAfterCommit("videos/12/hls/");
     }
 
     @Test
@@ -184,5 +185,33 @@ class VideoManagementServiceTest {
 
         verify(r2StorageService).deleteAfterCommit(
                 List.of("r2://bucket/videos/12/old-thumbnail.jpg"));
+    }
+
+    @Test
+    void publishingPublicVideoWithHlsSchedulesItsRenditionsForCdn() {
+        video.setProcessingStatus(VideoProcessingStatus.READY);
+        video.setVisibility(VideoVisibility.PUBLIC);
+        when(r2StorageService.cdnConfigured()).thenReturn(true);
+        when(assets.findByVideo(video)).thenReturn(List.of(VideoAsset.builder()
+                .video(video)
+                .quality("hls")
+                .mimeType("application/vnd.apple.mpegurl")
+                .assetUrl("r2://bucket/videos/12/hls/v1/master.m3u8")
+                .build()));
+
+        service.publish(12L);
+
+        verify(r2StorageService).publishCdnPrefixAfterCommit("videos/12/hls/");
+    }
+
+    @Test
+    void unpublishingVideoRemovesItsCdnRenditions() {
+        video.setVisibility(VideoVisibility.PUBLIC);
+        video.setPublishedAt(Instant.now());
+        when(r2StorageService.cdnConfigured()).thenReturn(true);
+
+        service.unpublish(12L);
+
+        verify(r2StorageService).deleteCdnPrefixAfterCommit("videos/12/hls/");
     }
 }

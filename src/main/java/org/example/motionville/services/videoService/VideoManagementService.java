@@ -73,6 +73,7 @@ public class VideoManagementService {
     @Transactional
     public VideoResponse update(Long id, VideoUpdateRequest request) {
         Video video = findVideo(id);
+        boolean wasCdnPublished = isCdnPublished(video);
         video.setChannel(channelRepository.findById(request.channelId())
                 .orElseThrow(() -> notFound("Channel not found")));
         video.setCategory(findCategory(request.categoryId()));
@@ -86,7 +87,9 @@ public class VideoManagementService {
         if (previousThumbnailUrl != null && !previousThumbnailUrl.equals(updatedThumbnailUrl)) {
             r2StorageService.deleteAfterCommit(List.of(previousThumbnailUrl));
         }
-        return toResponse(videoRepository.save(video));
+        Video savedVideo = videoRepository.save(video);
+        updateCdnPublication(video, wasCdnPublished);
+        return toResponse(savedVideo);
     }
 
     @Transactional
@@ -97,6 +100,9 @@ public class VideoManagementService {
         videoAssetRepository.findByVideo(video).stream()
                 .map(asset -> asset.getAssetUrl())
                 .forEach(objectLocators::add);
+        String hlsPrefix = hlsPrefix(id);
+        r2StorageService.deleteCdnPrefixAfterCommit(hlsPrefix);
+        r2StorageService.deleteOriginPrefixAfterCommit(hlsPrefix);
         r2StorageService.deleteAfterCommit(objectLocators);
         videoRepository.delete(video);
     }
@@ -117,21 +123,32 @@ public class VideoManagementService {
         }
         Video savedVideo = videoRepository.save(video);
         if (newlyPublished) notificationCreationService.notifyNewVideo(savedVideo);
+        if (r2StorageService.cdnConfigured()
+                && isCdnPublished(savedVideo)
+                && hasHlsAsset(savedVideo)) {
+            r2StorageService.publishCdnPrefixAfterCommit(hlsPrefix(id));
+        }
         return toResponse(savedVideo);
     }
 
     @Transactional
     public VideoResponse unpublish(Long id) {
         Video video = findVideo(id);
+        boolean wasCdnPublished = isCdnPublished(video);
         video.setPublishedAt(null);
-        return toResponse(videoRepository.save(video));
+        Video savedVideo = videoRepository.save(video);
+        updateCdnPublication(video, wasCdnPublished);
+        return toResponse(savedVideo);
     }
 
     @Transactional
     public VideoResponse changeVisibility(Long id, VideoVisibilityRequest request) {
         Video video = findVideo(id);
+        boolean wasCdnPublished = isCdnPublished(video);
         setVisibility(video, request.visibility());
-        return toResponse(videoRepository.save(video));
+        Video savedVideo = videoRepository.save(video);
+        updateCdnPublication(video, wasCdnPublished);
+        return toResponse(savedVideo);
     }
 
     @Transactional
@@ -139,6 +156,7 @@ public class VideoManagementService {
             Long id,
             VideoProcessingStatusRequest request) {
         Video video = findVideo(id);
+        boolean wasCdnPublished = isCdnPublished(video);
         boolean wasPublished = video.getPublishedAt() != null;
         VideoProcessingStatus current = video.getProcessingStatus();
         VideoProcessingStatus target = request.processingStatus();
@@ -180,7 +198,38 @@ public class VideoManagementService {
         if (!wasPublished && savedVideo.getPublishedAt() != null) {
             notificationCreationService.notifyNewVideo(savedVideo);
         }
+        updateCdnPublication(savedVideo, wasCdnPublished);
         return toResponse(savedVideo);
+    }
+
+    private void updateCdnPublication(Video video, boolean wasCdnPublished) {
+        if (!r2StorageService.cdnConfigured()) {
+            return;
+        }
+        boolean shouldBeCdnPublished = isCdnPublished(video);
+        if (wasCdnPublished == shouldBeCdnPublished) {
+            return;
+        }
+        String prefix = hlsPrefix(video.getVideoId());
+        if (shouldBeCdnPublished && hasHlsAsset(video)) {
+            r2StorageService.publishCdnPrefixAfterCommit(prefix);
+        } else if (wasCdnPublished) {
+            r2StorageService.deleteCdnPrefixAfterCommit(prefix);
+        }
+    }
+
+    private boolean isCdnPublished(Video video) {
+        return video.getVisibility() == VideoVisibility.PUBLIC
+                && video.getPublishedAt() != null;
+    }
+
+    private boolean hasHlsAsset(Video video) {
+        return videoAssetRepository.findByVideo(video).stream()
+                .anyMatch(asset -> "hls".equals(asset.getQuality()));
+    }
+
+    private String hlsPrefix(Long videoId) {
+        return "videos/" + videoId + "/hls/";
     }
 
     private void setVisibility(Video video, VideoVisibility visibility) {
