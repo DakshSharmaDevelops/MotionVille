@@ -187,7 +187,7 @@ export default function App() {
   const [notificationActionBusy, setNotificationActionBusy] = useState(false);
   const accountMenuRef = useRef(null);
   const notificationMenuRef = useRef(null);
-  const isDemoAdmin = currentUser?.role === "ADMIN" || Number(currentUser?.id) === DEMO_ADMIN_USER_ID;
+  const isDemoAdmin = currentUser?.role === "ADMIN";
 
   useEffect(() => {
     function closeMenusOutside(event) {

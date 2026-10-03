@@ -1,5 +1,7 @@
 package org.example.motionville.security;
 
+import org.example.motionville.entity.playlist.enums.PlayListVisibility;
+
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.account.AppUserRepository;

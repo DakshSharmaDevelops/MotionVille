@@ -1,8 +1,10 @@
 package org.example.motionville.services.live;
 
+import org.example.motionville.entity.channel.Channel;
+
 import jakarta.annotation.PreDestroy;
 import org.example.motionville.repo.channel.ChannelRepository;
-import org.example.motionville.services.AppUserService;
+import org.example.motionville.services.account.AppUserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

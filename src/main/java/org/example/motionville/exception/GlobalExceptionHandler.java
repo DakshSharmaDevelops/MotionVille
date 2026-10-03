@@ -1,7 +1,7 @@
 package org.example.motionville.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.example.motionville.dto.ApiErrorResponse;
+import org.example.motionville.dto.common.ApiErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
