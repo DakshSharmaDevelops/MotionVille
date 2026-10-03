@@ -5,6 +5,9 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.security.AuthorizationService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,9 +30,13 @@ public class VideoSearchService {
             Set.of("createdAt", "updatedAt", "publishedAt", "title", "durationSeconds", "id");
 
     private final VideoRepository videoRepository;
+    private final AuthorizationService authorizationService;
 
-    public VideoSearchService(VideoRepository videoRepository) {
+    public VideoSearchService(
+            VideoRepository videoRepository,
+            AuthorizationService authorizationService) {
         this.videoRepository = videoRepository;
+        this.authorizationService = authorizationService;
     }
 
     public VideoPageResponse search(
@@ -41,6 +48,7 @@ public class VideoSearchService {
             Long channelId,
             boolean publicOnly) {
         validateFilters(page, size, categoryId, channelId);
+        publicOnly = enforceVisibility(publicOnly, channelId);
         Sort parsedSort = parseSort(sort);
         String normalizedSearch = normalizeSearch(search);
         Pageable pageable = PageRequest.of(page, size, stableSort(parsedSort));
@@ -60,6 +68,20 @@ public class VideoSearchService {
                 result.getTotalPages(),
                 result.getContent().stream().map(VideoResponseMapper::toResponse).toList()
         );
+    }
+
+
+    private boolean enforceVisibility(boolean requestedPublicOnly, Long channelId) {
+        if (requestedPublicOnly) return true;
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authorizationService.isAdmin(authentication)) return false;
+
+        if (channelId != null && authorizationService.isChannelOwner(channelId, authentication)) {
+            return false;
+        }
+
+        return true;
     }
 
     private void validateFilters(int page, int size, Long categoryId, Long channelId) {

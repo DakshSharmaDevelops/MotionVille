@@ -6,6 +6,7 @@ import org.example.motionville.dto.DevelopmentChannelRequest;
 import org.example.motionville.services.DevelopmentChannelService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,6 +21,7 @@ public class DevelopmentChannelController {
         this.developmentChannelService = developmentChannelService;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<ChannelResponse> createChannel(
             @Valid @RequestBody DevelopmentChannelRequest request) {

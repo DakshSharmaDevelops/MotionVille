@@ -4,6 +4,7 @@ import org.example.motionville.dto.ChannelResponse;
 import org.example.motionville.dto.UserResponse;
 import org.example.motionville.services.SubscriptionService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class SubscriptionController {
         this.subscriptionService = subscriptionService;
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @PostMapping("/channels/{channelId}/subscribe")
     public ResponseEntity<Void> subscribe(
             @PathVariable Long channelId,
@@ -29,6 +31,7 @@ public class SubscriptionController {
         return ResponseEntity.ok().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @DeleteMapping("/channels/{channelId}/subscribe")
     public ResponseEntity<Void> unsubscribe(
             @PathVariable Long channelId,
@@ -48,6 +51,7 @@ public class SubscriptionController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @GetMapping("/users/{userId}/subscriptions")
     public ResponseEntity<List<ChannelResponse>> getUserSubscriptions(
             @PathVariable Long userId) {
@@ -57,6 +61,7 @@ public class SubscriptionController {
         );
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @GetMapping("/channels/{channelId}/subscription-status")
     public ResponseEntity<Boolean> getSubscriptionStatus(
             @PathVariable Long channelId,

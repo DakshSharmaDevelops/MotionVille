@@ -9,6 +9,7 @@ import org.example.motionville.services.AppUserService;
 import org.example.motionville.services.ChannelService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -41,6 +42,7 @@ public class AppUserController {
                 .body(response);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#id, authentication)")
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUserById(
             @PathVariable Long id,
@@ -54,6 +56,7 @@ public class AppUserController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<List<UserResponse>> getAllUsers() {
 
@@ -63,6 +66,7 @@ public class AppUserController {
         return ResponseEntity.ok(responses);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#id, authentication)")
     @PutMapping("/{id}")
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long id,
@@ -77,6 +81,7 @@ public class AppUserController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#id, authentication)")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(
             @PathVariable Long id,
@@ -88,6 +93,7 @@ public class AppUserController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @GetMapping("/{userId}/channels")
     public ResponseEntity<List<ChannelResponse>> getUserChannels(
             @PathVariable Long userId,

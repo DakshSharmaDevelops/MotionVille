@@ -6,6 +6,7 @@ import org.example.motionville.dto.WatchHistoryResponse;
 import org.example.motionville.dto.WatchHistoryUpdateRequest;
 import org.example.motionville.services.WatchHistoryService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +27,7 @@ public class WatchHistoryController {
 
     private final WatchHistoryService watchHistoryService;
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#request.userId, authentication)")
     @PostMapping("/videos/{videoId}/history")
     public WatchHistoryResponse recordProgress(
             @PathVariable Long videoId,
@@ -33,17 +35,20 @@ public class WatchHistoryController {
         return watchHistoryService.recordProgress(videoId, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @GetMapping("/users/{userId}/history")
     public List<WatchHistoryResponse> getHistory(@PathVariable Long userId) {
         return watchHistoryService.getHistory(userId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @DeleteMapping("/users/{userId}/history/{videoId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeHistoryItem(@PathVariable Long userId, @PathVariable Long videoId) {
         watchHistoryService.removeHistoryItem(userId, videoId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#userId, authentication)")
     @DeleteMapping("/users/{userId}/history")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void clearHistory(@PathVariable Long userId) {

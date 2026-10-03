@@ -16,6 +16,7 @@ public class UserResponse {
     private String avatarUrl;
     private Instant createdAt;
     private Instant updatedAt;
+    private String role;
 
 
 }
