@@ -2,7 +2,6 @@ package org.example.motionville.controllers;
 
 import jakarta.validation.Valid;
 import org.example.motionville.dto.ChannelResponse;
-import org.example.motionville.dto.LoginRequest;
 import org.example.motionville.dto.UserCreateRequest;
 import org.example.motionville.dto.UserResponse;
 import org.example.motionville.dto.UserUpdateRequest;
@@ -10,7 +9,10 @@ import org.example.motionville.services.AppUserService;
 import org.example.motionville.services.ChannelService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -39,21 +41,12 @@ public class AppUserController {
                 .body(response);
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<UserResponse> login(
-            @Valid @RequestBody LoginRequest request) {
-
-        UserResponse response =
-                appUserService.login(
-                        request.getUsername(),
-                        request.getPassword());
-
-        return ResponseEntity.ok(response);
-    }
-
     @GetMapping("/{id}")
     public ResponseEntity<UserResponse> getUserById(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        requireCurrentUser(id, principal);
 
         UserResponse response =
                 appUserService.getUserById(id);
@@ -73,7 +66,10 @@ public class AppUserController {
     @PutMapping("/{id}")
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long id,
-            @Valid @RequestBody UserUpdateRequest request) {
+            @Valid @RequestBody UserUpdateRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        requireCurrentUser(id, principal);
 
         UserResponse response =
                 appUserService.updateUser(id, request);
@@ -83,8 +79,10 @@ public class AppUserController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails principal) {
 
+        requireCurrentUser(id, principal);
         appUserService.deleteUser(id);
 
         return ResponseEntity.noContent().build();
@@ -92,11 +90,26 @@ public class AppUserController {
 
     @GetMapping("/{userId}/channels")
     public ResponseEntity<List<ChannelResponse>> getUserChannels(
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        requireCurrentUser(userId, principal);
 
         List<ChannelResponse> responses =
                 channelService.getChannelsByUserId(userId);
 
         return ResponseEntity.ok(responses);
     }
+    private void requireCurrentUser(Long id, UserDetails principal) {
+        UserResponse currentUser =
+                appUserService.getUserByUsername(principal.getUsername());
+
+        if (!id.equals(currentUser.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "You can only access your own user account"
+            );
+        }
+    }
+
 }

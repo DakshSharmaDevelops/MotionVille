@@ -436,14 +436,10 @@ export default function App() {
   }, [subscriptions]);
 
   useEffect(() => {
-    const storedId = localStorage.getItem(
-      "motionville.currentUserId"
-    );
-
-    if (!storedId) return;
     const lastActivityAt = Number(
       localStorage.getItem(LAST_ACTIVITY_STORAGE_KEY)
     );
+
     if (
       Number.isFinite(lastActivityAt) &&
       lastActivityAt > 0 &&
@@ -453,10 +449,14 @@ export default function App() {
       localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
       return;
     }
-    localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
 
-    apiRequest(`/users/${storedId}`)
+    apiRequest("/auth/me")
       .then((user) => {
+        localStorage.setItem(
+          "motionville.currentUserId",
+          String(user.id)
+        );
+        localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
         setCurrentUser(user);
       })
       .catch(() => {
@@ -1002,7 +1002,7 @@ export default function App() {
   }
 
   async function registerUser(form) {
-    const user = await apiRequest(
+    await apiRequest(
       "/users",
       {
         method: "POST",
@@ -1020,6 +1020,14 @@ export default function App() {
         }),
       }
     );
+
+    const user = await apiRequest("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: form.username.trim(),
+        password: form.password,
+      }),
+    });
 
     localStorage.setItem(
       "motionville.currentUserId",
@@ -1039,7 +1047,7 @@ export default function App() {
   }
 
   async function loginUser(form) {
-    const user = await apiRequest("/users/login", {
+    const user = await apiRequest("/auth/login", {
       method: "POST",
       body: JSON.stringify({
         username: form.username.trim(),
@@ -1094,7 +1102,12 @@ export default function App() {
     setToast("Profile updated.");
   }
 
-  function logoutUser() {
+  async function logoutUser() {
+    try {
+      await apiRequest("/auth/logout", { method: "POST" });
+    } catch {
+    }
+
     localStorage.removeItem(
       "motionville.currentUserId"
     );

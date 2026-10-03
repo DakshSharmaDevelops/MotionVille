@@ -9,6 +9,7 @@ import org.example.motionville.repo.channel.ChannelRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -20,14 +21,17 @@ public class DevelopmentChannelService {
     private final AppUserRepository userRepository;
     private final ChannelRepository channelRepository;
     private final boolean enabled;
+    private final PasswordEncoder passwordEncoder;
 
     public DevelopmentChannelService(
             AppUserRepository userRepository,
             ChannelRepository channelRepository,
-            @Value("${motionville.dev-channel-bootstrap-enabled:false}") boolean enabled) {
+            @Value("${motionville.dev-channel-bootstrap-enabled:false}") boolean enabled,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.channelRepository = channelRepository;
         this.enabled = enabled;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -43,8 +47,9 @@ public class DevelopmentChannelService {
         AppUser owner = new AppUser();
         owner.setUsername("dev-" + secret);
         owner.setEmail("dev-" + secret + "@example.test");
-        owner.setPassword(secret);
-        owner.setPasswordHash(secret);
+        String encodedPassword = passwordEncoder.encode(secret);
+        owner.setPassword(encodedPassword);
+        owner.setPasswordHash(encodedPassword);
         owner.setDisplayName(request.name().trim());
         owner = userRepository.save(owner);
 

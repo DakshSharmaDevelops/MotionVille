@@ -6,6 +6,7 @@ import org.example.motionville.dto.UserUpdateRequest;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -16,9 +17,13 @@ import java.util.List;
 public class AppUserService {
 
     private final AppUserRepository appUserRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public AppUserService(AppUserRepository appUserRepository) {
+    public AppUserService(
+            AppUserRepository appUserRepository,
+            PasswordEncoder passwordEncoder) {
         this.appUserRepository = appUserRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public UserResponse createUser(UserCreateRequest request) {
@@ -41,9 +46,9 @@ public class AppUserService {
 
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-        user.setPassword(request.getPassword());
-
-        user.setPasswordHash(request.getPassword());
+        String encodedPassword = passwordEncoder.encode(request.getPassword());
+        user.setPassword(encodedPassword);
+        user.setPasswordHash(encodedPassword);
 
         user.setDisplayName(request.getDisplayName());
         user.setAvatarUrl(request.getAvatarUrl());
@@ -53,16 +58,13 @@ public class AppUserService {
         return convertToResponse(savedUser);
     }
 
-    public UserResponse login(String username, String password) {
-        AppUser user = appUserRepository.findByUsername(username)
-                .orElseGet(() -> appUserRepository.findByEmail(username).orElse(null));
 
-        if (user == null || !user.getPassword().equals(password)) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Invalid username/email or password"
-            );
-        }
+    public UserResponse getUserByUsername(String username) {
+        AppUser user = appUserRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "User not found"
+                ));
 
         return convertToResponse(user);
     }
@@ -136,9 +138,9 @@ public class AppUserService {
         if (request.getPassword() != null
                 && !request.getPassword().isBlank()) {
 
-            user.setPassword(request.getPassword());
-
-            user.setPasswordHash(request.getPassword());
+            String encodedPassword = passwordEncoder.encode(request.getPassword());
+            user.setPassword(encodedPassword);
+            user.setPasswordHash(encodedPassword);
         }
 
 
