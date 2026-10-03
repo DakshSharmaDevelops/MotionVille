@@ -44,8 +44,9 @@ public class VideoUploadController {
 
     @GetMapping("/{videoId}/playback")
     public ResponseEntity<VideoPlaybackResponse> getPlayback(
-            @PathVariable Long videoId) {
-        return ResponseEntity.ok(videoService.getPlayback(videoId));
+            @PathVariable Long videoId,
+            @RequestParam(required = false) String quality) {
+        return ResponseEntity.ok(videoService.getPlayback(videoId, quality));
     }
 
     @GetMapping("/{videoId}/thumbnail")

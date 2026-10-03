@@ -24,6 +24,13 @@ import {
 import { createReport } from "../api/reportApi.js";
 import { recordVideoView } from "../api/videoViewApi.js";
 
+function formatPlayerTime(seconds = 0) {
+  const totalSeconds = Math.floor(Math.max(0, seconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
 export function CreateChannelDialog({ onClose, onCreate }) {
   const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
   const [error, setError] = useState("");
@@ -367,10 +374,22 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [playbackError, setPlaybackError] = useState(false);
   const [viewError, setViewError] = useState("");
   const [videoActionsOpen, setVideoActionsOpen] = useState(false);
+  const [playerSettingsOpen, setPlayerSettingsOpen] = useState(false);
+  const [playerQualityOpen, setPlayerQualityOpen] = useState(false);
+  const [playerSpeedOpen, setPlayerSpeedOpen] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playerCurrentTime, setPlayerCurrentTime] = useState(0);
+  const [playerDuration, setPlayerDuration] = useState(0);
+  const [playerPaused, setPlayerPaused] = useState(true);
   const videoActionsRef = useRef(null);
+  const playerSettingsRef = useRef(null);
 
   const [playbackUrl, setPlaybackUrl] = useState("");
   const [playbackMimeType, setPlaybackMimeType] = useState("video/mp4");
+  const [availableQualities, setAvailableQualities] = useState([]);
+  const [selectedQuality, setSelectedQuality] = useState("auto");
+  const [qualityLoading, setQualityLoading] = useState(false);
+  const [qualityError, setQualityError] = useState("");
   const [posterUrl, setPosterUrl] = useState(video.thumbnailUrl || "");
 
   const [videoReaction, setVideoReactionState] = useState({
@@ -396,10 +415,25 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, [videoActionsOpen]);
 
+  useEffect(() => {
+    if (!playerSettingsOpen) return undefined;
+    function closeSettingsOutside(event) {
+      if (!playerSettingsRef.current?.contains(event.target)) {
+        setPlayerSettingsOpen(false);
+        setPlayerQualityOpen(false);
+        setPlayerSpeedOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", closeSettingsOutside);
+    return () => document.removeEventListener("pointerdown", closeSettingsOutside);
+  }, [playerSettingsOpen]);
+
   const playerRef = useRef(null);
   const lastPlaybackPosition = useRef(0);
   const playerMetadataReady = useRef(false);
   const resumeApplied = useRef(false);
+  const pendingQualitySeek = useRef(null);
+  const pendingQualityPlay = useRef(false);
   const saveInProgress = useRef(false);
   const viewSessionId = useRef(crypto.randomUUID());
   const viewRequestAttempted = useRef(false);
@@ -409,6 +443,10 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [historyLoaded, setHistoryLoaded] = useState(!currentUser?.id || !video.serverVideo);
   const [historyError, setHistoryError] = useState("");
   const lastSavedPosition = useRef(0);
+
+  useEffect(() => {
+    if (playbackUrl) playerRef.current?.load();
+  }, [playbackUrl]);
 
   useEffect(() => {
     if (!currentUser?.id || !video.serverVideo) {
@@ -496,8 +534,61 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
 
   function onPlayerMetadata() {
     playerMetadataReady.current = true;
+    const player = playerRef.current;
+    if (player) setPlayerDuration(player.duration);
+    if (player && pendingQualitySeek.current !== null) {
+      player.currentTime = Math.min(
+        pendingQualitySeek.current,
+        Math.max(0, player.duration - 0.5)
+      );
+      lastPlaybackPosition.current = player.currentTime;
+      const shouldResume = pendingQualityPlay.current;
+      pendingQualitySeek.current = null;
+      pendingQualityPlay.current = false;
+      if (shouldResume) {
+        player.play().catch((error) => setQualityError(`Could not resume playback: ${error.message}`));
+      }
+      return;
+    }
     if (!historyLoaded) return;
     resumePlayback();
+  }
+
+  function togglePlayback() {
+    const player = playerRef.current;
+    if (!player) return;
+    if (player.paused) {
+      player.play().catch((error) => setQualityError(`Could not start playback: ${error.message}`));
+    } else {
+      player.pause();
+    }
+  }
+
+  function seekPlayback(event) {
+    const position = Number(event.target.value);
+    const player = playerRef.current;
+    if (!player || !Number.isFinite(position)) return;
+    player.currentTime = position;
+    setPlayerCurrentTime(position);
+    lastPlaybackPosition.current = position;
+  }
+
+  function changePlaybackSpeed(speed) {
+    const player = playerRef.current;
+    if (!player) return;
+    player.playbackRate = speed;
+    setPlaybackSpeed(speed);
+    setPlayerSpeedOpen(false);
+  }
+
+  function togglePlayerFullscreen() {
+    const playerContainer = playerRef.current?.parentElement;
+    if (!playerContainer) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch((error) => setQualityError(`Could not exit fullscreen: ${error.message}`));
+    } else {
+      playerContainer.requestFullscreen().catch((error) => setQualityError(`Could not enter fullscreen: ${error.message}`));
+    }
   }
 
   function resumePlayback() {
@@ -534,17 +625,11 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   }, [currentUser?.id, video.serverVideo, video.videoId]);
 
   useEffect(() => {
-    if (!hasReactionUser) {
-      setVideoReactionLoading(false);
-      setVideoReactionState({ likeCount: 0, dislikeCount: 0, userReaction: null });
-      return undefined;
-    }
-
     let active = true;
     setVideoReactionLoading(true);
     setReactionError("");
     setVideoReactionState({ likeCount: 0, dislikeCount: 0, userReaction: null });
-    fetchVideoReaction(video.videoId, reactionUserId)
+    fetchVideoReaction(video.videoId, hasReactionUser ? reactionUserId : null)
       .then((summary) => {
         if (active) {
           setVideoReactionState(summary);
@@ -591,10 +676,12 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   }
 
   async function loadCommentReactionSummaries(items) {
-    if (!hasReactionUser) return;
     const results = await Promise.all(items.map(async (item) => {
       try {
-        return [item.id, await fetchCommentReaction(item.id, reactionUserId)];
+        return [
+          item.id,
+          await fetchCommentReaction(item.id, hasReactionUser ? reactionUserId : null),
+        ];
       } catch (error) {
         setCommentReactionError(error.message);
         return [item.id, { likeCount: 0, dislikeCount: 0, userReaction: null }];
@@ -652,7 +739,14 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     let timer;
     const controller = new AbortController();
     setPlaybackUrl("");
+    setAvailableQualities([]);
+    setSelectedQuality("auto");
+    setQualityError("");
     setPlaybackError(false);
+    setPlayerCurrentTime(0);
+    setPlayerDuration(0);
+    setPlayerPaused(true);
+    setPlaybackSpeed(1);
     async function preparePlayback() {
       try {
         const statusResponse = await fetch(`${API_BASE_URL}/videos/${video.videoId}/status`, { signal: controller.signal });
@@ -664,12 +758,26 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
           timer = setTimeout(preparePlayback, 3000);
           return;
         }
-        const response = await fetch(`${API_BASE_URL}/videos/${video.videoId}/playback`, { signal: controller.signal });
-        if (!response.ok) throw new Error(await readResponseError(response));
-        const playback = await response.json();
+        const [playbackResponse, assetsResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/videos/${video.videoId}/playback`, { signal: controller.signal }),
+          fetch(`${API_BASE_URL}/videos/${video.videoId}/assets`, { signal: controller.signal }),
+        ]);
+        if (!playbackResponse.ok) throw new Error(await readResponseError(playbackResponse));
+        if (!assetsResponse.ok) throw new Error(await readResponseError(assetsResponse));
+        const [playback, assets] = await Promise.all([
+          playbackResponse.json(),
+          assetsResponse.json(),
+        ]);
         if (active) {
           setPlaybackUrl(playback.assetUrl);
           setPlaybackMimeType(playback.mimeType);
+          setAvailableQualities(
+            [...new Set(
+              assets
+                .map((asset) => asset.quality)
+                .filter((quality) => /^(360|480|720|1080)p$/.test(quality))
+            )].sort((a, b) => Number(b.slice(0, -1)) - Number(a.slice(0, -1)))
+          );
         }
       } catch (error) {
         if (active && error.name !== "AbortError") setPlaybackError(true);
@@ -722,6 +830,37 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
       hls?.destroy();
     };
   }, [playbackMimeType, playbackUrl]);
+
+  async function changePlaybackQuality(quality) {
+    if (quality === selectedQuality) return;
+    const player = playerRef.current;
+    if (quality !== "auto") {
+      const available = availableQualities.includes(quality);
+      if (!available) return;
+    }
+    pendingQualitySeek.current = player?.currentTime ?? 0;
+    pendingQualityPlay.current = Boolean(player && !player.paused);
+    setQualityLoading(true);
+    setQualityError("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/videos/${video.videoId}/playback?quality=${encodeURIComponent(quality)}`
+      );
+      if (!response.ok) throw new Error(await readResponseError(response));
+      const playback = await response.json();
+      setPlaybackUrl(playback.assetUrl);
+      setPlaybackMimeType(playback.mimeType);
+      setSelectedQuality(quality);
+      setPlayerQualityOpen(false);
+      setVideoActionsOpen(false);
+    } catch (error) {
+      pendingQualitySeek.current = null;
+      pendingQualityPlay.current = false;
+      setQualityError(error.message);
+    } finally {
+      setQualityLoading(false);
+    }
+  }
 
   async function addComment(event) {
     event.preventDefault();
@@ -914,21 +1053,30 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
               {playbackUrl && !playbackError
                 ? <video
                       ref={playerRef}
-                      controls={resumeReady}
+                      controls={false}
+                      controlsList="nodownload noremoteplayback"
+                      disableRemotePlayback
                       autoPlay={resumeReady}
                       playsInline
                       poster={posterUrl || undefined}
+                      onClick={togglePlayback}
                       onLoadedMetadata={onPlayerMetadata}
+                      onPlay={() => setPlayerPaused(false)}
+                      onContextMenu={(event) => event.preventDefault()}
                       onTimeUpdate={(event) => {
+                        setPlayerCurrentTime(event.currentTarget.currentTime);
                         lastPlaybackPosition.current = event.currentTarget.currentTime;
                         recordViewAtTime(event.currentTarget);
                         saveProgress(event.currentTarget.currentTime);
                       }}
                       onPause={(event) => {
+                        setPlayerPaused(true);
                         lastPlaybackPosition.current = event.currentTarget.currentTime;
                         saveProgress(event.currentTarget.currentTime, true);
                       }}
                       onEnded={() => {
+                        setPlayerPaused(true);
+                        setPlayerCurrentTime(0);
                         lastPlaybackPosition.current = 0;
                         saveProgress(0, true);
                       }}
@@ -947,6 +1095,124 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                     </div>
                   </div>
                   : <div className="player-unavailable"><Icon name="video" size={34} /><strong>Video isn't playable</strong><span>{playbackError ? "Could not prepare this video. Check backend processing logs; the file may be damaged or use an unsupported codec." : "The video is being prepared for playback."}</span></div>}
+              {playbackUrl && !playbackError && (
+                <div className="custom-player-controls">
+                  <input
+                    className="player-seek"
+                    type="range"
+                    min="0"
+                    max={playerDuration || 0}
+                    step="0.1"
+                    value={Math.min(playerCurrentTime, playerDuration || 0)}
+                    onChange={seekPlayback}
+                    aria-label="Seek video"
+                  />
+                  <div className="player-control-row">
+                    <button
+                      className="player-control-button"
+                      type="button"
+                      onClick={togglePlayback}
+                      aria-label={playerPaused ? "Play video" : "Pause video"}
+                    >
+                      {playerPaused ? <Icon name="play" size={17} filled /> : <span className="player-pause-icon">Ⅱ</span>}
+                    </button>
+                    <span className="player-time">
+                      {formatPlayerTime(playerCurrentTime)} / {formatPlayerTime(playerDuration)}
+                    </span>
+                    <div className="player-control-spacer" />
+                    <div className="player-settings" ref={playerSettingsRef}>
+                      <button
+                        className="player-control-button"
+                        type="button"
+                        aria-label="Playback settings"
+                        aria-expanded={playerSettingsOpen}
+                        onClick={() => {
+                          setPlayerSettingsOpen((open) => !open);
+                          setPlayerQualityOpen(false);
+                          setPlayerSpeedOpen(false);
+                        }}
+                      >
+                        <Icon name="more" size={20} />
+                      </button>
+                      {playerSettingsOpen && (
+                        <div className="player-settings-menu" role="menu" aria-label="Playback settings">
+                          <button
+                            className="video-actions-menu-item"
+                            type="button"
+                            role="menuitem"
+                            aria-expanded={playerSpeedOpen}
+                            onClick={() => {
+                              setPlayerSpeedOpen((open) => !open);
+                              setPlayerQualityOpen(false);
+                            }}
+                          >
+                            Playback speed <span>{playbackSpeed === 1 ? "Normal" : `${playbackSpeed}x`}</span>
+                          </button>
+                          {playerSpeedOpen && (
+                            <div className="video-quality-options" role="group" aria-label="Playback speed">
+                              {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((speed) => (
+                                <button
+                                  key={speed}
+                                  className={`video-actions-menu-item ${playbackSpeed === speed ? "video-quality-selected" : ""}`}
+                                  type="button"
+                                  role="menuitemradio"
+                                  aria-checked={playbackSpeed === speed}
+                                  onClick={() => changePlaybackSpeed(speed)}
+                                >
+                                  {speed === 1 ? "Normal" : `${speed}x`}
+                                  {playbackSpeed === speed ? " ✓" : ""}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {availableQualities.length > 0 ? (
+                            <>
+                              <button
+                                className="video-actions-menu-item"
+                                type="button"
+                                role="menuitem"
+                                aria-expanded={playerQualityOpen}
+                                onClick={() => setPlayerQualityOpen((open) => !open)}
+                              >
+                                Quality <span>{selectedQuality === "auto" ? "Auto" : selectedQuality}</span>
+                              </button>
+                              {playerQualityOpen && (
+                                <div className="video-quality-options" role="group" aria-label="Video quality">
+                                  {["auto", ...availableQualities].map((quality) => (
+                                    <button
+                                      key={quality}
+                                      className={`video-actions-menu-item ${selectedQuality === quality ? "video-quality-selected" : ""}`}
+                                      type="button"
+                                      role="menuitemradio"
+                                      aria-checked={selectedQuality === quality}
+                                      disabled={qualityLoading}
+                                      onClick={() => changePlaybackQuality(quality)}
+                                    >
+                                      {quality === "auto" ? "Auto" : quality}
+                                      {selectedQuality === quality ? " ✓" : ""}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="player-quality-unavailable">Quality options unavailable</span>
+                          )}
+                          {qualityError && <p className="video-quality-error" role="alert">{qualityError}</p>}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="player-control-button"
+                      type="button"
+                      onClick={togglePlayerFullscreen}
+                      aria-label="Toggle fullscreen"
+                    >
+                      <span className="player-fullscreen-icon">⛶</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             {historyError && <p className="inline-error" role="alert">{historyError}</p>}
             {viewError && <p className="inline-error" role="alert">Could not record this video view: {viewError}</p>}

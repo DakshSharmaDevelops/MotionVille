@@ -302,6 +302,11 @@ VideoService {
 
     @Transactional(readOnly = true)
     public VideoPlaybackResponse getPlayback(Long videoId) {
+        return getPlayback(videoId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public VideoPlaybackResponse getPlayback(Long videoId, String requestedQuality) {
         Video video = getVideoById(videoId);
         if (video.getProcessingStatus() != VideoProcessingStatus.READY
                 && video.getProcessingStatus() != VideoProcessingStatus.UPLOADED) {
@@ -319,32 +324,48 @@ VideoService {
             );
         }
 
-        if (video.getVisibility() == VideoVisibility.PUBLIC
-                && video.getPublishedAt() != null
-                && r2StorageService.cdnConfigured()) {
-            VideoAsset hlsAsset = assets.stream()
-                    .filter(candidate -> "hls".equals(candidate.getQuality()))
+        VideoAsset asset;
+        if (requestedQuality != null && !requestedQuality.isBlank()
+                && !"auto".equalsIgnoreCase(requestedQuality)) {
+            if (!requestedQuality.matches("(360|480|720|1080)p")) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Unsupported playback quality"
+                );
+            }
+            asset = assets.stream()
+                    .filter(candidate -> requestedQuality.equals(candidate.getQuality()))
                     .findFirst()
-                    .orElse(null);
-            if (hlsAsset != null) {
-                String hlsKey = objectKey(hlsAsset.getAssetUrl());
-                if (r2StorageService.cdnObjectExists(hlsKey)) {
-                    return new VideoPlaybackResponse(
-                            videoId,
-                            r2StorageService.cdnObjectUrl(hlsKey),
-                            hlsAsset.getMimeType(),
-                            hlsAsset.getQuality(),
-                            hlsAsset.getSizeBytes()
-                    );
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Requested playback quality is not available"
+                    ));
+        } else {
+            if (video.getVisibility() == VideoVisibility.PUBLIC
+                    && video.getPublishedAt() != null
+                    && r2StorageService.cdnConfigured()) {
+                VideoAsset hlsAsset = assets.stream()
+                        .filter(candidate -> "hls".equals(candidate.getQuality()))
+                        .findFirst()
+                        .orElse(null);
+                if (hlsAsset != null) {
+                    String hlsKey = objectKey(hlsAsset.getAssetUrl());
+                    if (r2StorageService.cdnObjectExists(hlsKey)) {
+                        return new VideoPlaybackResponse(
+                                videoId,
+                                r2StorageService.cdnObjectUrl(hlsKey),
+                                hlsAsset.getMimeType(),
+                                hlsAsset.getQuality(),
+                                hlsAsset.getSizeBytes()
+                        );
+                    }
                 }
             }
+            // Prefer the normalized playable asset when no quality is requested.
+            asset = assets.stream()
+                    .filter(candidate -> "playback".equals(candidate.getQuality()))
+                    .findFirst().orElse(assets.get(0));
         }
-
-        // Prefer our normalized H.264/AAC MP4, not an arbitrary original MKV/AVI.
-        // The fallback keeps previously uploaded MP4/WebM videos working.
-        VideoAsset asset = assets.stream()
-                .filter(candidate -> "playback".equals(candidate.getQuality()))
-                .findFirst().orElse(assets.get(0));
         String objectKey = objectKey(asset.getAssetUrl());
         return new VideoPlaybackResponse(
                 videoId,
