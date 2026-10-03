@@ -7,6 +7,7 @@ import org.example.motionville.dto.ChannelUpdateRequest;
 import org.example.motionville.services.ChannelService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class ChannelController {
         this.channelService = channelService;
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#request.ownerId, authentication)")
     @PostMapping
     public ResponseEntity<ChannelResponse> createChannel(
             @Valid @RequestBody ChannelCreateRequest request) {
@@ -53,6 +55,7 @@ public class ChannelController {
         return ResponseEntity.ok(responses);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isChannelOwner(#id, authentication)")
     @PutMapping("/{id}")
     public ResponseEntity<ChannelResponse> updateChannel(
             @PathVariable Long id,
@@ -64,6 +67,7 @@ public class ChannelController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isChannelOwner(#id, authentication)")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteChannel(
             @PathVariable Long id) {

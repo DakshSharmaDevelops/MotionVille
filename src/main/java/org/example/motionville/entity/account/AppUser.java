@@ -45,6 +45,9 @@ public class AppUser {
     @Column(name="updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(nullable = false, length = 20)
+    private String role = "USER";
+
     @OneToMany(mappedBy="owner")
     private List<Channel> channels;
 
@@ -89,6 +92,7 @@ public class AppUser {
         Instant now = Instant.now();
         if (createdAt == null) createdAt = now;
         updatedAt = now;
+        if (role == null || role.isBlank()) role = "USER";
     }
 
     @PreUpdate

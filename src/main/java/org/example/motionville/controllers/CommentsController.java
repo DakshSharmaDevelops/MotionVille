@@ -7,6 +7,7 @@ import org.example.motionville.dto.CommentRequest;
 import org.example.motionville.dto.CommentResponse;
 import org.example.motionville.services.CommentService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,6 +25,7 @@ public class CommentsController {
         return commentService.findByVideoId(videoId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#request.authorId, authentication)")
     @PostMapping("/videos/{videoId}/comments")
     @ResponseStatus(HttpStatus.CREATED)
     public CommentResponse createComment(@PathVariable Long videoId,
@@ -32,12 +34,14 @@ public class CommentsController {
         return commentService.createComment(videoId, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isCommentOwner(#id, authentication)")
     @PutMapping("/comments/{id}")
     public CommentResponse updateComment(@PathVariable Long id,
                                          @Valid @RequestBody CommentRequest request) {
         return commentService.updateComment(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isCommentOwner(#id, authentication)")
     @DeleteMapping("/comments/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteComment(@PathVariable Long id) {
@@ -49,6 +53,7 @@ public class CommentsController {
         return commentService.findReplies(commentId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#request.authorId, authentication)")
     @PostMapping("/comments/{commentId}/replies")
     @ResponseStatus(HttpStatus.CREATED)
     public CommentResponse createReply(@PathVariable Long commentId,

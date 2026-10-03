@@ -28,7 +28,7 @@ public class AppUserDetailsService implements UserDetailsService {
 
         return User.withUsername(user.getUsername())
                 .password(user.getPasswordHash())
-                .roles("USER")
+                .roles(user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole())
                 .build();
     }
 }

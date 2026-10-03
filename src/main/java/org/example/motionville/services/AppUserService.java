@@ -50,6 +50,7 @@ public class AppUserService {
         user.setPassword(encodedPassword);
         user.setPasswordHash(encodedPassword);
 
+        user.setRole("USER");
         user.setDisplayName(request.getDisplayName());
         user.setAvatarUrl(request.getAvatarUrl());
 
@@ -185,6 +186,7 @@ public class AppUserService {
         response.setAvatarUrl(user.getAvatarUrl());
         response.setCreatedAt(user.getCreatedAt());
         response.setUpdatedAt(user.getUpdatedAt());
+        response.setRole(user.getRole() == null ? "USER" : user.getRole());
 
         return response;
     }

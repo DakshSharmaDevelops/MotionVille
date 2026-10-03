@@ -18,6 +18,7 @@ import org.example.motionville.services.videoService.VideoService;
 import org.example.motionville.services.videoService.VideoTagService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -46,6 +47,7 @@ public class VideoController {
         this.videoAssetManagementService = videoAssetManagementService;
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isChannelOwner(#request.channelId(), authentication)")
     @PostMapping
     public ResponseEntity<VideoResponse> createVideo(
             @Valid @RequestBody VideoCreateRequest request) {
@@ -65,11 +67,13 @@ public class VideoController {
         return searchService.search(search, page, size, sort, categoryId, channelId, publicOnly);
     }
 
+    @PreAuthorize("@authorizationService.canViewVideo(#id, authentication)")
     @GetMapping("/{id}")
     public VideoResponse getVideo(@PathVariable Long id) {
         return managementService.getVideo(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or (@authorizationService.isVideoOwner(#id, authentication) and @authorizationService.isChannelOwner(#request.channelId(), authentication))")
     @PutMapping("/{id}")
     public VideoResponse updateVideo(
             @PathVariable Long id,
@@ -77,22 +81,26 @@ public class VideoController {
         return managementService.update(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteVideo(@PathVariable Long id) {
         managementService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
     @PatchMapping("/{id}/publish")
     public VideoResponse publishVideo(@PathVariable Long id) {
         return managementService.publish(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
     @PatchMapping("/{id}/unpublish")
     public VideoResponse unpublishVideo(@PathVariable Long id) {
         return managementService.unpublish(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
     @PatchMapping("/{id}/visibility")
     public VideoResponse changeVisibility(
             @PathVariable Long id,
@@ -100,6 +108,7 @@ public class VideoController {
         return managementService.changeVisibility(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
     @PatchMapping("/{id}/processing-status")
     public VideoResponse changeProcessingStatus(
             @PathVariable Long id,
@@ -107,6 +116,7 @@ public class VideoController {
         return managementService.changeProcessingStatus(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#videoId, authentication)")
     @PostMapping("/{videoId}/tags/{tagId}")
     public ResponseEntity<Void> addTag(
             @PathVariable Long videoId,
@@ -115,6 +125,7 @@ public class VideoController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#videoId, authentication)")
     @DeleteMapping("/{videoId}/tags/{tagId}")
     public ResponseEntity<Void> removeTag(
             @PathVariable Long videoId,
@@ -128,6 +139,7 @@ public class VideoController {
         return videoTagService.getTags(videoId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#videoId, authentication)")
     @PostMapping("/{videoId}/assets")
     public ResponseEntity<VideoAssetResponse> addAsset(
             @PathVariable Long videoId,
@@ -141,6 +153,7 @@ public class VideoController {
         return videoAssetManagementService.getAll(videoId);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#videoId, authentication)")
     @DeleteMapping("/{videoId}/assets/{assetId}")
     public ResponseEntity<Void> deleteAsset(
             @PathVariable Long videoId,
@@ -149,11 +162,13 @@ public class VideoController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("@authorizationService.canViewVideo(#id, authentication)")
     @GetMapping("/play/{id}")
     public List<VideoAsset> playVideo(@PathVariable Long id) {
         return videoService.playVideo(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Void> legacyDeleteVideo(@PathVariable Long id) {
         managementService.delete(id);
