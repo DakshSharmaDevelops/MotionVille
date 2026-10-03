@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
         "spring.autoconfigure.exclude=org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration",
         "spring.datasource.url=jdbc:h2:mem:live-test;DB_CLOSE_DELAY=-1", "spring.datasource.username=sa",
         "spring.datasource.password=", "spring.jpa.hibernate.ddl-auto=create-drop",
+        "motionville.live.auto-start=false",
         "motionville.live.api-url=http://127.0.0.1:19997",
         "motionville.live.publish-url=rtmp://127.0.0.1:11935",
         "motionville.live.hls-url=http://127.0.0.1:18888"

@@ -1,4 +1,4 @@
-# Local OBS -> MediaMTX -> HLS playback. All listeners stay on this computer.
+# Local browser WebRTC publishing -> MediaMTX -> HLS playback.
 logLevel: warn
 api: true
 apiAddress: 127.0.0.1:9997
@@ -15,7 +15,10 @@ hlsAllowOrigins: [http://localhost:5173]
 hlsVariant: mpegts
 hlsAlwaysRemux: true
 hlsSegmentDuration: 2s
-webrtc: false
+webrtc: true
+webrtcAddress: 127.0.0.1:8889
+webrtcAllowOrigins: [http://localhost:5173]
+webrtcLocalUDPAddress: 127.0.0.1:8189
 srt: false
 moq: false
 pathDefaults:

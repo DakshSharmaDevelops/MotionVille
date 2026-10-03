@@ -68,6 +68,178 @@ function LivePlayer({ broadcast }) {
   </div>;
 }
 
+function waitForIceGathering(peer) {
+  if (peer.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      peer.removeEventListener("icegatheringstatechange", onStateChange);
+      reject(new Error("Network setup timed out. Check the WebRTC connection and try again."));
+    }, 15000);
+    function onStateChange() {
+      if (peer.iceGatheringState === "complete") {
+        window.clearTimeout(timeout);
+        peer.removeEventListener("icegatheringstatechange", onStateChange);
+        resolve();
+      }
+    }
+    peer.addEventListener("icegatheringstatechange", onStateChange);
+  });
+}
+
+function WebRtcBroadcaster({ studio }) {
+  const previewRef = useRef(null);
+  const peerRef = useRef(null);
+  const streamRef = useRef(null);
+  const resourceUrlRef = useRef(null);
+  const [publishing, setPublishing] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+
+  const authorization = `Basic ${btoa(`${studio.publishUsername}:${studio.publishPassword}`)}`;
+
+  function releaseMedia() {
+    peerRef.current?.close();
+    peerRef.current = null;
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    if (previewRef.current) previewRef.current.srcObject = null;
+  }
+
+  async function stopPublishing() {
+    const resourceUrl = resourceUrlRef.current;
+    resourceUrlRef.current = null;
+    releaseMedia();
+    setPublishing(false);
+    setConnecting(false);
+    if (resourceUrl) {
+      const response = await fetch(resourceUrl, {
+        method: "DELETE",
+        headers: { Authorization: authorization },
+      });
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`The stream stopped locally, but MediaMTX could not close the publishing session (${response.status}).`);
+      }
+    }
+  }
+
+  useEffect(() => () => {
+    const resourceUrl = resourceUrlRef.current;
+    releaseMedia();
+    if (resourceUrl) {
+      fetch(resourceUrl, {
+        method: "DELETE",
+        headers: { Authorization: authorization },
+      }).catch(failure => console.error("Could not close the MediaMTX publishing session:", failure));
+    }
+  }, [authorization]);
+
+  async function startPublishing(source) {
+    setError("");
+    setConnecting(true);
+    try {
+      const captureMedia = source === "screen"
+        ? navigator.mediaDevices?.getDisplayMedia
+        : navigator.mediaDevices?.getUserMedia;
+      if (!captureMedia || !window.RTCPeerConnection) {
+        throw new Error("Browser streaming requires a modern browser on localhost or HTTPS.");
+      }
+      const stream = source === "screen"
+        ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+        : await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current = stream;
+      if (previewRef.current) previewRef.current.srcObject = stream;
+
+      const peer = new RTCPeerConnection();
+      peerRef.current = peer;
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === "failed") {
+          setError("The WebRTC connection failed. Check that MediaMTX is running and try again.");
+          stopPublishing().catch(failure => setError(failure.message));
+        }
+      };
+      stream.getTracks().forEach(track => peer.addTrack(track, stream));
+      const videoTransceiver = peer.getTransceivers().find(transceiver => transceiver.sender.track?.kind === "video");
+      const browserCodecs = window.RTCRtpSender?.getCapabilities?.("video")?.codecs || [];
+      const hlsCompatibleCodecs = [
+        ...browserCodecs.filter(codec => /video\/h264/i.test(codec.mimeType)),
+        ...browserCodecs.filter(codec => /video\/vp9/i.test(codec.mimeType)),
+      ];
+      if (!videoTransceiver?.setCodecPreferences || hlsCompatibleCodecs.length === 0) {
+        throw new Error("This browser has no supported HLS-compatible WebRTC video codec.");
+      }
+      videoTransceiver.setCodecPreferences(hlsCompatibleCodecs);
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      await waitForIceGathering(peer);
+
+      const response = await fetch(studio.whipUrl, {
+        method: "POST",
+        headers: {
+          Authorization: authorization,
+          "Content-Type": "application/sdp",
+          Accept: "application/sdp",
+        },
+        body: peer.localDescription.sdp,
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(detail || `MediaMTX rejected the stream (${response.status}).`);
+      }
+      const location = response.headers.get("Location");
+      if (location) resourceUrlRef.current = new URL(location, studio.whipUrl).toString();
+      const answer = await response.text();
+      await peer.setRemoteDescription({ type: "answer", sdp: answer });
+      setPublishing(true);
+
+      const videoTrack = stream.getVideoTracks()[0];
+      if (source === "screen" && videoTrack) {
+        videoTrack.addEventListener("ended", () => {
+          stopPublishing().catch(failure => setError(failure.message));
+        }, { once: true });
+      }
+    } catch (failure) {
+      const resourceUrl = resourceUrlRef.current;
+      resourceUrlRef.current = null;
+      releaseMedia();
+      if (resourceUrl) {
+        try {
+          await fetch(resourceUrl, {
+            method: "DELETE",
+            headers: { Authorization: authorization },
+          });
+        } catch (cleanupFailure) {
+          console.error("Could not close the failed MediaMTX publishing session:", cleanupFailure);
+        }
+      }
+      setError(failure.name === "NotAllowedError"
+        ? "Camera or screen access was cancelled. Allow access in your browser and try again."
+        : failure.message || "Could not start the live stream.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  return <div className="live-publisher">
+    {publishing || connecting
+      ? <video className="live-preview" ref={previewRef} autoPlay muted playsInline />
+      : <p>Choose what to share. Your browser may ask for camera, microphone, or screen permission.</p>}
+    {!publishing && <div className="live-publisher-actions">
+      <button className="button button-primary" type="button" disabled={connecting}
+        onClick={() => startPublishing("camera")}>
+        {connecting ? "Connecting…" : "Go live with camera"}
+      </button>
+      <button className="button" type="button" disabled={connecting}
+        onClick={() => startPublishing("screen")}>
+        Share screen
+      </button>
+    </div>}
+    {publishing && <button className="button" type="button" onClick={() => {
+      stopPublishing().catch(failure => setError(failure.message));
+    }}>Stop sharing</button>}
+    {error && <p className="inline-error" role="alert">{error}</p>}
+  </div>;
+}
+
 export function LiveStudio({ channel, user, onClose }) {
   const [title, setTitle] = useState(`${channel?.name || "My channel"} live`);
   const [password, setPassword] = useState("");
@@ -103,22 +275,16 @@ export function LiveStudio({ channel, user, onClose }) {
       <div className="dialog-topline"><span>Your live studio</span><button className="icon-button" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>
       <h2 id="live-studio-title">Broadcast from {channel?.name}</h2>
       {!studio ? <form className="dialog-form" onSubmit={start}>
-        <p>Create a broadcast, then connect OBS to share your camera, screen, or microphone. Reopen an existing broadcast with the same account.</p>
+        <p>Create a broadcast, then share your camera or screen directly from this browser. Reopen an existing broadcast with the same account.</p>
         <label>Broadcast title<input value={title} onChange={e => setTitle(e.target.value)} required maxLength={150} /></label>
         <label>Confirm your account password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
         <button className="button button-primary" disabled={busy || !channel || !user || !title.trim()}>{busy ? "Opening studio…" : "Create / reopen broadcast"}</button>
       </form> : <div className="dialog-form">
-        <p role="status">{broadcast?.status === "LIVE" ? "● Live now" : "Waiting for OBS"}</p>
-        <p>In OBS, choose Settings → Stream → Custom. Paste these values, use H.264 video with AAC audio and a 2-second keyframe interval, then click Start Streaming.</p>
-        <label>Server URL<input readOnly value={studio.serverUrl} onFocus={e => e.target.select()} /></label>
-        <label>Stream key — keep private<input type="password" readOnly value={studio.streamKey} onFocus={e => e.target.select()} /></label>
-        <button type="button" onClick={async () => {
-          try { await navigator.clipboard.writeText(studio.streamKey); }
-          catch { setError("Select the stream key and copy it manually."); }
-        }}>Copy stream key</button>
+        <p role="status">{broadcast?.status === "LIVE" ? "● Live now" : "Waiting for you to start sharing"}</p>
+        <WebRtcBroadcaster studio={studio} />
         <label>Viewer link<input readOnly value={viewerUrl} onFocus={e => e.target.select()} /></label>
         <LivePlayer broadcast={broadcast} />
-        <p>Closing this window keeps the broadcast running. End it below when finished.</p>
+        <p>Closing this studio stops browser capture. End the broadcast when you are finished.</p>
         <button className="button button-primary" disabled={busy} onClick={end}>{busy ? "Ending…" : "End broadcast"}</button>
       </div>}
       {(error || (studio && statusError)) && <p className="inline-error" role="alert">{error || statusError}</p>}

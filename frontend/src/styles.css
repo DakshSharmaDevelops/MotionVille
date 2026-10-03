@@ -268,6 +268,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .dialog-subtitle { margin: 0 0 20px; color: #85848b; font-size: 11px; line-height: 1.6; }
 .live-dialog { width: min(760px, 95vw); }
 .live-player { display: block; width: 100%; aspect-ratio: 16 / 9; background: #111; border-radius: 12px; }
+.live-preview { display: block; width: 100%; max-height: 340px; aspect-ratio: 16 / 9; object-fit: contain; background: #111; border-radius: 12px; }
+.live-publisher { display: flex; flex-direction: column; gap: 10px; }
+.live-publisher-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .live-broadcast-list { margin: 20px 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dialog-form { display: flex; flex-direction: column; gap: 13px; }
 .dialog-form label { display: flex; flex-direction: column; gap: 6px; color: #55545b; font-size: 10px; font-weight: 700; }

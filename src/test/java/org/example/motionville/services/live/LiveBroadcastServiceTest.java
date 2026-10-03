@@ -25,12 +25,16 @@ class LiveBroadcastServiceTest {
         var owner = new AppUser(); owner.setId(5L);
         var channel = new Channel(); channel.setChannelId(2L); channel.setOwner(owner); channel.setName("Creator");
         when(channels.findById(2L)).thenReturn(Optional.of(channel));
-        service = new LiveBroadcastService(channels, users, media, "rtmp://localhost:1935", "http://localhost:8888");
+        service = new LiveBroadcastService(channels, users, media,
+                "rtmp://localhost:1935", "http://localhost:8888", "http://localhost:8889");
     }
     @Test void credentialsRequiredToPublishAndControlButNotView() {
         var studio = service.create(2L, "Demo", "creator", "password");
         String path = "live-" + studio.broadcast().id();
         String secret = studio.streamKey().split("pass=")[1];
+        assertEquals("http://localhost:8889/" + path + "/whip", studio.whipUrl());
+        assertEquals("broadcaster", studio.publishUsername());
+        assertEquals(secret, studio.publishPassword());
         assertTrue(service.authorize("publish", path, secret));
         assertFalse(service.authorize("publish", path, "wrong"));
         assertFalse(service.authorize("publish", path, null));

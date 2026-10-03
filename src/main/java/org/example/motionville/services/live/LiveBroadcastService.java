@@ -25,18 +25,22 @@ public class LiveBroadcastService {
     private final LiveMediaServer media;
     private final String publishUrl;
     private final String hlsUrl;
+    private final String whipUrl;
 
     public LiveBroadcastService(ChannelRepository channels, AppUserService users, LiveMediaServer media,
             @Value("${motionville.live.publish-url:rtmp://localhost:1935}") String publishUrl,
-            @Value("${motionville.live.hls-url:http://localhost:8888}") String hlsUrl) {
+            @Value("${motionville.live.hls-url:http://localhost:8888}") String hlsUrl,
+            @Value("${motionville.live.whip-url:http://localhost:8889}") String whipUrl) {
         this.channels = channels; this.users = users; this.media = media;
         this.publishUrl = publishUrl.replaceAll("/+$", "");
         this.hlsUrl = hlsUrl.replaceAll("/+$", "");
+        this.whipUrl = whipUrl.replaceAll("/+$", "");
     }
 
     public record Broadcast(String id, Long channelId, String channelName, String title,
                             String status, String playbackUrl, Instant createdAt) {}
-    public record Studio(Broadcast broadcast, String serverUrl, String streamKey, String managementToken) {}
+    public record Studio(Broadcast broadcast, String serverUrl, String streamKey, String whipUrl,
+                         String publishUsername, String publishPassword, String managementToken) {}
     private record Session(String id, Long channelId, String channelName, String title,
                            String publishToken, String managementToken, Instant createdAt) {}
 
@@ -54,7 +58,9 @@ public class LiveBroadcastService {
         // Allocate the media path first: an offline server must not create a fake session.
         media.create(path(id));
         sessions.put(id, session);
-        return new Studio(view(session, false), publishUrl, streamKey(session), session.managementToken());
+        return new Studio(view(session, false), publishUrl, streamKey(session),
+                whipUrl + "/" + path(id) + "/whip", "broadcaster",
+                session.publishToken(), session.managementToken());
     }
 
     public List<Broadcast> list() {
@@ -85,7 +91,9 @@ public class LiveBroadcastService {
     }
 
     private Studio studio(Session s) {
-        return new Studio(view(s, media.ready(path(s.id()))), publishUrl, streamKey(s), s.managementToken());
+        return new Studio(view(s, media.ready(path(s.id()))),
+                publishUrl, streamKey(s), whipUrl + "/" + path(s.id()) + "/whip",
+                "broadcaster", s.publishToken(), s.managementToken());
     }
     private String streamKey(Session s) { return path(s.id()) + "?user=broadcaster&pass=" + s.publishToken(); }
     private String path(String id) { return "live-" + id; }

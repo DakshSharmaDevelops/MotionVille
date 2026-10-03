@@ -49,8 +49,27 @@ Configuration can be overridden with environment variables. Use the shared **Mot
 | `R2_SECRET_KEY` | R2 secret access key |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` |
 | `DDL_AUTO` | `update` locally; production uses `validate` and requires a pre-created schema |
+| `MEDIAMTX_PATH` | `mediamtx` executable used for local live broadcasts |
+| `MEDIAMTX_CONFIG` | `./streaming/mediamtx.yml` |
+| `LIVE_AUTOSTART` | `true`; set to `false` to use an externally managed MediaMTX |
+| `LIVE_WHIP_URL` | `http://localhost:8889`; browser WebRTC publishing endpoint |
 
 Video uploads require the R2 settings above. The browser receives a 15-minute presigned PUT URL, uploads directly to R2, and notifies the backend to verify object size and content type. The backend reports `READY` after generating and storing playable assets. Playback URLs are freshly signed for one hour. Configure bucket CORS to allow your frontend origin, `PUT`, `GET`, and `HEAD`; allow the `Content-Type` and `Range` headers, and expose `Content-Length` and `Content-Range` for browser playback.
+
+### Local live broadcasts
+
+When Spring Boot starts, it checks the MediaMTX API and starts MediaMTX with
+`streaming/mediamtx.yml` if no server is already listening. Install the
+MediaMTX executable and make it available on `PATH`, or set `MEDIAMTX_PATH`
+to its full path (for example, `/tmp/mediamtx`). Spring Boot stops only the
+MediaMTX process it started. Set `LIVE_AUTOSTART=false` when managing MediaMTX
+separately.
+
+The studio captures camera/microphone or screen/audio in the browser and
+publishes directly to MediaMTX over WebRTC; OBS is not required. Browser capture
+requires localhost or HTTPS and user permission. The default local WebRTC
+signaling endpoint is port `8889`, with ICE media on UDP port `8189`. Restart
+MediaMTX after changing `streaming/mediamtx.yml`.
 
 ### Optional Cloudflare CDN streaming
 
