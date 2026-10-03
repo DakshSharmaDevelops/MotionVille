@@ -5,6 +5,7 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.repo.video.VideoSpecifications;
 import org.example.motionville.security.AuthorizationService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -52,13 +53,31 @@ public class VideoSearchService {
         Sort parsedSort = parseSort(sort);
         String normalizedSearch = normalizeSearch(search);
         Pageable pageable = PageRequest.of(page, size, stableSort(parsedSort));
-        Page<Video> result = videoRepository.searchVideos(
+        Page<Video> result = videoRepository.findAll(VideoSpecifications.search(
                 normalizedSearch,
                 categoryId,
                 channelId,
                 publicOnly,
                 VideoVisibility.PUBLIC,
-                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
+                pageable);
+
+        return new VideoPageResponse(
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.getContent().stream().map(VideoResponseMapper::toResponse).toList()
+        );
+    }
+
+    public VideoPageResponse getTrending(int page, int size) {
+        int boundedPage = Math.max(page, 0);
+        int boundedSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
+        Pageable pageable = PageRequest.of(boundedPage, boundedSize);
+        Page<Video> result = videoRepository.findAll(VideoSpecifications.trending(
+                VideoVisibility.PUBLIC,
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 pageable);
 
         return new VideoPageResponse(

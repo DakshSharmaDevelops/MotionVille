@@ -29,7 +29,7 @@ public class PlayListsController {
         return playListService.getAllPlayList(userId);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isPlaylistOwner(#playListId, authentication)")
+    @PreAuthorize("@authorizationService.canViewPlaylist(#playListId, authentication)")
     @GetMapping("/{playListId}")
     public PlayListResponse getPlayList(@PathVariable Long playListId) {
         return playListService.getPlayList(playListId);

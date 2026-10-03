@@ -4,6 +4,8 @@ import org.example.motionville.dto.TagRequest;
 import org.example.motionville.dto.TagResponse;
 import org.example.motionville.dto.VideoResponse;
 import org.example.motionville.entity.video.Tag;
+import org.example.motionville.entity.video.enums.VideoProcessingStatus;
+import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.TagRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.springframework.http.HttpStatus;
@@ -70,6 +72,10 @@ public class TagService {
     public List<VideoResponse> getVideos(Long tagId) {
         findTag(tagId);
         return videoRepository.findDistinctByTags_Id(tagId).stream()
+                .filter(v -> v.getVisibility() == VideoVisibility.PUBLIC
+                        && v.getPublishedAt() != null
+                        && (v.getProcessingStatus() == VideoProcessingStatus.READY
+                            || v.getProcessingStatus() == VideoProcessingStatus.UPLOADED))
                 .map(VideoResponseMapper::toResponse)
                 .toList();
     }

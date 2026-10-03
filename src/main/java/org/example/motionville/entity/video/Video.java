@@ -17,7 +17,15 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name="videos")
+@Table(
+        name = "videos",
+        indexes = {
+                @Index(name = "idx_videos_channel_id", columnList = "channel_id"),
+                @Index(name = "idx_videos_published_at", columnList = "published_at"),
+                @Index(name = "idx_videos_created_at", columnList = "created_at"),
+                @Index(name = "idx_videos_category_id", columnList = "category_id")
+        }
+)
 public class Video {
 
     @Id

@@ -31,7 +31,7 @@ public class NotificationsServiceImplements implements NotificationsService {
     @Transactional(readOnly = true)
     public NotificationResponseCount getNotificationCount(Long recipientId) {
         NotificationResponseCount response = new NotificationResponseCount();
-        response.setCount(notificationRepository.countByRecipient_Id(recipientId));
+        response.setCount(notificationRepository.countByRecipient_IdAndReadAtIsNull(recipientId));
         return response;
     }
 

@@ -209,7 +209,7 @@ class VideoProcessingTest {
     @Test
     void completionQueuesOnlyAfterCommitAndRejectsDuplicates() {
         video.setProcessingStatus(VideoProcessingStatus.UPLOADING);
-        when(videos.findForProcessing(1L)).thenReturn(Optional.of(video));
+        when(videos.findByVideoId(1L)).thenReturn(Optional.of(video));
         VideoAsset original = assets.findByVideo(video).get(0);
         original.setSizeBytes(1000L); // Outside the Long cache: compare values, not references.
         when(storage.headObject("videos/1/original")).thenReturn(

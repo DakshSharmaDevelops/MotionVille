@@ -14,7 +14,12 @@ import org.example.motionville.entity.notification.enums.NotificationType;
 import java.time.Instant;
 
 @Entity
-@Table(name="notifications")
+@Table(
+        name = "notifications",
+        indexes = {
+                @Index(name = "idx_notifications_recipient_created", columnList = "recipient_id, created_at")
+        }
+)
 @Getter
 @Setter
 @Builder

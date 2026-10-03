@@ -20,6 +20,7 @@ public class CommentsController {
 
     private final CommentService commentService;
 
+    @PreAuthorize("@authorizationService.canViewVideo(#videoId, authentication)")
     @GetMapping("/videos/{videoId}/comments")
     public List<CommentResponse> getComments(@PathVariable Long videoId) {
         return commentService.findByVideoId(videoId);
@@ -41,7 +42,7 @@ public class CommentsController {
         return commentService.updateComment(id, request);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isCommentOwner(#id, authentication)")
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.canDeleteComment(#id, authentication)")
     @DeleteMapping("/comments/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteComment(@PathVariable Long id) {

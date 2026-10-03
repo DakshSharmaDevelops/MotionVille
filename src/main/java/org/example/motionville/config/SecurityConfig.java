@@ -124,10 +124,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/videos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/channels/*/subscription-status").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/channels/*/subscribers").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/channels/*/subscribers").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/channels/*/subscriber-count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/channels/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/comments/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/playlists/*", "/api/playlists/*/videos").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tags/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
                         .anyRequest().authenticated());

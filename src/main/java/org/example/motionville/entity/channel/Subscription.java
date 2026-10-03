@@ -23,6 +23,9 @@ import java.time.Instant;
                         name = "uq_subscription_user_channel",
                         columnNames = {"subscriber_id", "channel_id"}
                 )
+        },
+        indexes = {
+                @Index(name = "idx_subscriptions_channel_id", columnList = "channel_id")
         }
 )
 public class Subscription {

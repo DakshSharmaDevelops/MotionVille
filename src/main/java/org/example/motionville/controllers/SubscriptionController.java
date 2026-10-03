@@ -42,6 +42,7 @@ public class SubscriptionController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isChannelOwner(#channelId, authentication)")
     @GetMapping("/channels/{channelId}/subscribers")
     public ResponseEntity<List<UserResponse>> getSubscribers(
             @PathVariable Long channelId) {

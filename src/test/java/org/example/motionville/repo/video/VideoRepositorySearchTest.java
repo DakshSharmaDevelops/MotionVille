@@ -75,17 +75,17 @@ class VideoRepositorySearchTest {
 
     @Test
     void filtersSearchAndCategoryWhileReturningAccuratePages() {
-        var allJava = videoRepository.searchVideos(
+        var allJava = videoRepository.findAll(VideoSpecifications.search(
                 "java", null, channelId, false, VideoVisibility.PUBLIC,
-                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt")));
         assertEquals(3, allJava.getTotalElements());
         assertEquals(3, allJava.getTotalPages());
         assertEquals("Cooking", allJava.getContent().get(0).getTitle());
 
-        var categorizedJava = videoRepository.searchVideos(
+        var categorizedJava = videoRepository.findAll(VideoSpecifications.search(
                 "java", categoryId, channelId, false, VideoVisibility.PUBLIC,
-                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 PageRequest.of(0, 10));
         assertEquals(2, categorizedJava.getTotalElements());
         assertTrue(categorizedJava.getContent().stream()
@@ -96,9 +96,9 @@ class VideoRepositorySearchTest {
 
     @Test
     void includesUncategorizedVideosWithoutCategoryFilterAndEscapesLikeWildcards() {
-        var unfiltered = videoRepository.searchVideos(
+        var unfiltered = videoRepository.findAll(VideoSpecifications.search(
                 "", null, channelId, false, VideoVisibility.PUBLIC,
-                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 PageRequest.of(0, 10));
         assertEquals(3, unfiltered.getTotalElements());
 
@@ -111,9 +111,9 @@ class VideoRepositorySearchTest {
         entityManager.persist(percentTitle);
         entityManager.flush();
 
-        var literalPercent = videoRepository.searchVideos(
+        var literalPercent = videoRepository.findAll(VideoSpecifications.search(
                 "100!%", null, channelId, false, VideoVisibility.PUBLIC,
-                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 PageRequest.of(0, 10));
         assertEquals(1, literalPercent.getTotalElements());
         assertEquals("100% Java", literalPercent.getContent().get(0).getTitle());
@@ -163,13 +163,13 @@ class VideoRepositorySearchTest {
         entityManager.flush();
         entityManager.clear();
 
-        var firstPage = videoRepository.searchVideos(
+        var firstPage = videoRepository.findAll(VideoSpecifications.search(
                 "",
                 null,
                 channelId,
                 true,
                 VideoVisibility.PUBLIC,
-                java.util.List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED),
+                List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
                 PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt")));
 
         assertEquals(1, firstPage.getTotalElements());

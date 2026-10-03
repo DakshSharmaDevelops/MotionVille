@@ -127,7 +127,10 @@ export async function readResponseError(response) {
 
 }
 
-export function buildVideoQuery({ search, page, sort, channelId, categoryId, publicOnly }) {
+export function buildVideoQuery({ search, page, sort, channelId, categoryId, publicOnly, trending }) {
+  if (trending) {
+    return `/videos/trending?page=${page}&size=20`;
+  }
   const params = new URLSearchParams({
     page: String(page),
     size: "20",

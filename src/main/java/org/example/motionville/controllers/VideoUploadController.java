@@ -2,12 +2,13 @@ package org.example.motionville.controllers;
 
 import jakarta.validation.Valid;
 import org.example.motionville.dto.VideoPlaybackResponse;
+import org.example.motionville.dto.VideoThumbnailResponse;
 import org.example.motionville.dto.VideoUploadRequest;
 import org.example.motionville.dto.VideoUploadResponse;
-import org.example.motionville.dto.VideoThumbnailResponse;
 import org.example.motionville.services.videoService.VideoService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,6 +22,7 @@ public class VideoUploadController {
         this.videoService = videoService;
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isChannelOwner(#request.channelId(), authentication)")
     @PostMapping("/uploads")
     public ResponseEntity<VideoUploadResponse> createUpload(
             @Valid @RequestBody VideoUploadRequest request) {
@@ -28,6 +30,7 @@ public class VideoUploadController {
                 .body(videoService.createVideoUpload(request));
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#videoId, authentication)")
     @PostMapping("/{videoId}/complete")
     public ResponseEntity<Void> completeUpload(
             @PathVariable Long videoId) {
@@ -36,12 +39,14 @@ public class VideoUploadController {
         return ResponseEntity.accepted().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.canViewVideo(#videoId, authentication)")
     @GetMapping("/{videoId}/status")
     public java.util.Map<String, String> getStatus(@PathVariable Long videoId) {
         // Return a small status object instead of serializing JPA relationships.
         return java.util.Map.of("processingStatus", videoService.getProcessingStatus(videoId).name());
     }
 
+    @PreAuthorize("@authorizationService.canViewVideo(#videoId, authentication)")
     @GetMapping("/{videoId}/playback")
     public ResponseEntity<VideoPlaybackResponse> getPlayback(
             @PathVariable Long videoId,
@@ -49,6 +54,7 @@ public class VideoUploadController {
         return ResponseEntity.ok(videoService.getPlayback(videoId, quality));
     }
 
+    @PreAuthorize("@authorizationService.canViewVideo(#videoId, authentication)")
     @GetMapping("/{videoId}/thumbnail")
     public ResponseEntity<VideoThumbnailResponse> getThumbnail(
             @PathVariable Long videoId) {

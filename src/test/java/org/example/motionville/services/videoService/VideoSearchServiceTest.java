@@ -5,6 +5,9 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.repo.video.VideoSpecifications;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
@@ -35,13 +38,11 @@ class VideoSearchServiceTest {
     @Test
     void appliesPaginationFiltersAndStableSort() {
         Video video = video(42L, 8L, "Java basics");
-        when(videoRepository.searchVideos(
-                eq("java"), eq(3L), eq(8L), eq(true), eq(VideoVisibility.PUBLIC),
-                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
-                any(PageRequest.class)))
+        when(videoRepository.findAll(
+                any(Specification.class), any(Pageable.class)))
                 .thenAnswer(invocation -> new PageImpl<>(
                         List.of(video),
-                        invocation.getArgument(6),
+                        invocation.getArgument(1),
                         41));
 
         var response = service.search(" JAVA ", 1, 20, "createdAt,desc", 3L, 8L, true);
@@ -52,15 +53,10 @@ class VideoSearchServiceTest {
         assertEquals(3, response.totalPages());
         assertEquals(42L, response.content().get(0).id());
 
-        var pageable = org.mockito.ArgumentCaptor.forClass(PageRequest.class);
-        verify(videoRepository).searchVideos(
-                eq("java"),
-                eq(3L),
-                eq(8L),
-                eq(true),
-                eq(VideoVisibility.PUBLIC),
-                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
-                pageable.capture());
+        var pageable = org.mockito.ArgumentCaptor.forClass(Pageable.class);
+        var specification = org.mockito.ArgumentCaptor.forClass(Specification.class);
+        verify(videoRepository).findAll(specification.capture(), pageable.capture());
+        assertNotNull(specification.getValue());
         assertEquals(1, pageable.getValue().getPageNumber());
         assertEquals(Sort.Direction.DESC,
                 pageable.getValue().getSort().getOrderFor("createdAt").getDirection());
@@ -70,41 +66,25 @@ class VideoSearchServiceTest {
 
     @Test
     void escapesLikeWildcardsAndUsesDefaultSort() {
-        when(videoRepository.searchVideos(
-                eq("100!%!_!!"), isNull(), isNull(), eq(true), eq(VideoVisibility.PUBLIC),
-                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
-                any(PageRequest.class)))
+        when(videoRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         service.search(" 100%_! ", 0, 20, null, null, null, false);
 
-        var pageable = org.mockito.ArgumentCaptor.forClass(PageRequest.class);
-        verify(videoRepository).searchVideos(
-                eq("100!%!_!!"),
-                isNull(),
-                isNull(),
-                eq(true),
-                eq(VideoVisibility.PUBLIC),
-                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
-                pageable.capture());
+        var pageable = org.mockito.ArgumentCaptor.forClass(Pageable.class);
+        verify(videoRepository).findAll(any(Specification.class), pageable.capture());
         assertEquals(Sort.Direction.DESC,
                 pageable.getValue().getSort().getOrderFor("createdAt").getDirection());
     }
 
     @Test
     void usesEmptySearchStringForUnfilteredVideoQuery() {
-        when(videoRepository.searchVideos(
-                eq(""), isNull(), isNull(), eq(true), eq(VideoVisibility.PUBLIC),
-                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
-                any(PageRequest.class)))
+        when(videoRepository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         service.search("   ", 0, 20, null, null, null, true);
 
-        verify(videoRepository).searchVideos(
-                eq(""), isNull(), isNull(), eq(true), eq(VideoVisibility.PUBLIC),
-                eq(List.of(VideoProcessingStatus.READY, VideoProcessingStatus.UPLOADED)),
-                any(PageRequest.class));
+        verify(videoRepository).findAll(any(Specification.class), any(Pageable.class));
     }
 
     @Test

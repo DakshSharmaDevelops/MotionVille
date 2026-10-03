@@ -115,6 +115,28 @@ public class AuthorizationService {
                 .orElse(false);
     }
 
+    public boolean canDeleteComment(
+            Long commentId,
+            Authentication authentication) {
+
+        if (!isAuthenticated(authentication)) {
+            return false;
+        }
+
+        return commentRepository.findById(commentId)
+                .map(comment -> {
+                    String authUser = authentication.getName();
+                    if (comment.getAuthor() != null && authUser.equals(comment.getAuthor().getUsername())) {
+                        return true;
+                    }
+                    return comment.getVideo() != null
+                            && comment.getVideo().getChannel() != null
+                            && comment.getVideo().getChannel().getOwner() != null
+                            && authUser.equals(comment.getVideo().getChannel().getOwner().getUsername());
+                })
+                .orElse(false);
+    }
+
     public boolean isNotificationOwner(
             Long userId,
             Authentication authentication) {
@@ -140,14 +162,30 @@ public class AuthorizationService {
                             video.getProcessingStatus() == VideoProcessingStatus.READY
                                     || video.getProcessingStatus() == VideoProcessingStatus.UPLOADED;
 
-                    boolean publicVideo =
-                            video.getVisibility() == VideoVisibility.PUBLIC
+                    boolean linkAccessible =
+                            (video.getVisibility() == VideoVisibility.PUBLIC
+                                    || video.getVisibility() == VideoVisibility.UNLISTED)
                                     && video.getPublishedAt() != null
                                     && playable;
 
-                    return publicVideo
+                    return linkAccessible
                             || isAdmin(authentication)
                             || isVideoOwner(videoId, authentication);
+                })
+                .orElse(false);
+    }
+
+    public boolean canViewPlaylist(
+            Long playlistId,
+            Authentication authentication) {
+
+        return playListRepository.findById(playlistId)
+                .map(playlist -> {
+                    if (playlist.getVisibility() == org.example.motionville.entity.playlist.enums.PlayListVisibility.PUBLIC
+                            || playlist.getVisibility() == org.example.motionville.entity.playlist.enums.PlayListVisibility.UNLISTED) {
+                        return true;
+                    }
+                    return isAdmin(authentication) || isPlaylistOwner(playlistId, authentication);
                 })
                 .orElse(false);
     }

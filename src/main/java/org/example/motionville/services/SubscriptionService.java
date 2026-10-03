@@ -117,6 +117,7 @@ public class SubscriptionService {
         subscriptionRepository.delete(subscription);
     }
 
+    @Transactional(readOnly = true)
     public boolean isSubscribed(Long userId, Long channelId) {
 
         if (!appUserRepository.existsById(userId)) {
@@ -140,6 +141,7 @@ public class SubscriptionService {
                 );
     }
 
+    @Transactional(readOnly = true)
     public List<ChannelResponse> getUserSubscriptions(Long userId) {
 
         if (!appUserRepository.existsById(userId)) {
@@ -174,6 +176,7 @@ public class SubscriptionService {
         return responses;
     }
 
+    @Transactional(readOnly = true)
     public List<UserResponse> getChannelSubscribers(Long channelId) {
 
         if (!channelRepository.existsById(channelId)) {
@@ -196,7 +199,7 @@ public class SubscriptionService {
 
             response.setId(user.getId());
             response.setUsername(user.getUsername());
-            response.setEmail(user.getEmail());
+            response.setEmail(null); // Never expose subscriber PII
             response.setDisplayName(user.getDisplayName());
             response.setAvatarUrl(user.getAvatarUrl());
             response.setCreatedAt(user.getCreatedAt());
@@ -208,6 +211,7 @@ public class SubscriptionService {
         return responses;
     }
 
+    @Transactional(readOnly = true)
     public long getSubscriberCount(Long channelId) {
 
         if (!channelRepository.existsById(channelId)) {

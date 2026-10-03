@@ -74,7 +74,9 @@ public class CommentReactionServiceImplements implements CommentReactionService{
     @Transactional
     @Override
     public void deleteCommentReaction(Long commentId, Long userId){
-        requireComment(commentId);
+        if (!commentRepository.existsById(commentId)) {
+            throw notFound("comment", commentId);
+        }
 
         commentReactionRepository
                 .findByComment_IdAndUser_Id(commentId, userId)

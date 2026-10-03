@@ -67,6 +67,13 @@ public class VideoController {
         return searchService.search(search, page, size, sort, categoryId, channelId, publicOnly);
     }
 
+    @GetMapping("/trending")
+    public VideoPageResponse getTrendingVideos(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return searchService.getTrending(page, size);
+    }
+
     @PreAuthorize("@authorizationService.canViewVideo(#id, authentication)")
     @GetMapping("/{id}")
     public VideoResponse getVideo(@PathVariable Long id) {
@@ -175,12 +182,5 @@ public class VideoController {
                         asset.getSizeBytes(),
                         asset.getCreatedAt()))
                 .toList();
-    }
-
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> legacyDeleteVideo(@PathVariable Long id) {
-        managementService.delete(id);
-        return ResponseEntity.noContent().build();
     }
 }

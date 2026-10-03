@@ -6,6 +6,7 @@ import org.example.motionville.dto.WatchHistoryUpdateRequest;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.engagement.WatchHistory;
 import org.example.motionville.entity.video.Video;
+import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.engagement.WatchHistoryRepository;
 import org.example.motionville.repo.video.VideoRepository;
@@ -31,6 +32,12 @@ public class WatchHistoryServiceImplements implements WatchHistoryService {
         AppUser user = findUser(request.getUserId());
         Video video = videoRepository.findById(videoId)
                 .orElseThrow(() -> notFound("Video", videoId));
+
+        if (video.getVisibility() == VideoVisibility.PRIVATE
+                && !video.getChannel().getOwner().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot watch private video");
+        }
+
         if (video.getDurationSeconds() != null
                 && video.getDurationSeconds() > 0
                 && request.getLastPositionSeconds() > video.getDurationSeconds()) {

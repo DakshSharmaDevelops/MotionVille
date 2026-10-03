@@ -40,12 +40,12 @@ class NotificationsServiceImplementsTest {
 
     @Test
     void countsNotificationsForRecipient() {
-        when(repository.countByRecipient_Id(7L)).thenReturn(4L);
+        when(repository.countByRecipient_IdAndReadAtIsNull(7L)).thenReturn(4L);
 
         var response = service.getNotificationCount(7L);
 
         assertEquals(4L, response.getCount());
-        verify(repository).countByRecipient_Id(7L);
+        verify(repository).countByRecipient_IdAndReadAtIsNull(7L);
     }
 
     @Test

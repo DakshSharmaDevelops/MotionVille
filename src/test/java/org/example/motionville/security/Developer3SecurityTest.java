@@ -344,6 +344,23 @@ public class Developer3SecurityTest {
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.reporterId").value(alice.getId()));
         }
+
+        @Test
+        @WithMockUser(username = "alice", roles = {"USER"})
+        @DisplayName("Alice can delete Bob's comment on her video (204 No Content)")
+        void channelOwner_canDeleteCommentOnOwnVideo() throws Exception {
+            Comment bobComment = new Comment();
+            bobComment.setAuthor(bob);
+            bobComment.setVideo(video);
+            bobComment.setBody("Bob's comment on Alice video");
+            bobComment.setCreatedAt(Instant.now());
+            bobComment.setUpdatedAt(Instant.now());
+            bobComment = commentRepository.save(bobComment);
+
+            mockMvc.perform(delete("/api/comments/" + bobComment.getId())
+                            .with(csrf()))
+                    .andExpect(status().isNoContent());
+        }
     }
 
     @Nested

@@ -202,7 +202,7 @@ VideoService {
     @Transactional
     public void completeVideoUpload(Long videoId) {
         // Lock this row so two completion requests cannot start duplicate conversions.
-        Video video = videoRepository.findForProcessing(videoId)
+        Video video = videoRepository.findByVideoId(videoId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Video not found"));
         if (video.getProcessingStatus() != VideoProcessingStatus.UPLOADING) {
             throw new ResponseStatusException(

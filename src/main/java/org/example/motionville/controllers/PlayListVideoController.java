@@ -35,7 +35,7 @@ public class PlayListVideoController {
         playListVideoService.removeVideo(playlistId, videoId);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isPlaylistOwner(#playlistId, authentication)")
+    @PreAuthorize("@authorizationService.canViewPlaylist(#playlistId, authentication)")
     @GetMapping
     public List<PlayListVideoResponse> getPlayListVideos(@PathVariable Long playlistId) {
         return playListVideoService.listVideos(playlistId);
