@@ -301,6 +301,11 @@ VideoService {
 
     @Transactional(readOnly = true)
     public VideoPlaybackResponse getPlayback(Long videoId) {
+        return getPlayback(videoId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public VideoPlaybackResponse getPlayback(Long videoId, String requestedQuality) {
         Video video = getVideoById(videoId);
         if (video.getProcessingStatus() != VideoProcessingStatus.READY
                 && video.getProcessingStatus() != VideoProcessingStatus.UPLOADED) {
@@ -318,11 +323,28 @@ VideoService {
             );
         }
 
-        // Prefer our normalized H.264/AAC MP4, not an arbitrary original MKV/AVI.
-        // The fallback keeps previously uploaded MP4/WebM videos working.
-        VideoAsset asset = assets.stream()
-                .filter(candidate -> "playback".equals(candidate.getQuality()))
-                .findFirst().orElse(assets.get(0));
+        VideoAsset asset;
+        if (requestedQuality != null && !requestedQuality.isBlank()
+                && !"auto".equalsIgnoreCase(requestedQuality)) {
+            if (!requestedQuality.matches("(360|480|720|1080)p")) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Unsupported playback quality"
+                );
+            }
+            asset = assets.stream()
+                    .filter(candidate -> requestedQuality.equals(candidate.getQuality()))
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Requested playback quality is not available"
+                    ));
+        } else {
+            // Prefer the normalized playable asset when no quality is requested.
+            asset = assets.stream()
+                    .filter(candidate -> "playback".equals(candidate.getQuality()))
+                    .findFirst().orElse(assets.get(0));
+        }
         String objectKey = objectKey(asset.getAssetUrl());
         return new VideoPlaybackResponse(
                 videoId,

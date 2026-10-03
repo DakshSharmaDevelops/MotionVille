@@ -113,6 +113,50 @@ class VideoProcessingTest {
     }
 
     @Test
+    void playbackReturnsTheRequestedQualityAsset() {
+        video.setProcessingStatus(VideoProcessingStatus.READY);
+        when(assets.findByVideo(video)).thenReturn(List.of(
+                playbackAsset("playback"),
+                playbackAsset("360p"),
+                playbackAsset("480p"),
+                playbackAsset("720p")));
+        when(storage.createPlaybackUrl("videos/1/480p.mp4")).thenReturn("480p-playback-url");
+
+        var response = service.getPlayback(1L, "480p");
+
+        assertEquals("480p", response.quality());
+        assertEquals("480p-playback-url", response.assetUrl());
+        verify(storage).createPlaybackUrl("videos/1/480p.mp4");
+    }
+
+    @Test
+    void playbackRejectsUnavailableOrUnsupportedQuality() {
+        video.setProcessingStatus(VideoProcessingStatus.READY);
+        when(assets.findByVideo(video)).thenReturn(List.of(
+                playbackAsset("playback"),
+                playbackAsset("360p")));
+
+        ResponseStatusException unavailable = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getPlayback(1L, "720p"));
+        assertEquals(404, unavailable.getStatusCode().value());
+
+        ResponseStatusException unsupported = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getPlayback(1L, "4k"));
+        assertEquals(400, unsupported.getStatusCode().value());
+    }
+
+    private VideoAsset playbackAsset(String quality) {
+        return VideoAsset.builder()
+                .video(video)
+                .quality(quality)
+                .assetUrl("r2://test/videos/1/" + quality + ".mp4")
+                .mimeType("video/mp4")
+                .build();
+    }
+
+    @Test
     void completionQueuesOnlyAfterCommitAndRejectsDuplicates() {
         video.setProcessingStatus(VideoProcessingStatus.UPLOADING);
         when(videos.findForProcessing(1L)).thenReturn(Optional.of(video));

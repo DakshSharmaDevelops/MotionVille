@@ -12,7 +12,8 @@ async function request(path, options = {}) {
 }
 
 export function fetchVideoReaction(videoId, userId) {
-    return request(`/videos/${videoId}/reaction-summary?userId=${userId}`);
+    const query = userId == null ? "" : `?userId=${encodeURIComponent(userId)}`;
+    return request(`/videos/${videoId}/reaction-summary${query}`);
 }
 
 export function setVideoReaction(videoId, reaction, userId) {
@@ -28,7 +29,8 @@ export function removeVideoReaction(videoId, userId) {
 }
 
 export function fetchCommentReaction(commentId, userId) {
-    return request(`/comments/${commentId}/reaction-summary?userId=${userId}`);
+    const query = userId == null ? "" : `?userId=${encodeURIComponent(userId)}`;
+    return request(`/comments/${commentId}/reaction-summary${query}`);
 }
 
 export function setCommentReaction(commentId, reaction, userId) {
