@@ -1,4 +1,4 @@
-# Local browser WebRTC publishing -> MediaMTX -> HLS playback.
+# Browser WebRTC publishing -> MediaMTX -> HLS playback on the local network.
 logLevel: warn
 api: true
 apiAddress: 127.0.0.1:9997
@@ -7,19 +7,20 @@ authHTTPAddress: http://127.0.0.1:8080/api/live/authorize
 authHTTPExclude:
   - action: api
 rtsp: false
-rtmp: true
-rtmpAddress: 127.0.0.1:1935
+rtmp: false
 hls: true
-hlsAddress: 127.0.0.1:8888
-hlsAllowOrigins: [http://localhost:5173]
-# Browser WebRTC audio is Opus; MPEG-TS HLS only supports AAC.
-hlsVariant: fmp4
+hlsAddress: :8888
+hlsAllowOrigins: ["*"]
+# Low-latency fMP4 HLS supports WebRTC's Opus audio and short viewer delay.
+hlsVariant: lowLatency
 hlsAlwaysRemux: true
-hlsSegmentDuration: 2s
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
 webrtc: true
-webrtcAddress: 127.0.0.1:8889
-webrtcAllowOrigins: [http://localhost:5173]
-webrtcLocalUDPAddress: 127.0.0.1:8189
+webrtcAddress: :8889
+webrtcAllowOrigins: ["*"]
+webrtcLocalUDPAddress: :8189
+webrtcIPsFromInterfaces: true
 srt: false
 moq: false
 pathDefaults:

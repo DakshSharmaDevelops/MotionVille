@@ -53,6 +53,7 @@ Configuration can be overridden with environment variables. Use the shared **Mot
 | `MEDIAMTX_CONFIG` | `./streaming/mediamtx.yml` |
 | `LIVE_AUTOSTART` | `true`; set to `false` to use an externally managed MediaMTX |
 | `LIVE_WHIP_URL` | `http://localhost:8889`; browser WebRTC publishing endpoint |
+| `FRONTEND_PUBLIC_URL` | `http://localhost:5173`; base URL included in shared live links |
 
 Video uploads require the R2 settings above. The browser receives a 15-minute presigned PUT URL, uploads directly to R2, and notifies the backend to verify object size and content type. The backend reports `READY` after generating and storing playable assets. Playback URLs are freshly signed for one hour. Configure bucket CORS to allow your frontend origin, `PUT`, `GET`, and `HEAD`; allow the `Content-Type` and `Range` headers, and expose `Content-Length` and `Content-Range` for browser playback.
 
@@ -67,9 +68,20 @@ separately.
 
 The studio captures camera/microphone or screen/audio in the browser and
 publishes directly to MediaMTX over WebRTC; OBS is not required. Browser capture
-requires localhost or HTTPS and user permission. The default local WebRTC
-signaling endpoint is port `8889`, with ICE media on UDP port `8189`. Restart
-MediaMTX after changing `streaming/mediamtx.yml`.
+requires localhost or HTTPS and user permission. For other devices on the same LAN, run the frontend with Vite's configured
+`0.0.0.0` bind and set `FRONTEND_PUBLIC_URL` to the host's LAN URL (for example,
+`http://192.168.1.20:5173`). Open MotionVille on the broadcaster's computer at
+`http://localhost:5173` to allow camera/screen permissions, then share the
+Viewer link shown in the studio. The Spring API remains behind Vite's `/api`
+proxy, and MediaMTX's management API remains loopback-only. HLS and WebRTC
+signaling listen on all interfaces; WebRTC ICE uses UDP port `8189`. Allow TCP
+ports `5173`, `8888`, and `8889`, plus UDP port `8189`, through the host firewall
+for the LAN. Restart Spring Boot and MediaMTX after changing
+`streaming/mediamtx.yml`.
+
+This LAN setup does not expose streams to the public internet. Internet-wide
+viewing requires a public hostname, HTTPS/reverse proxy, router port forwarding
+or hosting, and a configured WebRTC public ICE address/TURN server.
 
 ### Optional Cloudflare CDN streaming
 

@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "../api/videoApi.js";
 import { Modal, Icon } from "./ui.jsx";
 
+function resolveLiveServerUrl(value) {
+  const url = new URL(value, window.location.origin);
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    url.hostname = window.location.hostname;
+  }
+  return url.toString();
+}
+
 function useBroadcast(id) {
   const [broadcast, setBroadcast] = useState(null);
   const [error, setError] = useState("");
@@ -30,30 +38,32 @@ function LivePlayer({ broadcast }) {
   const playerRef = useRef(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const url = broadcast?.status === "LIVE" ? broadcast.playbackUrl : null;
+  const url = broadcast?.status === "LIVE" ? resolveLiveServerUrl(broadcast.playbackUrl) : null;
   useEffect(() => {
     const player = playerRef.current;
     if (!url || !player) return undefined;
     let active = true;
     let hls;
     setError("");
-    // Safari supports HLS natively; other browsers use MediaSource via hls.js.
-    if (player.canPlayType("application/vnd.apple.mpegurl")) {
-      player.src = url;
-      player.play().catch(() => {}); // A browser may require pressing Play.
-    } else {
-      import("hls.js").then(({ default: Hls }) => {
-        if (!active) return;
-        if (!Hls.isSupported()) { setError("This browser cannot play live HLS video."); return; }
-        hls = new Hls();
+    import("hls.js").then(({ default: Hls }) => {
+      if (!active) return;
+      if (Hls.isSupported()) {
+        hls = new Hls({
+          lowLatencyMode: true,
+          liveSyncDuration: 1,
+          liveMaxLatencyDuration: 3,
+        });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.fatal) setError("The live connection was interrupted. Retry playback.");
         });
         hls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(() => {}));
         hls.loadSource(url);
         hls.attachMedia(player);
-      }).catch(() => { if (active) setError("The live player could not load."); });
-    }
+      } else if (player.canPlayType("application/vnd.apple.mpegurl")) {
+        player.src = url;
+        player.play().catch(() => {});
+      } else setError("This browser cannot play live HLS video.");
+    }).catch(() => { if (active) setError("The live player could not load."); });
     return () => {
       active = false; hls?.destroy(); player.pause();
       player.removeAttribute("src"); player.load();
@@ -172,7 +182,7 @@ function WebRtcBroadcaster({ studio }) {
       await peer.setLocalDescription(offer);
       await waitForIceGathering(peer);
 
-      const response = await fetch(studio.whipUrl, {
+      const response = await fetch(resolveLiveServerUrl(studio.whipUrl), {
         method: "POST",
         headers: {
           Authorization: authorization,
@@ -186,7 +196,7 @@ function WebRtcBroadcaster({ studio }) {
         throw new Error(detail || `MediaMTX rejected the stream (${response.status}).`);
       }
       const location = response.headers.get("Location");
-      if (location) resourceUrlRef.current = new URL(location, studio.whipUrl).toString();
+      if (location) resourceUrlRef.current = new URL(location, resolveLiveServerUrl(studio.whipUrl)).toString();
       const answer = await response.text();
       await peer.setRemoteDescription({ type: "answer", sdp: answer });
       setPublishing(true);
@@ -247,7 +257,7 @@ export function LiveStudio({ channel, user, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const { broadcast, error: statusError } = useBroadcast(studio?.broadcast.id);
-  const viewerUrl = studio ? `${window.location.origin}/?live=${studio.broadcast.id}` : "";
+  const viewerUrl = studio ? `${studio.viewerBaseUrl}/?live=${studio.broadcast.id}` : "";
 
   async function start(event) {
     event.preventDefault();
