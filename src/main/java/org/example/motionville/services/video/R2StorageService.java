@@ -37,9 +37,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @Lazy
 public class R2StorageService {
@@ -396,11 +398,19 @@ public class R2StorageService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    action.run();
+                    try {
+                        action.run();
+                    } catch (Exception ex) {
+                        log.warn("Failed to execute storage cleanup after commit: {}", ex.getMessage());
+                    }
                 }
             });
         } else {
-            action.run();
+            try {
+                action.run();
+            } catch (Exception ex) {
+                log.warn("Failed to execute storage cleanup: {}", ex.getMessage());
+            }
         }
     }
 

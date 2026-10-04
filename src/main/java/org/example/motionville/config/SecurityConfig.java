@@ -102,8 +102,8 @@ public class SecurityConfig {
                                 "/api/live/authorize" // Media server webhook
                         )
                 )
-                .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new CsrfCookieFilter(), JwtAuthenticationFilter.class)
 
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .securityContext(context -> context

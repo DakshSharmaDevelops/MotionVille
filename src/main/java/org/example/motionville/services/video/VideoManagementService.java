@@ -12,10 +12,15 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.channel.ChannelRepository;
+import org.example.motionville.repo.engagement.VideoViewRepository;
+import org.example.motionville.repo.engagement.WatchHistoryRepository;
+import org.example.motionville.repo.notification.NotificationRepository;
+import org.example.motionville.repo.report.ReportRepository;
 import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.example.motionville.services.notification.NotificationCreationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -36,6 +41,34 @@ public class VideoManagementService {
     private final VideoAssetRepository videoAssetRepository;
     private final R2StorageService r2StorageService;
     private final NotificationCreationService notificationCreationService;
+    private final WatchHistoryRepository watchHistoryRepository;
+    private final VideoViewRepository videoViewRepository;
+    private final NotificationRepository notificationRepository;
+    private final ReportRepository reportRepository;
+
+    @Autowired
+    public VideoManagementService(
+            VideoRepository videoRepository,
+            ChannelRepository channelRepository,
+            CategoryRepository categoryRepository,
+            VideoAssetRepository videoAssetRepository,
+            @Lazy R2StorageService r2StorageService,
+            NotificationCreationService notificationCreationService,
+            WatchHistoryRepository watchHistoryRepository,
+            VideoViewRepository videoViewRepository,
+            NotificationRepository notificationRepository,
+            ReportRepository reportRepository) {
+        this.videoRepository = videoRepository;
+        this.channelRepository = channelRepository;
+        this.categoryRepository = categoryRepository;
+        this.videoAssetRepository = videoAssetRepository;
+        this.r2StorageService = r2StorageService;
+        this.notificationCreationService = notificationCreationService;
+        this.watchHistoryRepository = watchHistoryRepository;
+        this.videoViewRepository = videoViewRepository;
+        this.notificationRepository = notificationRepository;
+        this.reportRepository = reportRepository;
+    }
 
     public VideoManagementService(
             VideoRepository videoRepository,
@@ -44,12 +77,17 @@ public class VideoManagementService {
             VideoAssetRepository videoAssetRepository,
             @Lazy R2StorageService r2StorageService,
             NotificationCreationService notificationCreationService) {
-        this.videoRepository = videoRepository;
-        this.channelRepository = channelRepository;
-        this.categoryRepository = categoryRepository;
-        this.videoAssetRepository = videoAssetRepository;
-        this.r2StorageService = r2StorageService;
-        this.notificationCreationService = notificationCreationService;
+        this(
+                videoRepository,
+                channelRepository,
+                categoryRepository,
+                videoAssetRepository,
+                r2StorageService,
+                notificationCreationService,
+                null,
+                null,
+                null,
+                null);
     }
 
     public VideoResponse getVideo(Long id) {
@@ -106,6 +144,22 @@ public class VideoManagementService {
         r2StorageService.deleteCdnPrefixAfterCommit(hlsPrefix);
         r2StorageService.deleteOriginPrefixAfterCommit(hlsPrefix);
         r2StorageService.deleteAfterCommit(objectLocators);
+
+        if (notificationRepository != null) {
+            notificationRepository.deleteAllByVideo_VideoId(id);
+            notificationRepository.deleteAllByComment_Video_VideoId(id);
+        }
+        if (reportRepository != null) {
+            reportRepository.deleteAllByVideo_VideoId(id);
+            reportRepository.deleteAllByComment_Video_VideoId(id);
+        }
+        if (watchHistoryRepository != null) {
+            watchHistoryRepository.deleteAllByVideo_VideoId(id);
+        }
+        if (videoViewRepository != null) {
+            videoViewRepository.deleteAllByVideo_VideoId(id);
+        }
+
         videoRepository.delete(video);
     }
 

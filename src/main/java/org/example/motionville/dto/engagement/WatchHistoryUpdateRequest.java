@@ -11,7 +11,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class WatchHistoryUpdateRequest {
 
-    @NotNull
     private Long userId;
 
     @NotNull

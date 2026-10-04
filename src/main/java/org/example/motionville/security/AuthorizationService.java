@@ -207,6 +207,15 @@ public class AuthorizationService {
                 .orElse(false);
     }
 
+    public Long getAuthenticatedUserId(Authentication authentication) {
+        if (!isAuthenticated(authentication)) {
+            return null;
+        }
+        return userRepository.findByUsername(authentication.getName())
+                .map(org.example.motionville.entity.account.AppUser::getId)
+                .orElse(null);
+    }
+
     private boolean isAuthenticated(Authentication authentication) {
 
         return authentication != null

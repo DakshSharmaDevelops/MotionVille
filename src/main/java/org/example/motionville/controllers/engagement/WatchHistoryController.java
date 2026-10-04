@@ -4,9 +4,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.motionville.dto.engagement.WatchHistoryResponse;
 import org.example.motionville.dto.engagement.WatchHistoryUpdateRequest;
+import org.example.motionville.security.AuthorizationService;
 import org.example.motionville.services.engagement.WatchHistoryService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,12 +28,20 @@ import java.util.List;
 public class WatchHistoryController {
 
     private final WatchHistoryService watchHistoryService;
+    private final AuthorizationService authorizationService;
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#request.userId, authentication)")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/videos/{videoId}/history")
     public WatchHistoryResponse recordProgress(
             @PathVariable Long videoId,
-            @Valid @RequestBody WatchHistoryUpdateRequest request) {
+            @Valid @RequestBody WatchHistoryUpdateRequest request,
+            Authentication authentication) {
+        if (request.getUserId() == null || (!authorizationService.isAdmin(authentication) && !authorizationService.isUserOwner(request.getUserId(), authentication))) {
+            Long currentUserId = authorizationService.getAuthenticatedUserId(authentication);
+            if (currentUserId != null) {
+                request.setUserId(currentUserId);
+            }
+        }
         return watchHistoryService.recordProgress(videoId, request);
     }
 

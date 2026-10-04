@@ -12,4 +12,8 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     boolean existsByReporter_IdAndComment_IdAndStatusIn(
             Long reporterId, Long commentId, Collection<ReportStatus> statuses);
+
+    void deleteAllByVideo_VideoId(Long videoId);
+
+    void deleteAllByComment_Video_VideoId(Long videoId);
 }

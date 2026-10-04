@@ -21,4 +21,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     long countByRecipient_Id(Long recipientId);
 
     long countByRecipient_IdAndReadAtIsNull(Long recipientId);
+
+    void deleteAllByVideo_VideoId(Long videoId);
+
+    void deleteAllByComment_Video_VideoId(Long videoId);
 }

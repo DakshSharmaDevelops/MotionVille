@@ -12,4 +12,6 @@ public interface WatchHistoryRepository extends JpaRepository<WatchHistory, Long
     List<WatchHistory> findByUser_IdOrderByLastWatchedAtDesc(Long userId);
 
     long deleteAllByUser_Id(Long userId);
+
+    void deleteAllByVideo_VideoId(Long videoId);
 }
