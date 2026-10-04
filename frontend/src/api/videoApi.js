@@ -28,6 +28,32 @@ export function getCsrfToken() {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+let isRefreshingPromise = null;
+
+async function silentRefresh() {
+  if (!isRefreshingPromise) {
+    isRefreshingPromise = (async () => {
+      const csrfToken = getCsrfToken();
+      const headers = {};
+      if (csrfToken) {
+        headers["X-XSRF-TOKEN"] = csrfToken;
+      }
+      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+      });
+      if (!res.ok) {
+        throw new Error("Token refresh failed");
+      }
+      return res.json();
+    })().finally(() => {
+      isRefreshingPromise = null;
+    });
+  }
+  return isRefreshingPromise;
+}
+
 /**
  * Parses JSON error envelope from backend (timestamp, status, error, message, details)
  */
@@ -96,6 +122,19 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
+    if (
+      response.status === 401 &&
+      !options._retry &&
+      !["/auth/login", "/auth/refresh", "/auth/logout"].includes(path)
+    ) {
+      try {
+        await silentRefresh();
+        return await apiRequest(path, { ...options, _retry: true });
+      } catch (refreshErr) {
+        // Silent refresh failed; proceed to regular 401 error dispatch
+      }
+    }
+
     const error = await parseApiError(response);
 
     // Validation failure (400): notify app of invalid input
