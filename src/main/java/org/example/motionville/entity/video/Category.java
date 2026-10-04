@@ -20,12 +20,9 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false,unique = true,length = 100)
+    @Column(nullable = false, unique = true, length = 100)
     private String name;
 
     @Column(nullable = false, unique = true, length = 100)
     private String slug;
-
-    @Column(nullable = false,unique = true,length = 100)
-    private String description;
 }

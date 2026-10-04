@@ -95,15 +95,14 @@ public class AuthController {
         AppUser user = userRepository.findByUsername(usernameOrEmail)
                 .orElseGet(() -> userRepository.findByEmail(usernameOrEmail).orElse(null));
 
-        if (user == null || user.getPasswordHash() == null) {
+        if (user == null || user.getPassword() == null) {
             return;
         }
 
-        if (!user.getPasswordHash().startsWith("$2")
-                && user.getPasswordHash().equals(rawPassword)) {
+        if (!user.getPassword().startsWith("$2")
+                && user.getPassword().equals(rawPassword)) {
             String encodedPassword = passwordEncoder.encode(rawPassword);
             user.setPassword(encodedPassword);
-            user.setPasswordHash(encodedPassword);
             userRepository.save(user);
         }
     }

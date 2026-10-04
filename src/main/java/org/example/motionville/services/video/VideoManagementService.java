@@ -167,7 +167,6 @@ public class VideoManagementService {
             case UPLOADING -> target == VideoProcessingStatus.PROCESSING
                     || target == VideoProcessingStatus.FAILED;
             case PROCESSING -> target == VideoProcessingStatus.READY
-                    || target == VideoProcessingStatus.UPLOADED
                     || target == VideoProcessingStatus.FAILED;
             case READY, UPLOADED, FAILED -> false;
         };
@@ -187,8 +186,7 @@ public class VideoManagementService {
         }
 
         video.setProcessingStatus(target);
-        if (target == VideoProcessingStatus.READY
-                || target == VideoProcessingStatus.UPLOADED) {
+        if (target == VideoProcessingStatus.READY) {
             if (video.getVisibility() != VideoVisibility.PRIVATE
                     && video.getPublishedAt() == null) {
                 video.setPublishedAt(Instant.now());

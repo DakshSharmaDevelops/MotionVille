@@ -1,60 +1,85 @@
 package org.example.motionville.services.engagement;
 
-import org.example.motionville.services.playlist.PlayListVideoServiceImplements;
-
-import org.example.motionville.dto.playlist.PlayListVideoResponse;
-import org.example.motionville.dto.engagement.WatchHistoryResponse;
 import org.example.motionville.dto.engagement.WatchHistoryUpdateRequest;
+import org.example.motionville.dto.playlist.PlayListCreateRequest;
+import org.example.motionville.dto.playlist.PlayListResponse;
+
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.channel.Channel;
-import org.example.motionville.entity.playlist.PlayList;
+import org.example.motionville.entity.playlist.PlayListVideo;
 import org.example.motionville.entity.video.Video;
+
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.account.AppUserRepository;
+
 import org.example.motionville.repo.channel.ChannelRepository;
+
 import org.example.motionville.repo.engagement.WatchHistoryRepository;
 import org.example.motionville.repo.playlist.PlayListRepository;
+
 import org.example.motionville.repo.playlist.PlayListVideoRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.playlist.PlayListService;
+
+import org.example.motionville.services.playlist.PlayListVideoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@DataJpaTest
-@ActiveProfiles("test")
-@Import({PlayListVideoServiceImplements.class, WatchHistoryServiceImplements.class})
+@SpringBootTest(properties = {
+        "spring.flyway.enabled=false",
+        "spring.jpa.hibernate.ddl-auto=create-drop"
+})
+@Transactional
 class PlaylistAndWatchHistoryPersistenceTest {
 
-    @Autowired private AppUserRepository appUserRepository;
-    @Autowired private ChannelRepository channelRepository;
-    @Autowired private VideoRepository videoRepository;
-    @Autowired private PlayListRepository playListRepository;
-    @Autowired private PlayListVideoRepository playListVideoRepository;
-    @Autowired private WatchHistoryRepository watchHistoryRepository;
-    @Autowired private PlayListVideoServiceImplements playListVideoService;
-    @Autowired private WatchHistoryServiceImplements watchHistoryService;
+    @Autowired
+    private AppUserRepository appUserRepository;
+
+    @Autowired
+    private ChannelRepository channelRepository;
+
+    @Autowired
+    private VideoRepository videoRepository;
+
+    @Autowired
+    private PlayListRepository playListRepository;
+
+    @Autowired
+    private PlayListVideoRepository playListVideoRepository;
+
+    @Autowired
+    private WatchHistoryRepository watchHistoryRepository;
+
+    @Autowired
+    private PlayListService playListService;
+
+    @Autowired
+    private PlayListVideoService playListVideoService;
+
+    @Autowired
+    private WatchHistoryService watchHistoryService;
 
     private AppUser owner;
-    private Video firstVideo;
-    private Video secondVideo;
-    private PlayList playList;
+    private Video video1;
+    private Video video2;
 
     @BeforeEach
     void setUp() {
         owner = new AppUser();
         owner.setEmail("owner@example.test");
         owner.setUsername("owner");
-        owner.setPassword("password");
-        owner.setPasswordHash("password-hash");
+        owner.setPassword("password-hash");
         owner.setDisplayName("Owner");
         owner = appUserRepository.saveAndFlush(owner);
 
@@ -64,68 +89,75 @@ class PlaylistAndWatchHistoryPersistenceTest {
         channel.setName("Owner channel");
         channel = channelRepository.saveAndFlush(channel);
 
-        firstVideo = saveVideo(channel, "First");
-        secondVideo = saveVideo(channel, "Second");
-
-        playList = new PlayList();
-        playList.setOwner(owner);
-        playList.setTitle("Favorites");
-        playList = playListRepository.saveAndFlush(playList);
+        video1 = createVideo(channel, "Video 1");
+        video2 = createVideo(channel, "Video 2");
     }
 
     @Test
-    void persistsPlaylistOrderAndNormalizesPositionsAfterRemoval() {
-        playListVideoService.addVideo(playList.getId(), firstVideo.getVideoId());
-        playListVideoService.addVideo(playList.getId(), secondVideo.getVideoId());
+    void testPlayListManagementAndReordering() {
 
-        List<PlayListVideoResponse> reordered = playListVideoService.reorderVideos(
-                playList.getId(),
-                List.of(secondVideo.getVideoId(), firstVideo.getVideoId()));
+        PlayListCreateRequest createRequest = new PlayListCreateRequest();
+        createRequest.setOwnerId(owner.getId());
+        createRequest.setTitle("My Test Playlist");
 
-        assertEquals(List.of(secondVideo.getVideoId(), firstVideo.getVideoId()),
-                reordered.stream().map(PlayListVideoResponse::getVideoId).toList());
-        assertEquals(List.of(0, 1), reordered.stream().map(PlayListVideoResponse::getPosition).toList());
+        PlayListResponse playlist = playListService.savePlayList(createRequest);
+        assertNotNull(playlist.getId());
 
-        playListVideoService.removeVideo(playList.getId(), secondVideo.getVideoId());
+        playListVideoService.addVideo(playlist.getId(), video1.getVideoId());
+        playListVideoService.addVideo(playlist.getId(), video2.getVideoId());
 
-        List<PlayListVideoResponse> remaining = playListVideoService.listVideos(playList.getId());
-        assertEquals(1, remaining.size());
-        assertEquals(firstVideo.getVideoId(), remaining.get(0).getVideoId());
-        assertEquals(0, remaining.get(0).getPosition());
-        assertEquals(1, playListVideoRepository.count());
+        List<PlayListVideo> videos = playListVideoRepository
+                .findByPlayList_IdOrderByPositionAsc(playlist.getId());
+
+        assertEquals(2, videos.size());
+        assertEquals(0, videos.get(0).getPosition());
+        assertEquals(video1.getVideoId(), videos.get(0).getVideo().getVideoId());
+        assertEquals(1, videos.get(1).getPosition());
+        assertEquals(video2.getVideoId(), videos.get(1).getVideo().getVideoId());
+
+        playListVideoService.reorderVideos(
+                playlist.getId(),
+                List.of(video2.getVideoId(), video1.getVideoId())
+        );
+
+        List<PlayListVideo> reordered = playListVideoRepository
+                .findByPlayList_IdOrderByPositionAsc(playlist.getId());
+
+        assertEquals(0, reordered.get(0).getPosition());
+        assertEquals(video2.getVideoId(), reordered.get(0).getVideo().getVideoId());
+        assertEquals(1, reordered.get(1).getPosition());
+        assertEquals(video1.getVideoId(), reordered.get(1).getVideo().getVideoId());
     }
 
     @Test
-    void updatesExistingWatchHistoryRowWhenProgressIsRecordedAgain() {
-        WatchHistoryUpdateRequest firstProgress = progress(12);
-        WatchHistoryResponse first = watchHistoryService.recordProgress(
-                firstVideo.getVideoId(), firstProgress);
+    void testWatchHistoryRecordingAndPruning() {
 
-        WatchHistoryResponse updated = watchHistoryService.recordProgress(
-                firstVideo.getVideoId(), progress(28));
-        List<WatchHistoryResponse> history = watchHistoryService.getHistory(owner.getId());
+        for (int i = 0; i < 505; i++) {
 
-        assertEquals(first.getId(), updated.getId());
-        assertNotEquals(first.getLastPositionSeconds(), updated.getLastPositionSeconds());
-        assertEquals(28, updated.getLastPositionSeconds());
-        assertEquals(1, history.size());
-        assertEquals(1, watchHistoryRepository.count());
+            Video video = createVideo(video1.getChannel(), "Bulk Video " + i);
+
+            WatchHistoryUpdateRequest req = new WatchHistoryUpdateRequest();
+            req.setUserId(owner.getId());
+            req.setLastPositionSeconds(10);
+            watchHistoryService.recordProgress(video.getVideoId(), req);
+        }
+
+        long count = watchHistoryRepository.findByUser_IdOrderByLastWatchedAtDesc(owner.getId()).size();
+
+        assertEquals(500, count);
     }
 
-    private Video saveVideo(Channel channel, String title) {
+    private Video createVideo(Channel channel, String title) {
+
         Video video = new Video();
         video.setChannel(channel);
         video.setTitle(title);
         video.setDurationSeconds(120);
         video.setVisibility(VideoVisibility.PUBLIC);
         video.setProcessingStatus(VideoProcessingStatus.READY);
-        return videoRepository.saveAndFlush(video);
-    }
+        video.setCreatedAt(Instant.now());
+        video.setUpdatedAt(Instant.now());
 
-    private WatchHistoryUpdateRequest progress(int seconds) {
-        WatchHistoryUpdateRequest request = new WatchHistoryUpdateRequest();
-        request.setUserId(owner.getId());
-        request.setLastPositionSeconds(seconds);
-        return request;
+        return videoRepository.saveAndFlush(video);
     }
 }

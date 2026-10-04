@@ -12,7 +12,10 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.engagement.VideoReactionRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.security.AuthorizationService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,11 +28,13 @@ public class VideoReactionServiceImplements implements VideoReactionService {
     private final VideoRepository videoRepository;
     private final AppUserRepository appUserRepository;
     private final NotificationCreationService notificationCreationService;
+    private final AuthorizationService authorizationService;
 
     @Override
     @Transactional(readOnly = true)
     public VideoReactionSummary getVideoReactionSummary(Long videoId, Long userId) {
         requireVideo(videoId);
+        requireVideoAccess(videoId);
         ReactionType userReaction = userId == null ? null
                 : videoReactionRepository.findByVideo_VideoIdAndUser_Id(videoId, userId)
                     .map(VideoReaction::getReaction).orElse(null);
@@ -43,6 +48,7 @@ public class VideoReactionServiceImplements implements VideoReactionService {
     @Transactional
     public VideoReactionResponse setReaction(Long videoId, Long userId, ReactionType reactionType) {
         Video video = requireVideo(videoId);
+        requireVideoAccess(videoId);
         AppUser user = appUserRepository.findById(userId)
                 .orElseThrow(() -> notFound("User", userId));
 
@@ -64,6 +70,7 @@ public class VideoReactionServiceImplements implements VideoReactionService {
     @Transactional
     public void deleteReaction(Long videoId, Long userId) {
         requireVideo(videoId);
+        requireVideoAccess(videoId);
         videoReactionRepository
                 .findByVideo_VideoIdAndUser_Id(videoId, userId)
                 .ifPresent(videoReactionRepository::delete);
@@ -72,6 +79,13 @@ public class VideoReactionServiceImplements implements VideoReactionService {
     private Video requireVideo(Long videoId) {
         return videoRepository.findById(videoId)
                 .orElseThrow(() -> notFound("Video", videoId));
+    }
+
+    private void requireVideoAccess(Long videoId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!authorizationService.canViewVideo(videoId, authentication)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Video " + videoId + " not found");
+        }
     }
 
     private ResponseStatusException notFound(String type, Long id) {

@@ -28,6 +28,7 @@ class VideoAssetManagementServiceTest {
         videoRepository = mock(VideoRepository.class);
         assetRepository = mock(VideoAssetRepository.class);
         r2StorageService = mock(R2StorageService.class);
+        when(r2StorageService.bucketName()).thenReturn("bucket");
         service = new VideoAssetManagementService(videoRepository, assetRepository, r2StorageService);
         video = new Video();
         video.setVideoId(8L);

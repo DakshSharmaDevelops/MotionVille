@@ -31,7 +31,7 @@ class AppUserServiceTest {
         AppUser user = new AppUser();
         user.setId(17L);
         user.setUsername("creator");
-        user.setPasswordHash("$2a$encoded");
+        user.setPassword("$2a$encoded");
         when(repository.findByUsername("creator")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("secret", "$2a$encoded")).thenReturn(true);
 
@@ -45,7 +45,7 @@ class AppUserServiceTest {
         when(repository.findByUsername("unknown")).thenReturn(Optional.empty());
         AppUser user = new AppUser();
         user.setUsername("creator");
-        user.setPasswordHash("$2a$encoded");
+        user.setPassword("$2a$encoded");
         when(repository.findByUsername("creator")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrong", "$2a$encoded")).thenReturn(false);
 

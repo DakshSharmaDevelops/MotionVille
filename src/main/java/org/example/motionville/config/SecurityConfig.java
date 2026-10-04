@@ -59,26 +59,16 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Support single or comma-separated origins (e.g. "http://localhost:5173,http://127.0.0.1:5173")
         List<String> origins = java.util.Arrays.stream(frontendOrigin.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toList();
         configuration.setAllowedOrigins(origins);
 
-        // Allowed HTTP methods
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-
-        // Allowed request headers (including auth, content negotiation, and cookies)
         configuration.setAllowedHeaders(List.of("*"));
-
-        // Response headers accessible to the frontend
         configuration.setExposedHeaders(List.of("Location", "Authorization"));
-
-        // Allow credentials (session cookies / HTTP auth)
         configuration.setAllowCredentials(true);
-
-        // Cache preflight OPTIONS responses for 1 hour
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -94,7 +84,6 @@ public class SecurityConfig {
             ApiAccessDeniedHandler accessDeniedHandler) throws Exception {
 
         http
-                // Configure Cookie-to-Header CSRF Protection for SPA
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
@@ -102,7 +91,6 @@ public class SecurityConfig {
                                 "/api/live/authorize" // Media server webhook
                         )
                 )
-                // Ensure the XSRF-TOKEN cookie is rendered on every request
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
 
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))

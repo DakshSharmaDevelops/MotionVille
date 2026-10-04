@@ -1,6 +1,7 @@
 package org.example.motionville.repo.channel;
 
 import org.example.motionville.entity.channel.Channel;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,8 +16,10 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     boolean existsByOwner_Id(Long ownerId);
 
+    @EntityGraph(attributePaths = {"owner"})
     List<Channel> findByOwner_Id(Long ownerId);
 
+    @EntityGraph(attributePaths = {"owner"})
     @Query("""
             select c from Channel c
             where :search = ''

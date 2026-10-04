@@ -12,7 +12,10 @@ import org.example.motionville.entity.engagement.enums.ReactionType;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.comment.CommentReactionRepository;
 import org.example.motionville.repo.comment.CommentRepository;
+import org.example.motionville.security.AuthorizationService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -27,12 +30,14 @@ public class CommentReactionServiceImplements implements CommentReactionService{
 
     private final AppUserRepository appUserRepository;
     private final NotificationCreationService notificationCreationService;
+    private final AuthorizationService authorizationService;
 
 
     @Override
     @Transactional(readOnly = true)
     public CommentReactionSummary getCommentReactionSummary(Long commentId, Long userId) {
-        requireComment(commentId);
+        Comment comment = requireComment(commentId);
+        requireCommentVideoAccess(comment);
         ReactionType reactionType =userId== null ? null :
                 commentReactionRepository.findByComment_IdAndUser_Id(commentId,userId)
                         .map(CommentReaction::getReaction)
@@ -49,6 +54,7 @@ public class CommentReactionServiceImplements implements CommentReactionService{
     @Override
     public CommentReactionResponse setCommentReaction(Long commentId, Long userId, ReactionType reactionType){
         Comment comment=requireComment(commentId);
+        requireCommentVideoAccess(comment);
 
         AppUser user=appUserRepository.findById(userId)
                 .orElseThrow(()->
@@ -76,9 +82,8 @@ public class CommentReactionServiceImplements implements CommentReactionService{
     @Transactional
     @Override
     public void deleteCommentReaction(Long commentId, Long userId){
-        if (!commentRepository.existsById(commentId)) {
-            throw notFound("comment", commentId);
-        }
+        Comment comment = requireComment(commentId);
+        requireCommentVideoAccess(comment);
 
         commentReactionRepository
                 .findByComment_IdAndUser_Id(commentId, userId)
@@ -93,6 +98,18 @@ public class CommentReactionServiceImplements implements CommentReactionService{
         }
         return comment;
     }
+
+    private void requireCommentVideoAccess(Comment comment) {
+        if (comment.getVideo() == null) {
+            throw notFound("comment", comment.getId());
+        }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Long videoId = comment.getVideo().getVideoId();
+        if (!authorizationService.canViewVideo(videoId, authentication)) {
+            throw notFound("comment", comment.getId());
+        }
+    }
+
     private ResponseStatusException notFound(String resource,Long id) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND,
                 resource+ " " + id + " not found");

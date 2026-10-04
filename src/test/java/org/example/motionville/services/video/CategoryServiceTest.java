@@ -32,7 +32,6 @@ class CategoryServiceTest {
         category.setId(7L);
         category.setName("Technology");
         category.setSlug("technology");
-        category.setDescription("Technology");
         when(categories.findById(7L)).thenReturn(Optional.of(category));
         when(categories.save(any(Category.class))).thenAnswer(invocation -> {
             Category saved = invocation.getArgument(0);
@@ -49,7 +48,7 @@ class CategoryServiceTest {
         var response = service.createCategory(new CategoryRequest(" Technology ", "Technology"));
 
         assertEquals(new CategoryResponse(7L, "Technology", "technology"), response);
-        verify(categories).save(argThat(saved -> "Technology".equals(saved.getDescription())));
+        verify(categories).save(argThat(saved -> "Technology".equals(saved.getName())));
     }
 
     @Test

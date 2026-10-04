@@ -52,7 +52,17 @@ public class WatchHistoryServiceImplements implements WatchHistoryService {
         history.setVideo(video);
         history.setLastPositionSeconds(request.getLastPositionSeconds());
         history.setLastWatchedAt(Instant.now());
-        return toResponse(watchHistoryRepository.save(history));
+        WatchHistory saved = watchHistoryRepository.save(history);
+        pruneHistoryIfNeeded(user.getId());
+        return toResponse(saved);
+    }
+
+    private void pruneHistoryIfNeeded(Long userId) {
+        List<WatchHistory> all = watchHistoryRepository.findByUser_IdOrderByLastWatchedAtDesc(userId);
+        if (all.size() > 500) {
+            List<WatchHistory> toDelete = all.subList(500, all.size());
+            watchHistoryRepository.deleteAll(toDelete);
+        }
     }
 
     @Override

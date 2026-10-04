@@ -41,8 +41,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
-public class
-VideoService {
+public class VideoService {
 
     // Accept standalone media containers, not playlists that can reference other
     // local files or URLs. Unsupported/corrupt media becomes FAILED.

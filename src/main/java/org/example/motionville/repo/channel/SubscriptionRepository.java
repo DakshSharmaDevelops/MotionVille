@@ -1,6 +1,7 @@
 package org.example.motionville.repo.channel;
 
 import org.example.motionville.entity.channel.Subscription;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -19,8 +20,10 @@ public interface SubscriptionRepository
             Long channelId
     );
 
+    @EntityGraph(attributePaths = {"channel", "channel.owner"})
     List<Subscription> findBySubscriber_Id(Long subscriberId);
 
+    @EntityGraph(attributePaths = {"subscriber"})
     List<Subscription> findByChannel_ChannelId(Long channelId);
 
     long countByChannel_ChannelId(Long channelId);

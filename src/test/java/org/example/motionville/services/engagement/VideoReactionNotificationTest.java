@@ -10,6 +10,7 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.engagement.VideoReactionRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.security.AuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +25,7 @@ class VideoReactionNotificationTest {
     private VideoRepository videos;
     private AppUserRepository users;
     private NotificationCreationService notificationCreationService;
+    private AuthorizationService authorizationService;
     private VideoReactionServiceImplements service;
     private Video video;
     private AppUser actor;
@@ -34,8 +36,9 @@ class VideoReactionNotificationTest {
         videos = mock(VideoRepository.class);
         users = mock(AppUserRepository.class);
         notificationCreationService = mock(NotificationCreationService.class);
+        authorizationService = mock(AuthorizationService.class);
         service = new VideoReactionServiceImplements(
-                reactions, videos, users, notificationCreationService);
+                reactions, videos, users, notificationCreationService, authorizationService);
 
         actor = user(2L);
         AppUser owner = user(1L);
@@ -49,6 +52,7 @@ class VideoReactionNotificationTest {
 
         when(videos.findById(4L)).thenReturn(Optional.of(video));
         when(users.findById(2L)).thenReturn(Optional.of(actor));
+        when(authorizationService.canViewVideo(eq(4L), isNull())).thenReturn(true);
         when(reactions.save(any(VideoReaction.class))).thenAnswer(call -> call.getArgument(0));
     }
 

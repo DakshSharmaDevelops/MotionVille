@@ -8,6 +8,7 @@ import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.engagement.VideoViewRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.security.AuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,22 +21,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.any;
 
 class VideoViewServiceImplementsTest {
 
     private VideoViewRepository videoViewRepository;
     private VideoRepository videoRepository;
+    private AuthorizationService authorizationService;
     private VideoViewServiceImplements service;
 
     @BeforeEach
     void setUp() {
         videoViewRepository = mock(VideoViewRepository.class);
         videoRepository = mock(VideoRepository.class);
+        authorizationService = mock(AuthorizationService.class);
         service = new VideoViewServiceImplements(
                 videoViewRepository,
                 videoRepository,
-                mock(AppUserRepository.class));
+                mock(AppUserRepository.class),
+                authorizationService);
+        when(authorizationService.canViewVideo(eq(4L), isNull())).thenReturn(true);
     }
 
     @Test

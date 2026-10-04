@@ -50,7 +50,6 @@ public class AppUserService {
         user.setEmail(request.getEmail());
         String encodedPassword = passwordEncoder.encode(request.getPassword());
         user.setPassword(encodedPassword);
-        user.setPasswordHash(encodedPassword);
 
         user.setRole("USER");
         user.setDisplayName(request.getDisplayName());
@@ -74,8 +73,8 @@ public class AppUserService {
 
     public UserResponse login(String username, String password) {
         AppUser user = username == null ? null : appUserRepository.findByUsername(username.trim()).orElse(null);
-        if (user == null || user.getPasswordHash() == null
-                || password == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
+        if (user == null || user.getPassword() == null
+                || password == null || !passwordEncoder.matches(password, user.getPassword())) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
                     "Invalid username or password"
@@ -155,7 +154,6 @@ public class AppUserService {
 
             String encodedPassword = passwordEncoder.encode(request.getPassword());
             user.setPassword(encodedPassword);
-            user.setPasswordHash(encodedPassword);
         }
 
 

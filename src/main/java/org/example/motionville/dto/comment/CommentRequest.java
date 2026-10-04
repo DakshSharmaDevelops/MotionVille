@@ -1,7 +1,5 @@
 package org.example.motionville.dto.comment;
 
-import org.example.motionville.entity.comment.Comment;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;

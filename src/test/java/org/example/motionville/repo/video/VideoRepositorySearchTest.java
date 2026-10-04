@@ -43,8 +43,7 @@ class VideoRepositorySearchTest {
         AppUser owner = new AppUser();
         owner.setEmail("video-search@example.test");
         owner.setUsername("video-search");
-        owner.setPassword("password");
-        owner.setPasswordHash("password-hash");
+        owner.setPassword("password-hash");
         owner.setDisplayName("Video Search");
         owner.setCreatedAt(now);
         owner.setUpdatedAt(now);
@@ -60,7 +59,6 @@ class VideoRepositorySearchTest {
         Category category = new Category();
         category.setName("Technology");
         category.setSlug("technology");
-        category.setDescription("Technology videos");
         entityManager.persist(category);
 
         entityManager.persist(video(channel, category, "Java Basics", "Learn Java", now));

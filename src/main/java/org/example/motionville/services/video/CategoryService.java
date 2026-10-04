@@ -34,7 +34,6 @@ public class CategoryService {
         Category category = new Category();
         category.setName(name);
         category.setSlug(slug);
-        category.setDescription(name);
         return toResponse(categoryRepository.save(category));
     }
 
@@ -57,7 +56,6 @@ public class CategoryService {
 
         category.setName(name);
         category.setSlug(slug);
-        category.setDescription(name);
         return toResponse(categoryRepository.save(category));
     }
 

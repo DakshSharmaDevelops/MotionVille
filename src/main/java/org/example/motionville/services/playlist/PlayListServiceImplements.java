@@ -75,7 +75,7 @@ public class PlayListServiceImplements implements PlayListService {
     }
 
     private PlayList findPlayList(Long playListId) {
-        return playListRepository.findById(playListId)
+        return playListRepository.findWithVideosById(playListId)
                 .orElseThrow(() -> notFound("Playlist", playListId));
     }
 

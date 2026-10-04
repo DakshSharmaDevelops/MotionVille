@@ -10,7 +10,6 @@ import org.example.motionville.dto.video.VideoAssetResponse;
 import org.example.motionville.dto.video.VideoResponse;
 import org.example.motionville.dto.video.VideoUpdateRequest;
 import org.example.motionville.dto.video.VideoVisibilityRequest;
-import org.example.motionville.entity.video.VideoAsset;
 import org.example.motionville.services.video.VideoAssetManagementService;
 import org.example.motionville.services.video.VideoManagementService;
 import org.example.motionville.services.video.VideoSearchService;
@@ -115,7 +114,7 @@ public class VideoController {
         return managementService.changeVisibility(id, request);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isVideoOwner(#id, authentication)")
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/processing-status")
     public VideoResponse changeProcessingStatus(
             @PathVariable Long id,
@@ -174,15 +173,6 @@ public class VideoController {
     @PreAuthorize("@authorizationService.canViewVideo(#id, authentication)")
     @GetMapping("/play/{id}")
     public List<VideoAssetResponse> playVideo(@PathVariable Long id) {
-        return videoService.playVideo(id).stream()
-                .map(asset -> new VideoAssetResponse(
-                        asset.getId(),
-                        asset.getVideo().getVideoId(),
-                        asset.getAssetUrl(),
-                        asset.getQuality(),
-                        asset.getMimeType(),
-                        asset.getSizeBytes(),
-                        asset.getCreatedAt()))
-                .toList();
+        return videoAssetManagementService.getAll(id);
     }
 }

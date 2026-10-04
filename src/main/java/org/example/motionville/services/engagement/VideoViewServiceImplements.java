@@ -10,7 +10,10 @@ import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.engagement.VideoViewRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.security.AuthorizationService;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,11 +31,13 @@ public class VideoViewServiceImplements implements VideoViewService {
     private final VideoViewRepository videoViewRepository;
     private final VideoRepository videoRepository;
     private final AppUserRepository appUserRepository;
+    private final AuthorizationService authorizationService;
 
     @Override
     public VideoViewResponse recordView(Long videoId, VideoViewRequest request) {
         Video video = videoRepository.findById(videoId)
                 .orElseThrow(() -> notFound("Video", videoId));
+        requireVideoAccess(videoId);
         if (video.getProcessingStatus() != VideoProcessingStatus.READY
                 && video.getProcessingStatus() != VideoProcessingStatus.UPLOADED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -87,6 +92,7 @@ public class VideoViewServiceImplements implements VideoViewService {
         if (!videoRepository.existsById(videoId)) {
             throw notFound("Video", videoId);
         }
+        requireVideoAccess(videoId);
         return videoViewRepository.countByVideo_VideoId(videoId);
     }
 
@@ -95,6 +101,13 @@ public class VideoViewServiceImplements implements VideoViewService {
             return (durationSeconds + 1) / 2;
         }
         return DEFAULT_VIEW_THRESHOLD_SECONDS;
+    }
+
+    private void requireVideoAccess(Long videoId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!authorizationService.canViewVideo(videoId, authentication)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Video " + videoId + " not found");
+        }
     }
 
     private ResponseStatusException notFound(String type, Long id) {

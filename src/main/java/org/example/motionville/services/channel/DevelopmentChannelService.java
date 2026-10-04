@@ -49,7 +49,6 @@ public class DevelopmentChannelService {
         owner.setEmail("dev-" + secret + "@example.test");
         String encodedPassword = passwordEncoder.encode(secret);
         owner.setPassword(encodedPassword);
-        owner.setPasswordHash(encodedPassword);
         owner.setDisplayName(request.name().trim());
         owner = userRepository.save(owner);
 

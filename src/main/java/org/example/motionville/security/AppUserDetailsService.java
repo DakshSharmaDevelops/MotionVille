@@ -27,7 +27,7 @@ public class AppUserDetailsService implements UserDetailsService {
                                 "User not found")));
 
         return User.withUsername(user.getUsername())
-                .password(user.getPasswordHash())
+                .password(user.getPassword())
                 .roles(user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole())
                 .build();
     }

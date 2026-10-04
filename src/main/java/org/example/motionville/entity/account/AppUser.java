@@ -29,12 +29,8 @@ public class AppUser {
     private String username;
 
     @JsonIgnore
-    @Column(nullable = false, length = 255)
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
-
-    @JsonIgnore
-    @Column(name = "password_hash", nullable = false, length = 255)
-    private String passwordHash;
 
     @Column(name="display_name", nullable = false, length = 100)
     private String displayName;

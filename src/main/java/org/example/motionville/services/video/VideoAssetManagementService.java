@@ -4,6 +4,7 @@ import org.example.motionville.dto.video.VideoAssetRequest;
 import org.example.motionville.dto.video.VideoAssetResponse;
 import org.example.motionville.entity.video.Video;
 import org.example.motionville.entity.video.VideoAsset;
+import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.springframework.context.annotation.Lazy;
@@ -81,11 +82,41 @@ public class VideoAssetManagementService {
         return new VideoAssetResponse(
                 asset.getId(),
                 asset.getVideo().getVideoId(),
-                asset.getAssetUrl(),
+                deliveryUrl(asset),
                 asset.getQuality(),
                 asset.getMimeType(),
                 asset.getSizeBytes(),
                 asset.getCreatedAt()
         );
+    }
+
+    private String deliveryUrl(VideoAsset asset) {
+        String locator = asset.getAssetUrl();
+        if (locator == null || !locator.startsWith("r2://")) {
+            return locator;
+        }
+
+        String objectKey = objectKey(locator);
+        Video video = asset.getVideo();
+        if ("hls".equals(asset.getQuality())
+                && video.getVisibility() == VideoVisibility.PUBLIC
+                && video.getPublishedAt() != null
+                && r2StorageService.cdnConfigured()
+                && r2StorageService.cdnObjectExists(objectKey)) {
+            return r2StorageService.cdnObjectUrl(objectKey);
+        }
+
+        return r2StorageService.createPlaybackUrl(objectKey);
+    }
+
+    private String objectKey(String locator) {
+        String prefix = "r2://" + r2StorageService.bucketName() + "/";
+        if (!locator.startsWith(prefix)) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Stored video asset has an invalid storage locator"
+            );
+        }
+        return locator.substring(prefix.length());
     }
 }
