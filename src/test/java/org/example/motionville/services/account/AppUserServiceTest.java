@@ -17,13 +17,17 @@ import static org.mockito.Mockito.when;
 class AppUserServiceTest {
     private AppUserRepository repository;
     private PasswordEncoder passwordEncoder;
+    private EmailValidatorService emailValidatorService;
+    private EmailVerificationService emailVerificationService;
     private AppUserService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(AppUserRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        service = new AppUserService(repository, passwordEncoder);
+        emailValidatorService = mock(EmailValidatorService.class);
+        emailVerificationService = mock(EmailVerificationService.class);
+        service = new AppUserService(repository, passwordEncoder, emailValidatorService, emailVerificationService);
     }
 
     @Test

@@ -48,6 +48,18 @@ public class AuthorizationService {
                         "ROLE_ADMIN".equals(authority.getAuthority()));
     }
 
+    public boolean isEmailVerified(Authentication authentication) {
+        if (!isAuthenticated(authentication)) {
+            return false;
+        }
+        if (isAdmin(authentication)) {
+            return true;
+        }
+        return userRepository.findByUsername(authentication.getName())
+                .map(org.example.motionville.entity.account.AppUser::isEmailVerified)
+                .orElse(false);
+    }
+
     public boolean isUserOwner(Long userId, Authentication authentication) {
         return matchesUser(userId, authentication);
     }

@@ -23,7 +23,7 @@ public class ChannelController {
         this.channelService = channelService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#request.ownerId, authentication)")
+    @PreAuthorize("hasRole('ADMIN') or (@authorizationService.isUserOwner(#request.ownerId, authentication) and @authorizationService.isEmailVerified(authentication))")
     @PostMapping
     public ResponseEntity<ChannelResponse> createChannel(
             @Valid @RequestBody ChannelCreateRequest request) {

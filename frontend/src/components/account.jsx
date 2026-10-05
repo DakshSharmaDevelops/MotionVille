@@ -15,6 +15,7 @@ export function AccountDialog({
   onShowSubscriptions,
   onSwitchLogin,
   onSwitchRegister,
+  onResendVerification,
 }) {
   const authMode = mode === "auth";
   const loginMode = mode === "login";
@@ -331,7 +332,20 @@ export function AccountDialog({
 
           {profileMode && (
             <div style={{ display: "grid", gap: 8, padding: 12, border: "1px solid #efeeec", borderRadius: 10, background: "#fcfbfa" }}>
-              <strong style={{ fontSize: 11 }}>Your account</strong>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong style={{ fontSize: 11 }}>Your account</strong>
+                <span style={{ fontSize: 11, fontWeight: 600, color: user?.emailVerified ? "#16a34a" : "#d97706" }}>
+                  {user?.emailVerified ? "✓ Verified" : "⚠ Unverified"}
+                </span>
+              </div>
+              {!user?.emailVerified && onResendVerification && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fef3c7", padding: "6px 10px", borderRadius: 6, fontSize: 11, color: "#92400e" }}>
+                  <span>Verify your email to unlock all features.</span>
+                  <button type="button" className="feed-filter" style={{ padding: "3px 8px", fontSize: 10, cursor: "pointer", background: "#fff", borderColor: "#fcd34d" }} onClick={onResendVerification}>
+                    Resend link
+                  </button>
+                </div>
+              )}
               <span style={{ color: "#85858d", fontSize: 10 }}>
                 {myChannels.length} channel{myChannels.length === 1 ? "" : "s"} · {subscriptionChannels.length} subscription{subscriptionChannels.length === 1 ? "" : "s"}
               </span>

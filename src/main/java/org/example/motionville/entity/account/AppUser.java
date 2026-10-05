@@ -47,6 +47,12 @@ public class AppUser {
     @Column(nullable = false, length = 20)
     private String role = "USER";
 
+    @Column(name = "email_verified", nullable = false, columnDefinition = "boolean default false")
+    private boolean emailVerified = false;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EmailVerificationToken> verificationTokens;
+
     @OneToMany(mappedBy="owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Channel> channels;
 
