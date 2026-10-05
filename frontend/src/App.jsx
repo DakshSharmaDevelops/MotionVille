@@ -1455,9 +1455,13 @@ export default function App() {
               form.thumbnailUrl.trim() ||
               null,
             categoryId:
-              form.categoryId
+              form.categoryId && !isNaN(Number(form.categoryId))
                 ? Number(form.categoryId)
                 : null,
+            categoryName:
+              form.categoryId && isNaN(Number(form.categoryId))
+                ? form.categoryId.trim()
+                : (form.categoryName ? form.categoryName.trim() : null),
             mimeType:
               form.mimeType,
             sizeBytes:
@@ -1571,9 +1575,13 @@ export default function App() {
             channelId:
               form.channelId,
             categoryId:
-              form.categoryId
+              form.categoryId && !isNaN(Number(form.categoryId))
                 ? Number(form.categoryId)
                 : null,
+            categoryName:
+              form.categoryId && isNaN(Number(form.categoryId))
+                ? form.categoryId.trim()
+                : (form.categoryName ? form.categoryName.trim() : null),
             title:
               form.title.trim(),
             description:

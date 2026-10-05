@@ -81,10 +81,6 @@ public class CommentServiceImplements implements CommentService {
     public CommentResponse createReply(Long commentId, CommentCreateRequest request) {
         Comment parent = commentRepository.findById(commentId)
                 .orElseThrow(() -> notFound("Comment", commentId));
-        if (parent.getParentComment() != null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Replies can only be added to top-level comments");
-        }
         AppUser author = appUserRepository.findById(request.getAuthorId())
                 .orElseThrow(() -> notFound("User", request.getAuthorId()));
         Comment reply = new Comment();

@@ -9,6 +9,7 @@ import org.example.motionville.entity.video.enums.VideoVisibility;
 public record VideoCreateRequest(
         @NotNull Long channelId,
         Long categoryId,
+        String categoryName,
         @NotBlank @Size(max = 255) String title,
         @Size(max = 5000) String description,
         @Size(max = 255) String thumbnailUrl,

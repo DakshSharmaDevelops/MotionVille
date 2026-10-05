@@ -23,7 +23,7 @@ public class TagController {
         this.tagService = tagService;
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @PostMapping
     public ResponseEntity<TagResponse> create(@Valid @RequestBody TagRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(tagService.create(request));

@@ -157,6 +157,16 @@ public class VideoService {
                             HttpStatus.NOT_FOUND,
                             "Category not found"
                     )));
+        } else if (request.categoryName() != null && !request.categoryName().trim().isBlank()) {
+            String catName = request.categoryName().trim();
+            Category category = categoryRepository.findByNameIgnoreCase(catName)
+                    .orElseGet(() -> {
+                        Category newCat = new Category();
+                        newCat.setName(catName);
+                        newCat.setSlug(catName.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", ""));
+                        return categoryRepository.save(newCat);
+                    });
+            video.setCategory(category);
         }
         video.setTitle(request.title().trim());
         video.setDescription(request.description());

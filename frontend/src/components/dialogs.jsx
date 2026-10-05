@@ -299,9 +299,25 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
           <label>Video title<input name="title" value={form.title} onChange={update} maxLength="255" placeholder="Give your video a title" required /></label>
           <label>Video file<input type="file" accept="video/*,.mp4,.webm,.mov,.mkv,.avi,.m4v,.mpeg,.mpg,.wmv,.flv,.3gp,.3g2,.ts,.mts,.m2ts,.ogv" onChange={selectVideoFile} required /><small>{file ? `${file.name} · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : "MP4, WebM, MOV, MKV, AVI and other video formats, up to 500 MB."}</small></label>
           <div className="form-two-col">
-            <label>Category<select name="categoryId" value={form.categoryId} onChange={update}><option value="">No category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+            <label>Category <span className="optional" style={{ fontWeight: 400, opacity: 0.7 }}>Select or type custom</span>
+              <input
+                name="categoryId"
+                list="categories-list-create"
+                value={form.categoryId}
+                onChange={update}
+                placeholder="e.g. Gaming, Vlogs, Education"
+                maxLength={100}
+              />
+              <datalist id="categories-list-create">
+                {categories.map((category) => <option key={category.id} value={category.name} />)}
+              </datalist>
+            </label>
             <label>Visibility<select name="visibility" value={form.visibility} onChange={update}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
           </div>
+          <label>Thumbnail URL <span className="optional">Optional</span><input name="thumbnailUrl" type="url" value={form.thumbnailUrl} onChange={update} placeholder="https://example.com/thumbnail.jpg" /></label>
+          {form.thumbnailUrl && !previewError && <img className="thumbnail-preview" src={form.thumbnailUrl} alt="Thumbnail preview" onError={() => setPreviewError(true)} />}
+          {!form.thumbnailUrl.trim() && generatedThumbnailUrl && <div className="generated-thumbnail-preview"><img className="thumbnail-preview" src={generatedThumbnailUrl} alt="Automatically generated video thumbnail preview" /><small>Thumbnail generated from your video</small></div>}
+          <label>Description <span className="optional">Optional</span><textarea name="description" value={form.description} onChange={update} rows="3" maxLength="5000" placeholder="Tell viewers a little about this video" /></label>
           <div className="tags-input-group" style={{ marginTop: "0.25rem", marginBottom: "0.5rem" }}>
             <label style={{ display: "block", marginBottom: "0.35rem", fontWeight: 600 }}>
               Tags <span className="optional" style={{ fontWeight: 400, opacity: 0.7 }}>Optional</span>
@@ -367,10 +383,6 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
               Tags help viewers discover your video in search.
             </small>
           </div>
-          <label>Thumbnail URL <span className="optional">Optional</span><input name="thumbnailUrl" type="url" value={form.thumbnailUrl} onChange={update} placeholder="https://example.com/thumbnail.jpg" /></label>
-          {form.thumbnailUrl && !previewError && <img className="thumbnail-preview" src={form.thumbnailUrl} alt="Thumbnail preview" onError={() => setPreviewError(true)} />}
-          {!form.thumbnailUrl.trim() && generatedThumbnailUrl && <div className="generated-thumbnail-preview"><img className="thumbnail-preview" src={generatedThumbnailUrl} alt="Automatically generated video thumbnail preview" /><small>Thumbnail generated from your video</small></div>}
-          <label>Description <span className="optional">Optional</span><textarea name="description" value={form.description} onChange={update} rows="3" maxLength="5000" placeholder="Tell viewers a little about this video" /></label>
           {!uploadChannels.length && <p className="inline-error" role="alert">Create a channel first.</p>}
           {error && <p className="inline-error" role="alert">{error}</p>}
           {generatingThumbnail && <p className="upload-progress" role="status">Generating thumbnail preview…</p>}
@@ -485,11 +497,7 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
         <form className="dialog-form" onSubmit={submit}>
           <label>Video title<input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} maxLength="255" required /></label>
           <label>Description<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows="3" maxLength="5000" /></label>
-          <label>Thumbnail URL<input type="text" value={form.thumbnailUrl} onChange={(event) => setForm((current) => ({ ...current, thumbnailUrl: event.target.value }))} maxLength="255" /></label>
-          <label>Category<select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}><option value="">No category</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-          <label>Visibility<select value={form.visibility} onChange={(event) => setForm((current) => ({ ...current, visibility: event.target.value }))}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
-
-          <div className="tags-management-section" style={{ marginTop: "0.5rem" }}>
+          <div className="tags-management-section" style={{ marginTop: "0.5rem", marginBottom: "0.5rem" }}>
             <label style={{ display: "block", marginBottom: "0.4rem", fontWeight: 600 }}>Video tags</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "0.5rem" }}>
               {videoTags.map((tag) => (
@@ -539,6 +547,20 @@ export function ManageVideoDialog({ video, channels, categories, onClose, onSave
               </button>
             </div>
           </div>
+          <label>Thumbnail URL<input type="text" value={form.thumbnailUrl} onChange={(event) => setForm((current) => ({ ...current, thumbnailUrl: event.target.value }))} maxLength="255" /></label>
+          <label>Category <span className="optional" style={{ fontWeight: 400, opacity: 0.7 }}>Select or type custom</span>
+            <input
+              list="categories-list-manage"
+              value={form.categoryId}
+              onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}
+              placeholder="e.g. Gaming, Vlogs, Education"
+              maxLength={100}
+            />
+            <datalist id="categories-list-manage">
+              {categories.map((category) => <option key={category.id} value={category.name} />)}
+            </datalist>
+          </label>
+          <label>Visibility<select value={form.visibility} onChange={(event) => setForm((current) => ({ ...current, visibility: event.target.value }))}><option value="PUBLIC">Public</option><option value="UNLISTED">Unlisted</option><option value="PRIVATE">Private</option></select></label>
 
           {error && <p className="inline-error" role="alert">{error}</p>}
           <div className="video-management-actions">
@@ -646,6 +668,8 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const [commentsError, setCommentsError] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState("");
+  const [replyingToReplyId, setReplyingToReplyId] = useState(null);
+  const [replyingToReplyText, setReplyingToReplyText] = useState("");
   const [repliesByComment, setRepliesByComment] = useState({});
   const [replyError, setReplyError] = useState("");
   const [repliesLoading, setRepliesLoading] = useState(false);
@@ -1283,6 +1307,37 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
       }));
       loadCommentReactionSummaries([savedReply]);
       setReplyText("");
+      setReplyingTo(null);
+    } catch (error) {
+      setReplyError(error.message);
+    } finally {
+      setReplySubmitting(false);
+    }
+  }
+
+  async function submitNestedReply(event, topLevelCommentId, targetReplyId) {
+    event.preventDefault();
+    const body = replyingToReplyText.trim();
+    if (!body) return;
+
+    const authorId = Number(currentUser?.id);
+    if (!Number.isInteger(authorId) || authorId <= 0) {
+      setReplyError("Create a profile before replying.");
+      return;
+    }
+
+    setReplySubmitting(true);
+    setReplyError("");
+
+    try {
+      const savedReply = await createReply(targetReplyId, authorId, body);
+      setRepliesByComment((current) => ({
+        ...current,
+        [topLevelCommentId]: [...(current[topLevelCommentId] || []), savedReply],
+      }));
+      loadCommentReactionSummaries([savedReply]);
+      setReplyingToReplyId(null);
+      setReplyingToReplyText("");
     } catch (error) {
       setReplyError(error.message);
     } finally {
@@ -1902,6 +1957,24 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                           >
                                             Dislike {commentReactions[reply.id]?.dislikeCount ?? 0}
                                           </button>
+                                        </>}
+                                          <button
+                                            className="comment-action"
+                                            type="button"
+                                            onClick={() => {
+                                              if (replyingToReplyId === reply.id) {
+                                                setReplyingToReplyId(null);
+                                                setReplyingToReplyText("");
+                                              } else {
+                                                setReplyingToReplyId(reply.id);
+                                                setReplyingToReplyText(`@${reply.authorDisplayName || "user"} `);
+                                              }
+                                            }}
+                                            aria-expanded={replyingToReplyId === reply.id}
+                                          >
+                                            Reply
+                                          </button>
+                                        {!reply.deleted && <>
                                           <div
                                             className="comment-menu-wrap"
                                             ref={activeCommentMenuId === reply.id ? commentMenuRef : null}
@@ -2027,6 +2100,22 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                           </div>
                                         </>}
                                       </div>
+                                      {replyingToReplyId === reply.id && (
+                                        <form className="comment-form comment-reply-form" style={{ marginTop: "8px" }} onSubmit={(e) => submitNestedReply(e, item.id, reply.id)}>
+                                          <Avatar name="You" />
+                                          <input
+                                            value={replyingToReplyText}
+                                            onChange={(event) => setReplyingToReplyText(event.target.value)}
+                                            placeholder="Write a reply…"
+                                            aria-label={`Reply to ${reply.authorDisplayName || "reply"}`}
+                                            maxLength={10000}
+                                            autoFocus
+                                          />
+                                          <button disabled={!replyingToReplyText.trim() || replySubmitting} type="submit">
+                                            {replySubmitting ? "Posting…" : "Reply"}
+                                          </button>
+                                        </form>
+                                      )}
                                     </>}
                               </div>
                             </article>

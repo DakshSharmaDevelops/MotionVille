@@ -73,7 +73,7 @@ class VideoManagementServiceTest {
         });
 
         var response = service.create(new VideoCreateRequest(
-                4L, null, "  Demo  ", null, null, 0, VideoVisibility.PRIVATE));
+                4L, null, null, "  Demo  ", null, null, 0, VideoVisibility.PRIVATE));
 
         assertEquals(12L, response.id());
         assertEquals("Demo", response.title());
@@ -180,7 +180,7 @@ class VideoManagementServiceTest {
         when(channels.findById(4L)).thenReturn(Optional.of(video.getChannel()));
 
         service.update(12L, new VideoUpdateRequest(
-                4L, null, "Demo", null, "https://cdn.example/new.jpg",
+                4L, null, null, "Demo", null, "https://cdn.example/new.jpg",
                 0, VideoVisibility.PRIVATE));
 
         verify(r2StorageService).deleteAfterCommit(

@@ -99,7 +99,7 @@ public class VideoManagementService {
         Video video = new Video();
         video.setChannel(channelRepository.findById(request.channelId())
                 .orElseThrow(() -> notFound("Channel not found")));
-        video.setCategory(findCategory(request.categoryId()));
+        video.setCategory(resolveCategory(request.categoryId(), request.categoryName()));
         video.setTitle(request.title().trim());
         video.setDescription(trimToNull(request.description()));
         video.setThumbnailUrl(trimToNull(request.thumbnailUrl()));
@@ -116,7 +116,7 @@ public class VideoManagementService {
         boolean wasCdnPublished = isCdnPublished(video);
         video.setChannel(channelRepository.findById(request.channelId())
                 .orElseThrow(() -> notFound("Channel not found")));
-        video.setCategory(findCategory(request.categoryId()));
+        video.setCategory(resolveCategory(request.categoryId(), request.categoryName()));
         video.setTitle(request.title().trim());
         video.setDescription(trimToNull(request.description()));
         String previousThumbnailUrl = video.getThumbnailUrl();
@@ -316,6 +316,23 @@ public class VideoManagementService {
         if (categoryId == null) return null;
         return categoryRepository.findById(categoryId)
                 .orElseThrow(() -> notFound("Category not found"));
+    }
+
+    private Category resolveCategory(Long categoryId, String categoryName) {
+        if (categoryId != null) {
+            return findCategory(categoryId);
+        }
+        String trimmedName = trimToNull(categoryName);
+        if (trimmedName == null) {
+            return null;
+        }
+        return categoryRepository.findByNameIgnoreCase(trimmedName)
+                .orElseGet(() -> {
+                    Category newCategory = new Category();
+                    newCategory.setName(trimmedName);
+                    newCategory.setSlug(trimmedName.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", ""));
+                    return categoryRepository.save(newCategory);
+                });
     }
 
     private VideoResponse toResponse(Video video) {

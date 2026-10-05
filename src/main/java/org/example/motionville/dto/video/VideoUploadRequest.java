@@ -13,6 +13,7 @@ public record VideoUploadRequest(
         Long channelId,
         @Positive
         Long categoryId,
+        String categoryName,
         @NotBlank
         @Size(max = 255)
         String title,

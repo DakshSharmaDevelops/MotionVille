@@ -68,6 +68,12 @@ public class AppUser {
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Comment> comments;
 
+    @OneToMany(mappedBy = "recipient", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<org.example.motionville.entity.notification.Notification> receivedNotifications;
+
+    @OneToMany(mappedBy = "reporter", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<org.example.motionville.entity.report.Report> reports;
+
     public void addChannel(Channel channel) {
         if (channels == null) channels = new ArrayList<>();
         channels.add(channel);
