@@ -7,11 +7,14 @@ import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.channel.ChannelRepository;
+import org.example.motionville.repo.engagement.VideoViewRepository;
+import org.example.motionville.repo.video.VideoRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,15 +24,20 @@ public class ChannelService {
 
     private final ChannelRepository channelRepository;
     private final AppUserRepository appUserRepository;
+    private final VideoRepository videoRepository;
+    private final VideoViewRepository videoViewRepository;
 
     public ChannelService(
             ChannelRepository channelRepository,
-            AppUserRepository appUserRepository) {
+            AppUserRepository appUserRepository,
+            VideoRepository videoRepository,
+            VideoViewRepository videoViewRepository) {
 
         this.channelRepository = channelRepository;
         this.appUserRepository = appUserRepository;
+        this.videoRepository = videoRepository;
+        this.videoViewRepository = videoViewRepository;
     }
-
     public ChannelResponse createChannel(
             ChannelCreateRequest request) {
 
@@ -62,6 +70,7 @@ public class ChannelService {
         channel.setName(request.getName());
         channel.setDescription(request.getDescription());
         channel.setBannerUrl(request.getBannerUrl());
+        channel.setProfileImageUrl(request.getProfileImageUrl());
 
         Channel savedChannel = channelRepository.save(channel);
 
@@ -128,6 +137,7 @@ public class ChannelService {
         channel.setName(request.getName());
         channel.setDescription(request.getDescription());
         channel.setBannerUrl(request.getBannerUrl());
+        channel.setProfileImageUrl(request.getProfileImageUrl());
 
         Channel updatedChannel = channelRepository.save(channel);
 
@@ -179,7 +189,14 @@ public class ChannelService {
         response.setName(channel.getName());
         response.setDescription(channel.getDescription());
         response.setBannerUrl(channel.getBannerUrl());
+        String profileImg = channel.getProfileImageUrl();
+        if ((profileImg == null || profileImg.isBlank()) && channel.getOwner() != null) {
+            profileImg = channel.getOwner().getAvatarUrl();
+        }
+        response.setProfileImageUrl(profileImg);
         response.setCreatedAt(channel.getCreatedAt());
+        response.setVideoCount(videoRepository.countByChannel_ChannelId(channel.getChannelId()));
+        response.setViewCount(videoViewRepository.countByVideo_Channel_ChannelId(channel.getChannelId()));
 
         return response;
     }

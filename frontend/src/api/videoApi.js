@@ -202,6 +202,7 @@ export function mapApiVideo(video, categories = []) {
 }
 
 export function mapApiChannel(channel) {
+  const profileImage = channel.profileImageUrl || channel.avatarUrl || "";
   return {
     channelId: channel.id,
     ownerId: channel.ownerId,
@@ -210,9 +211,19 @@ export function mapApiChannel(channel) {
     handle: channel.handle,
     description: channel.description || "",
     bannerUrl: channel.bannerUrl || "",
-    avatarUrl: "",
+    avatarUrl: profileImage,
+    profileImageUrl: profileImage,
     createdAt: channel.createdAt,
+    videoCount: Number(channel.videoCount || 0),
+    viewCount: Number(channel.viewCount || 0),
   };
+}
+
+export function updateChannelApi(channelId, data) {
+  return apiRequest(`/channels/${channelId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 }
 
 export function mapApiCategory(category) {

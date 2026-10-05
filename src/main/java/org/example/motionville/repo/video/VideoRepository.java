@@ -17,6 +17,8 @@ public interface VideoRepository extends JpaRepository<Video, Long>, JpaSpecific
 
     boolean existsByTags_Id(Long tagId);
 
+    long countByChannel_ChannelId(Long channelId);
+
     @EntityGraph(attributePaths = {"channel", "category"})
     java.util.List<Video> findDistinctByTags_Id(Long tagId);
 

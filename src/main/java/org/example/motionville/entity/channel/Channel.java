@@ -37,6 +37,9 @@ public class Channel {
     @Column(name="banner_url")
     private String bannerUrl;
 
+    @Column(name="profile_image_url")
+    private String profileImageUrl;
+
     @Column(name="created_at", nullable = false)
     private Instant createdAt;
 

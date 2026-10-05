@@ -10,5 +10,7 @@ public interface VideoViewRepository extends JpaRepository<VideoView, Long> {
 
     long countByVideo_VideoId(Long videoId);
 
+    long countByVideo_Channel_ChannelId(Long channelId);
+
     void deleteAllByVideo_VideoId(Long videoId);
 }

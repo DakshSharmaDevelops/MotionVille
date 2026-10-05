@@ -22,4 +22,7 @@ public class ChannelUpdateRequest {
     @Size(max = 255)
     private String bannerUrl;
 
+    @Size(max = 255)
+    private String profileImageUrl;
+
 }

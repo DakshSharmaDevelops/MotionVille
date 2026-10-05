@@ -20,6 +20,8 @@ class ChannelServiceTest {
 
     private ChannelRepository channelRepository;
     private AppUserRepository appUserRepository;
+    private org.example.motionville.repo.video.VideoRepository videoRepository;
+    private org.example.motionville.repo.engagement.VideoViewRepository videoViewRepository;
     private ChannelService service;
     private AppUser owner;
 
@@ -27,7 +29,9 @@ class ChannelServiceTest {
     void setUp() {
         channelRepository = mock(ChannelRepository.class);
         appUserRepository = mock(AppUserRepository.class);
-        service = new ChannelService(channelRepository, appUserRepository);
+        videoRepository = mock(org.example.motionville.repo.video.VideoRepository.class);
+        videoViewRepository = mock(org.example.motionville.repo.engagement.VideoViewRepository.class);
+        service = new ChannelService(channelRepository, appUserRepository, videoRepository, videoViewRepository);
         owner = new AppUser();
         owner.setId(4L);
         when(appUserRepository.findById(4L)).thenReturn(Optional.of(owner));

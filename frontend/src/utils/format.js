@@ -27,3 +27,10 @@ export function formatDuration(value = 0) {
   const seconds = String(value % 60).padStart(2, "0");
   return `${minutes}:${seconds}`;
 }
+
+export function formatDateJoined(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}

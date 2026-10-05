@@ -59,7 +59,14 @@ public class DatabaseSchemaMigrationConfig implements BeanPostProcessor {
                     log.debug("Default constraint update skipped: {}", e.getMessage());
                 }
 
-                log.info("Pre-migration for app_user email_verified completed.");
+                // 4. Ensure channels has profile_image_url column
+                try {
+                    statement.execute("ALTER TABLE channels ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR(255)");
+                } catch (Exception e) {
+                    log.debug("channels profile_image_url migration skipped: {}", e.getMessage());
+                }
+
+                log.info("Pre-migration for app_user and channels completed.");
             }
         } catch (Exception e) {
             log.debug("Database pre-migration check skipped or failed: {}", e.getMessage());

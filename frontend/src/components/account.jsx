@@ -325,9 +325,24 @@ export function AccountDialog({
           )}
 
           {error && (
-            <p className="inline-error" role="alert">
-              {error}
-            </p>
+            <div style={{ display: "grid", gap: 8 }}>
+              <p className="inline-error" role="alert">
+                {error}
+              </p>
+              {loginMode && (error.toLowerCase().includes("verif") || error.toLowerCase().includes("not verified")) && onResendVerification && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fef3c7", padding: "8px 12px", borderRadius: 8, fontSize: 12, color: "#92400e" }}>
+                  <span>Did not receive verification email?</span>
+                  <button
+                    type="button"
+                    className="feed-filter"
+                    style={{ padding: "4px 10px", fontSize: 11, cursor: "pointer", background: "#fff", borderColor: "#fcd34d" }}
+                    onClick={() => onResendVerification(form.username)}
+                  >
+                    Resend email
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {profileMode && (

@@ -46,7 +46,7 @@ public class VideoController {
         this.videoAssetManagementService = videoAssetManagementService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isChannelOwner(#request.channelId(), authentication)")
+    @PreAuthorize("hasRole('ADMIN') or (@authorizationService.isChannelOwner(#request.channelId(), authentication) and @authorizationService.isEmailVerified(authentication))")
     @PostMapping
     public ResponseEntity<VideoResponse> createVideo(
             @Valid @RequestBody VideoCreateRequest request) {

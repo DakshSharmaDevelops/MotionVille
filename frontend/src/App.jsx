@@ -11,6 +11,7 @@ import {
   createTag,
   addTagToVideo,
   fetchTags,
+  updateChannelApi,
 } from "./api/videoApi.js";
 
 import { Avatar, Icon, VideoCard } from "./components/ui.jsx";
@@ -23,6 +24,7 @@ import {
 
 import {
   CreateChannelDialog,
+  EditChannelDialog,
   CreateVideoDialog,
   ManageVideoDialog,
   ReportDialog,
@@ -45,7 +47,7 @@ import {
   updatePlaylist,
 } from "./api/playlistApi.js";
 import { clearWatchHistory, fetchWatchHistory, removeWatchHistoryItem } from "./api/watchHistoryApi.js";
-import { formatAge, formatDuration } from "./utils/format.js";
+import { formatAge, formatDuration, formatDateJoined, formatViews } from "./utils/format.js";
 
 import {
   fetchNotificationCount,
@@ -154,6 +156,7 @@ export default function App() {
   const [view, setView] = useState(() => routeView(window.location.pathname));
 
   const [createDialog, setCreateDialog] = useState(null);
+  const [editChannelDialog, setEditChannelDialog] = useState(null);
   const [liveStreamDialogOpen, setLiveStreamDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [youPanelOpen, setYouPanelOpen] = useState(false);
@@ -223,20 +226,18 @@ export default function App() {
           body: JSON.stringify({ token }),
         })
           .then((res) => {
-            setToast(res?.message || "Email verified successfully! Full features unlocked.");
-            apiRequest("/auth/me")
-              .then((updated) => {
-                if (updated?.id) setCurrentUser(updated);
-              })
-              .catch(() => {});
-            navigate("/", { replace: true });
+            setToast(res?.message || "Email verified successfully! You can now log in.");
+            setAccountDialog("login");
+            navigate("/login", { replace: true });
           })
           .catch((err) => {
             setToast(err?.message || "Verification link is invalid or has expired.");
-            navigate("/", { replace: true });
+            setAccountDialog("login");
+            navigate("/login", { replace: true });
           });
       } else {
-        navigate("/", { replace: true });
+        setAccountDialog("login");
+        navigate("/login", { replace: true });
       }
     }
     if (path === "/search") {
@@ -1018,6 +1019,8 @@ export default function App() {
           description: form.description.trim(),
           bannerUrl:
             form.bannerUrl.trim() || null,
+          profileImageUrl:
+            form.profileImageUrl?.trim() || null,
         }),
       });
 
@@ -1048,6 +1051,37 @@ export default function App() {
     navigate(`/channel/${channel.channelId}`);
   }
 
+  async function handleUpdateChannel(channelId, form) {
+    const handle = form.handle.startsWith("@")
+      ? form.handle
+      : `@${form.handle}`;
+
+    const updated = await updateChannelApi(channelId, {
+      name: form.name.trim(),
+      handle: handle.trim(),
+      description: form.description?.trim() || null,
+      bannerUrl: form.bannerUrl?.trim() || null,
+      profileImageUrl: form.profileImageUrl?.trim() || null,
+    });
+
+    const mapped = mapApiChannel(updated);
+
+    setChannels((current) =>
+      current.map((item) =>
+        item.channelId === mapped.channelId ? mapped : item
+      )
+    );
+
+    setMyChannels((current) =>
+      current.map((item) =>
+        item.channelId === mapped.channelId ? mapped : item
+      )
+    );
+
+    setEditChannelDialog(null);
+    setToast("Channel updated successfully.");
+  }
+
   async function registerUser(form) {
     await apiRequest(
       "/users",
@@ -1068,28 +1102,10 @@ export default function App() {
       }
     );
 
-    const user = await apiRequest("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        username: form.username.trim(),
-        password: form.password,
-      }),
-    });
-
-    localStorage.setItem(
-      "motionville.currentUserId",
-      String(user.id)
-    );
-    localStorage.setItem(LAST_ACTIVITY_STORAGE_KEY, String(Date.now()));
-
-    setCurrentUser(user);
-    setAccountDialog(null);
-    setAccountMenuOpen(false);
-    setView("Home");
-    navigate("/");
-    setYouPanelOpen(false);
+    setAccountDialog("login");
+    navigate("/login");
     setToast(
-      "Account created successfully."
+      "Account created! Please check your email to verify your account before logging in."
     );
   }
 
@@ -2701,53 +2717,7 @@ export default function App() {
 
         <main className="main-content">
           <LiveBroadcastList onWatch={(id) => navigate(`${location.pathname}?live=${id}`)} />
-          {view === "Home" ||
-          view === "Explore" ? (
-            <div className="welcome-strip">
-              <div className="welcome-copy">
-                <span className="welcome-kicker">
-                  <Icon
-                    name="sparkle"
-                    size={14}
-                  />
-                  YOUR SPACE TO WATCH &
-                  SHARE
-                </span>
-
-                <h1>
-                  Find your next{" "}
-                  <em>favorite.</em>
-                </h1>
-
-                <p>
-                  Stories, ideas, and
-                  little moments from
-                  creators worth following.
-                </p>
-              </div>
-
-              <div
-                className="welcome-art"
-                aria-hidden="true"
-              >
-                <div className="art-sun" />
-
-                <div className="art-arch">
-                  <div className="art-land art-land-one" />
-                  <div className="art-land art-land-two" />
-                  <div className="art-water" />
-                </div>
-
-                <span className="art-spark art-spark-one">
-                  ✳
-                </span>
-
-                <span className="art-spark art-spark-two">
-                  ✦
-                </span>
-              </div>
-            </div>
-          ) : view === "Your channel" ? (
+          {view === "Your channel" ? (
             <>
               <section className="account-profile-card" aria-label="Your profile">
                 <Avatar
@@ -2773,31 +2743,100 @@ export default function App() {
               </section>
 
               {ownChannel ? (
-                <section className="channel-banner">
-                  {ownChannel.bannerUrl && (
-                    <img src={ownChannel.bannerUrl} alt="" />
-                  )}
-                  <div className="channel-banner-content">
-                    <Avatar
-                      src={ownChannel.avatarUrl}
-                      name={ownChannel.name}
-                      size="banner"
-                    />
-                    <div>
-                      <p className="channel-profile-label">YOUR CHANNEL</p>
+                <div className="channel-page-header">
+                  <div className="channel-banner-container">
+                    {ownChannel.bannerUrl ? (
+                      <img
+                        src={ownChannel.bannerUrl}
+                        alt={`${ownChannel.name} banner`}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background:
+                            "linear-gradient(115deg, #1e293b, #334155 58%, #475569)",
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  <div className="channel-identity-bar">
+                    <div className="channel-identity-avatar">
+                      <Avatar
+                        src={
+                          ownChannel.profileImageUrl ||
+                          ownChannel.avatarUrl
+                        }
+                        name={ownChannel.name}
+                        size="channel-header"
+                      />
+                    </div>
+
+                    <div className="channel-identity-info">
                       <h2>{ownChannel.name}</h2>
-                      <p>{ownChannel.handle}</p>
-                      {ownChannel.description && <span>{ownChannel.description}</span>}
-                      <div className="channel-profile-actions">
+                      <div className="channel-meta-text">
+                        <span className="channel-handle">
+                          {ownChannel.handle}
+                        </span>
+                        <span>•</span>
                         <span>
-                          {subscriberCounts[ownChannel.channelId] || 0}{" "}
-                          {Number(subscriberCounts[ownChannel.channelId] || 0) === 1
-                            ? "subscriber"
-                            : "subscribers"}
+                          {subscriberCounts[
+                            ownChannel.channelId
+                          ] || 0}{" "}
+                          subscriber
+                          {Number(
+                            subscriberCounts[
+                              ownChannel.channelId
+                            ] || 0
+                          ) === 1
+                            ? ""
+                            : "s"}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {ownChannel.videoCount || 0}{" "}
+                          video
+                          {Number(
+                            ownChannel.videoCount || 0
+                          ) === 1
+                            ? ""
+                            : "s"}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {formatViews(
+                            ownChannel.viewCount || 0
+                          )}
                         </span>
                         {ownChannel.createdAt && (
-                          <span>Created {formatAge(ownChannel.createdAt)}</span>
+                          <>
+                            <span>•</span>
+                            <span>
+                              Joined {formatDateJoined(ownChannel.createdAt) || formatAge(ownChannel.createdAt)}
+                            </span>
+                          </>
                         )}
+                      </div>
+
+                      {ownChannel.description && (
+                        <p className="channel-description-text">
+                          {ownChannel.description}
+                        </p>
+                      )}
+
+                      <div className="channel-actions-bar">
+                        <button
+                          type="button"
+                          className="feed-filter"
+                          onClick={() =>
+                            setEditChannelDialog(ownChannel)
+                          }
+                        >
+                          <Icon name="edit" size={14} />
+                          Edit channel
+                        </button>
                         <button
                           type="button"
                           className="feed-filter"
@@ -2810,13 +2849,16 @@ export default function App() {
                           className="button button-live"
                           onClick={() => setLiveStreamDialogOpen(true)}
                         >
-                          <span className="live-status-dot" aria-hidden="true" />
+                          <span
+                            className="live-status-dot"
+                            aria-hidden="true"
+                          />
                           Start live stream
                         </button>
                       </div>
                     </div>
                   </div>
-                </section>
+                </div>
               ) : (
                 <section className="your-channel-empty">
                   <h2>You don’t have a channel yet</h2>
@@ -2837,70 +2879,112 @@ export default function App() {
           ) : view ===
               "Channel" &&
             activeChannel ? (
-            <section className="channel-banner">
-              {activeChannel.bannerUrl && (
-                <img
-                  src={
-                    activeChannel.bannerUrl
-                  }
-                  alt=""
-                />
-              )}
-
-              <div className="channel-banner-content">
-                <Avatar
-                  src={
-                    activeChannel.avatarUrl
-                  }
-                  name={
-                    activeChannel.name
-                  }
-                  size="banner"
-                />
-
-                <div>
-                  <h1>
-                    {activeChannel.name}
-                  </h1>
-
-                  <p>
-                    {activeChannel.handle}
-                  </p>
-
-                  <span>
-                    {
-                      activeChannel.description
-                    }
-                  </span>
-
+            <div className="channel-page-header">
+              <div className="channel-banner-container">
+                {activeChannel.bannerUrl ? (
+                  <img
+                    src={activeChannel.bannerUrl}
+                    alt={`${activeChannel.name} banner`}
+                  />
+                ) : (
                   <div
                     style={{
-                      marginTop: 8,
-                      display: "flex",
-                      gap: 8,
-                      alignItems:
-                        "center",
-                      flexWrap:
-                        "wrap",
+                      width: "100%",
+                      height: "100%",
+                      background:
+                        "linear-gradient(115deg, #1e293b, #334155 58%, #475569)",
                     }}
-                  >
+                  />
+                )}
+              </div>
+
+              <div className="channel-identity-bar">
+                <div className="channel-identity-avatar">
+                  <Avatar
+                    src={
+                      activeChannel.profileImageUrl ||
+                      activeChannel.avatarUrl
+                    }
+                    name={activeChannel.name}
+                    size="channel-header"
+                  />
+                </div>
+
+                <div className="channel-identity-info">
+                  <h1>{activeChannel.name}</h1>
+
+                  <div className="channel-meta-text">
+                    <span className="channel-handle">
+                      {activeChannel.handle}
+                    </span>
+                    <span>•</span>
                     <span>
-                      {
-                        subscriberCounts[
-                          activeChannel
-                            .channelId
-                        ] || 0
-                      }{" "}
+                      {subscriberCounts[
+                        activeChannel.channelId
+                      ] || 0}{" "}
                       subscriber
                       {Number(
                         subscriberCounts[
-                          activeChannel
-                            .channelId
+                          activeChannel.channelId
                         ] || 0
                       ) === 1
                         ? ""
                         : "s"}
                     </span>
+                    <span>•</span>
+                    <span>
+                      {activeChannel.videoCount || 0}{" "}
+                      video
+                      {Number(
+                        activeChannel.videoCount || 0
+                      ) === 1
+                        ? ""
+                        : "s"}
+                    </span>
+                    <span>•</span>
+                    <span>
+                      {formatViews(
+                        activeChannel.viewCount || 0
+                      )}
+                    </span>
+                    {activeChannel.createdAt && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          Joined {formatDateJoined(activeChannel.createdAt) || formatAge(activeChannel.createdAt)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {activeChannel.description && (
+                    <p className="channel-description-text">
+                      {activeChannel.description}
+                    </p>
+                  )}
+
+                  <div className="channel-actions-bar">
+                    {currentUser &&
+                      (activeChannel.ownerId ===
+                        currentUser.id ||
+                        currentUser.role ===
+                          "ADMIN") && (
+                        <button
+                          type="button"
+                          className="feed-filter"
+                          onClick={() =>
+                            setEditChannelDialog(
+                              activeChannel
+                            )
+                          }
+                        >
+                          <Icon
+                            name="edit"
+                            size={14}
+                          />
+                          Edit channel
+                        </button>
+                      )}
 
                     {currentUser && (
                       <button
@@ -2915,10 +2999,46 @@ export default function App() {
                         View subscribers
                       </button>
                     )}
+
+                    {currentUser &&
+                      activeChannel.ownerId !==
+                        currentUser.id && (
+                        <button
+                          type="button"
+                          className={`feed-filter ${
+                            (
+                              subscriptionChannels ||
+                              []
+                            ).some(
+                              (c) =>
+                                c.channelId ===
+                                activeChannel.channelId
+                            )
+                              ? "subscribed"
+                              : ""
+                          }`}
+                          onClick={() =>
+                            toggleSubscription(
+                              activeChannel.channelId
+                            )
+                          }
+                        >
+                          {(
+                            subscriptionChannels ||
+                            []
+                          ).some(
+                            (c) =>
+                              c.channelId ===
+                              activeChannel.channelId
+                          )
+                            ? "Subscribed"
+                            : "Subscribe"}
+                        </button>
+                      )}
                   </div>
                 </div>
               </div>
-            </section>
+            </div>
           ) : null}
 
           {view === "Playlists" ? (
@@ -3259,35 +3379,41 @@ export default function App() {
                   No videos found
                 </h2>
 
-                <p>
-                  {hasOwnedChannel
-                    ? "Try another category or search, or upload a video."
-                    : "Create a channel to get started."}
-                </p>
+                {view === "Channel" && activeChannel && Number(activeChannel.ownerId) !== Number(currentUser?.id) ? (
+                  <p>This channel has not published any videos yet.</p>
+                ) : (
+                  <>
+                    <p>
+                      {hasOwnedChannel
+                        ? "Try another category or search, or upload a video."
+                        : "Create a channel to get started."}
+                    </p>
 
-                <button
-                  className="button button-primary"
-                  onClick={() =>
-                    currentUser
-                      ? setCreateDialog(
-                          hasOwnedChannel
-                            ? "video"
-                            : "channel"
-                        )
-                      : setAccountDialog(
-                          "register"
-                        )
-                  }
-                >
-                  <Icon
-                    name="plus"
-                    size={17}
-                  />
+                    <button
+                      className="button button-primary"
+                      onClick={() =>
+                        currentUser
+                          ? setCreateDialog(
+                              hasOwnedChannel
+                                ? "video"
+                                : "channel"
+                            )
+                          : setAccountDialog(
+                              "register"
+                            )
+                      }
+                    >
+                      <Icon
+                        name="plus"
+                        size={17}
+                      />
 
-                  {hasOwnedChannel
-                    ? "Post a video"
-                    : "Create a channel"}
-                </button>
+                      {hasOwnedChannel
+                        ? "Post a video"
+                        : "Create a channel"}
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -3365,9 +3491,7 @@ export default function App() {
 
       {createDialog === "video" && (
         <CreateVideoDialog
-          channels={myChannels.length
-            ? myChannels
-            : channels}
+          channels={myChannels}
           categories={categories}
           onClose={() =>
             setCreateDialog(null)
@@ -3428,11 +3552,7 @@ export default function App() {
       {manageVideo && (
         <ManageVideoDialog
           video={manageVideo}
-          channels={
-            myChannels.length
-              ? myChannels
-              : channels
-          }
+          channels={myChannels}
           categories={categories}
           onClose={() =>
             setManageVideo(null)
@@ -3569,6 +3689,14 @@ export default function App() {
           onClose={() =>
             setSubscriberDialog(null)
           }
+        />
+      )}
+
+      {editChannelDialog && (
+        <EditChannelDialog
+          channel={editChannelDialog}
+          onClose={() => setEditChannelDialog(null)}
+          onUpdate={handleUpdateChannel}
         />
       )}
 

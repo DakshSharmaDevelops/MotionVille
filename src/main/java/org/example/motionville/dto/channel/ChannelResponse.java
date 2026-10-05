@@ -15,6 +15,9 @@ public class ChannelResponse {
     private String name;
     private String description;
     private String bannerUrl;
+    private String profileImageUrl;
     private Instant createdAt;
+    private long videoCount;
+    private long viewCount;
 
 }

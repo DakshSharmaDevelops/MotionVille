@@ -43,7 +43,7 @@ function formatPlayerTime(seconds = 0) {
 }
 
 export function CreateChannelDialog({ onClose, onCreate }) {
-  const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "" });
+  const [form, setForm] = useState({ name: "", handle: "", description: "", bannerUrl: "", profileImageUrl: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -79,14 +79,74 @@ export function CreateChannelDialog({ onClose, onCreate }) {
       <section className="dialog create-dialog" role="dialog" aria-modal="true" aria-labelledby="channel-dialog-title">
         <div className="dialog-topline"><span className="dialog-step"><Icon name="sparkle" size={15} /> Your creator space</span><button className="icon-button" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>
         <h2 id="channel-dialog-title">Create your channel</h2>
-        <p className="dialog-subtitle">Choose a name and make this space yours. You can add a banner and description too.</p>
+        <p className="dialog-subtitle">Choose a name and make this space yours. You can add a banner, profile image, and description too.</p>
         <form className="dialog-form" onSubmit={submit}>
           <label>Channel name<input name="name" value={form.name} onChange={update} maxLength="100" placeholder="Choose a channel name" required /></label>
           <label>Handle<input name="handle" value={form.handle} onChange={update} maxLength="50" placeholder="@yourchannel" required /><small>Unique name viewers can use to find you.</small></label>
-          <label>Description <span className="optional">Optional</span><textarea name="description" value={form.description} onChange={update} maxLength="500" rows="3" placeholder="What will you share on your channel?" /></label>
+          <label>Profile image URL <span className="optional">Optional</span><input name="profileImageUrl" type="url" value={form.profileImageUrl} onChange={update} placeholder="https://example.com/avatar.jpg" /></label>
           <label>Banner image URL <span className="optional">Optional</span><input name="bannerUrl" type="url" value={form.bannerUrl} onChange={update} placeholder="https://example.com/banner.jpg" /></label>
+          <label>Description <span className="optional">Optional</span><textarea name="description" value={form.description} onChange={update} maxLength="500" rows="3" placeholder="What will you share on your channel?" /></label>
           {error && <p className="inline-error" role="alert">{error}</p>}
           <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose} disabled={busy}>Cancel</button><button className="button button-primary" type="submit" disabled={busy}>{busy ? "Creating…" : "Create channel"} {!busy && <Icon name="chevron" size={17} />}</button></div>
+        </form>
+      </section>
+    </Modal>
+  );
+}
+
+export function EditChannelDialog({ channel, onClose, onUpdate }) {
+  const [form, setForm] = useState({
+    name: channel?.name || "",
+    handle: channel?.handle || "",
+    description: channel?.description || "",
+    bannerUrl: channel?.bannerUrl || "",
+    profileImageUrl: channel?.profileImageUrl || channel?.avatarUrl || "",
+  });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function update(event) {
+    const { name, value } = event.target;
+    setForm((current) => ({
+      ...current,
+      [name]: name === "handle"
+        ? `@${value.replace(/^@/, "").toLowerCase().replace(/[^a-z0-9._-]/g, "")}`
+        : value,
+    }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!form.name.trim() || !form.handle.trim()) {
+      setError("Channel name and handle cannot be empty.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await onUpdate(channel.channelId || channel.id, form);
+      onClose();
+    } catch (updateError) {
+      setError(updateError.message || "Could not update the channel.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <section className="dialog create-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-channel-dialog-title">
+        <div className="dialog-topline"><span className="dialog-step"><Icon name="edit" size={15} /> Channel settings</span><button className="icon-button" onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>
+        <h2 id="edit-channel-dialog-title">Edit channel</h2>
+        <p className="dialog-subtitle">Update your channel's name, handle, description, profile picture, and banner.</p>
+        <form className="dialog-form" onSubmit={submit}>
+          <label>Channel name<input name="name" value={form.name} onChange={update} maxLength="100" placeholder="Channel name" required /></label>
+          <label>Handle<input name="handle" value={form.handle} onChange={update} maxLength="50" placeholder="@handle" required /></label>
+          <label>Profile image URL <span className="optional">Optional</span><input name="profileImageUrl" type="url" value={form.profileImageUrl} onChange={update} placeholder="https://example.com/profile.jpg" /></label>
+          <label>Banner image URL <span className="optional">Optional</span><input name="bannerUrl" type="url" value={form.bannerUrl} onChange={update} placeholder="https://example.com/banner.jpg" /></label>
+          <label>Description <span className="optional">Optional</span><textarea name="description" value={form.description} onChange={update} maxLength="500" rows="3" placeholder="Tell viewers about your channel" /></label>
+          {error && <p className="inline-error" role="alert">{error}</p>}
+          <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose} disabled={busy}>Cancel</button><button className="button button-primary" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"} {!busy && <Icon name="check" size={17} />}</button></div>
         </form>
       </section>
     </Modal>
@@ -216,6 +276,26 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
         <h2 id="video-dialog-title">Post a video</h2>
         <p className="dialog-subtitle">Your video uploads to R2, then converts for playback. Leave the thumbnail URL blank to create one automatically from the video. Maximum file size: 500 MB.</p>
         <form className="dialog-form" onSubmit={submit}>
+          {uploadChannels.length > 1 ? (
+            <label>
+              Post to channel
+              <select name="channelId" value={form.channelId} onChange={update} required>
+                {uploadChannels.map((ch) => (
+                  <option key={ch.channelId} value={ch.channelId}>
+                    {ch.name} ({ch.handle})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : uploadChannels.length === 1 ? (
+            <div style={{ fontSize: 13, color: "#64748b", margin: "-2px 0 10px" }}>
+              Posting to your channel: <strong style={{ color: "#0f172a" }}>{uploadChannels[0].name}</strong> ({uploadChannels[0].handle})
+            </div>
+          ) : (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", padding: "10px 14px", borderRadius: 8, fontSize: 13, color: "#991b1b", marginBottom: 12 }}>
+              You don't have a channel yet. Please create a channel first to upload videos.
+            </div>
+          )}
           <label>Video title<input name="title" value={form.title} onChange={update} maxLength="255" placeholder="Give your video a title" required /></label>
           <label>Video file<input type="file" accept="video/*,.mp4,.webm,.mov,.mkv,.avi,.m4v,.mpeg,.mpg,.wmv,.flv,.3gp,.3g2,.ts,.mts,.m2ts,.ogv" onChange={selectVideoFile} required /><small>{file ? `${file.name} · ${(file.size / (1024 * 1024)).toFixed(1)} MB` : "MP4, WebM, MOV, MKV, AVI and other video formats, up to 500 MB."}</small></label>
           <div className="form-two-col">
@@ -295,7 +375,7 @@ export function CreateVideoDialog({ channels, categories, onClose, onCreate }) {
           {error && <p className="inline-error" role="alert">{error}</p>}
           {generatingThumbnail && <p className="upload-progress" role="status">Generating thumbnail preview…</p>}
           {busy && <p className="upload-progress" role="status">{uploadProgress < 100 ? `Uploading to R2: ${uploadProgress}%` : "Finishing upload…"}</p>}
-          <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose} disabled={busy || generatingThumbnail}>Cancel</button><button className="button button-primary" type="submit" disabled={busy || generatingThumbnail}>{busy ? "Uploading…" : "Post video"} {!busy && <Icon name="chevron" size={17} />}</button></div>
+          <div className="dialog-actions"><button type="button" className="text-button" onClick={onClose} disabled={busy || generatingThumbnail}>Cancel</button><button className="button button-primary" type="submit" disabled={busy || generatingThumbnail || !uploadChannels.length}>{busy ? "Uploading…" : "Post video"} {!busy && <Icon name="chevron" size={17} />}</button></div>
         </form>
       </section>
     </Modal>
