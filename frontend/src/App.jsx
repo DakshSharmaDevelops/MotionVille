@@ -1086,7 +1086,7 @@ export default function App() {
   }
 
   async function registerUser(form) {
-    await apiRequest(
+    return await apiRequest(
       "/users",
       {
         method: "POST",
@@ -1103,12 +1103,6 @@ export default function App() {
             form.avatarUrl.trim() || null,
         }),
       }
-    );
-
-    setAccountDialog("login");
-    navigate("/login");
-    setToast(
-      "Account created! Please check your email to verify your account before logging in."
     );
   }
 
@@ -1148,8 +1142,6 @@ export default function App() {
             form.username.trim(),
           email:
             form.email.trim(),
-          password:
-            form.password || null,
           displayName:
             form.displayName.trim(),
           avatarUrl:
@@ -1166,6 +1158,21 @@ export default function App() {
     );
 
     setToast("Profile updated.");
+  }
+
+  async function deleteAccount() {
+    if (!currentUser?.id) return;
+    await apiRequest(`/users/${currentUser.id}`, {
+      method: "DELETE",
+    });
+    localStorage.removeItem("motionville.currentUserId");
+    localStorage.removeItem(LAST_ACTIVITY_STORAGE_KEY);
+    setCurrentUser(null);
+    setMyChannels([]);
+    setAccountDialog(null);
+    setAccountMenuOpen(false);
+    navigate("/");
+    setToast("Your account has been permanently deleted.");
   }
 
   async function resendVerificationEmail() {
@@ -3684,6 +3691,7 @@ export default function App() {
             setAccountDialog(null);
             navigate("/forgot-password");
           }}
+          onDeleteAccount={deleteAccount}
         />
       )}
 

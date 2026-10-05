@@ -103,6 +103,7 @@ public class SecurityConfig {
                                 "/api/auth/verify-email", // Email token verification from external clients
                                 "/api/auth/resend-verification",
                                 "/api/auth/register/send-otp", // Public pre-registration OTP
+                                "/api/auth/verify-otp", // Public registration OTP verification
                                 "/api/auth/forgot-password", // Forgot password request
                                 "/api/auth/reset-password", // Password reset completion
                                 "/api/users", // Public registration
@@ -125,8 +126,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/register/send-otp", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/verify-email", "/api/auth/reset-password/validate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/register/send-otp", "/api/auth/verify-otp", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/verify-email", "/api/auth/reset-password/validate", "/api/auth/verification-status").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/live/authorize").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/videos/*/view").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/videos/*/history").permitAll()

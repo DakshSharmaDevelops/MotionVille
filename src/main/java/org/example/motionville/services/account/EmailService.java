@@ -4,7 +4,11 @@ import org.example.motionville.entity.account.AppUser;
 
 public interface EmailService {
 
-    void sendVerificationEmail(AppUser user, String token);
+    default void sendVerificationEmail(AppUser user, String token) {
+        sendVerificationEmail(user, token, null);
+    }
+
+    void sendVerificationEmail(AppUser user, String token, String otp);
 
     void sendOtpEmail(String email, String otp);
 

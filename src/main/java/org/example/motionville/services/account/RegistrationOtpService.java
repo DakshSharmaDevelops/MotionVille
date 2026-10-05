@@ -108,6 +108,22 @@ public class RegistrationOtpService {
         emailService.sendOtpEmail(normalizedEmail, otpString);
     }
 
+    public String generateAndSaveOtp(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        String normalizedEmail = email.trim().toLowerCase();
+        otpRepository.consumeActiveOtpsForEmail(normalizedEmail);
+
+        int code = 100000 + RANDOM.nextInt(900000);
+        String otpString = String.valueOf(code);
+        Instant expiresAt = Instant.now().plus(Duration.ofMinutes(otpValidityMinutes));
+
+        RegistrationOtp otp = new RegistrationOtp(normalizedEmail, otpString, expiresAt);
+        otpRepository.save(otp);
+        return otpString;
+    }
+
     public void verifyRegistrationOtp(String email, String rawOtp) {
         if (rawOtp == null || rawOtp.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verification code is required");

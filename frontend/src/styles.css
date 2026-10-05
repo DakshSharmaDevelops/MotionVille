@@ -285,6 +285,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .password-toggle-btn:hover { color: #0f172a; background: rgba(0, 0, 0, 0.05); }
 .auth-page-container { display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 120px); padding: 32px 16px; }
 .auth-card { width: 100%; max-width: 440px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 28px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02); }
+.account-section-card { margin-top: 16px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+.account-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.account-danger-zone { margin-top: 16px; padding: 16px; border: 1px solid #fecaca; border-radius: 12px; background: #fff5f5; }
+.button-danger { background: #dc2626 !important; color: #fff !important; border-color: #dc2626 !important; }
+.button-danger:hover { background: #b91c1c !important; border-color: #b91c1c !important; }
 .optional { margin-left: 4px; color: #aaa9af; font-weight: 400; }
 .form-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; padding-top: 5px; }

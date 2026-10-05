@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Icon, Modal, PasswordInput } from "./ui.jsx";
+import { API_BASE_URL, apiRequest } from "../api/videoApi.js";
 
 export function AccountDialog({
   mode,
@@ -17,6 +18,7 @@ export function AccountDialog({
   onSwitchRegister,
   onResendVerification,
   onForgotPassword,
+  onDeleteAccount,
 }) {
   const authMode = mode === "auth";
   const loginMode = mode === "login";
@@ -33,6 +35,200 @@ export function AccountDialog({
 
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Verification step state
+  const [verificationStep, setVerificationStep] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendSuccess, setResendSuccess] = useState(false);
+  const [verifiedSuccess, setVerifiedSuccess] = useState(false);
+
+  // Reset password form state (inside Profile/Manage Account)
+  const [resetPasswordForm, setResetPasswordForm] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [resetPasswordBusy, setResetPasswordBusy] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState("");
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false);
+  const [sendingResetLink, setSendingResetLink] = useState(false);
+  const [resetLinkSent, setResetLinkSent] = useState(false);
+
+  // Delete account state
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  async function handleResetPasswordInProfile(event) {
+    event.preventDefault();
+    setResetPasswordError("");
+    setResetPasswordSuccess(false);
+
+    if (resetPasswordForm.newPassword.length < 6) {
+      setResetPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
+      setResetPasswordError("Passwords do not match.");
+      return;
+    }
+
+    setResetPasswordBusy(true);
+    try {
+      await apiRequest(`/users/${user.id}/reset-password`, {
+        method: "POST",
+        body: JSON.stringify({
+          newPassword: resetPasswordForm.newPassword,
+        }),
+      });
+      setResetPasswordSuccess(true);
+      setResetPasswordForm({ newPassword: "", confirmPassword: "" });
+      setTimeout(() => setResetPasswordSuccess(false), 5000);
+    } catch (err) {
+      setResetPasswordError(err.message || "Failed to reset password.");
+    } finally {
+      setResetPasswordBusy(false);
+    }
+  }
+
+  async function handleSendResetLinkToEmail() {
+    if (sendingResetLink || !user?.email) return;
+    setSendingResetLink(true);
+    setResetPasswordError("");
+    try {
+      await apiRequest("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({
+          emailOrUsername: user.email,
+        }),
+      });
+      setResetLinkSent(true);
+      setTimeout(() => setResetLinkSent(false), 6000);
+    } catch (err) {
+      setResetPasswordError(err.message || "Failed to send reset link.");
+    } finally {
+      setSendingResetLink(false);
+    }
+  }
+
+  async function handleDeleteAccount(event) {
+    event.preventDefault();
+    if (deleteConfirmText !== "DELETE" && deleteConfirmText !== user?.username) {
+      setDeleteError(`Please type "DELETE" or "${user?.username}" to confirm.`);
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to permanently delete your account? All your channels, videos, playlists, and comments will be permanently erased.")) {
+      return;
+    }
+
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      if (onDeleteAccount) {
+        await onDeleteAccount();
+      } else {
+        await apiRequest(`/users/${user.id}`, { method: "DELETE" });
+        window.location.href = "/";
+      }
+    } catch (err) {
+      setDeleteError(err.message || "Failed to delete account. Please try again.");
+      setDeleteBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((t) => Math.max(0, t - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Background polling to detect if user verified via the email link
+  useEffect(() => {
+    if (!verificationStep || verifiedSuccess || !pendingEmail) return;
+
+    let isMounted = true;
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/auth/verification-status?email=${encodeURIComponent(pendingEmail)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.verified && isMounted) {
+          setVerifiedSuccess(true);
+          clearInterval(poll);
+          setTimeout(() => {
+            onLogin({ username: form.username, password: form.password });
+          }, 900);
+        }
+      } catch {
+        // Continue polling silently
+      }
+    }, 2500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(poll);
+    };
+  }, [verificationStep, verifiedSuccess, pendingEmail, form.username, form.password, onLogin]);
+
+  async function handleVerifyOtp(event) {
+    event.preventDefault();
+    if (!otpCode.trim()) {
+      setOtpError("Please enter the 6-digit code.");
+      return;
+    }
+    setOtpBusy(true);
+    setOtpError("");
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: pendingEmail,
+          otp: otpCode.trim(),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Invalid or expired verification code.");
+      }
+
+      setVerifiedSuccess(true);
+      setTimeout(() => {
+        onLogin({ username: form.username, password: form.password });
+      }, 900);
+    } catch (err) {
+      setOtpError(err.message || "Failed to verify code.");
+    } finally {
+      setOtpBusy(false);
+    }
+  }
+
+  async function handleResendCode() {
+    if (resendCooldown > 0 || otpBusy) return;
+    setOtpBusy(true);
+    setOtpError("");
+    try {
+      await onResendVerification(pendingEmail);
+      setResendSuccess(true);
+      setResendCooldown(60);
+      setTimeout(() => setResendSuccess(false), 5000);
+    } catch (err) {
+      setOtpError(err.message || "Failed to resend verification email.");
+    } finally {
+      setOtpBusy(false);
+    }
+  }
 
   function update(event) {
     setForm((current) => ({
@@ -102,6 +298,10 @@ export function AccountDialog({
         await onLogin(form);
       } else if (registerMode) {
         await onRegister(form);
+        setPendingEmail(form.email.trim());
+        setVerificationStep(true);
+        setResendCooldown(60);
+        setError("");
       } else if (profileMode) {
         await onUpdate(form);
       }
@@ -169,6 +369,182 @@ export function AccountDialog({
               Create account
             </button>
           </div>
+        </section>
+      </Modal>
+    );
+  }
+
+  if (registerMode && verificationStep) {
+    return (
+      <Modal onClose={onClose}>
+        <section
+          className="dialog create-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="account-dialog-title"
+        >
+          <div className="dialog-topline">
+            <span className="dialog-step">
+              <Icon name="sparkle" size={15} />
+              Verify your email
+            </span>
+
+            <button
+              className="icon-button"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <Icon name="close" />
+            </button>
+          </div>
+
+          {verifiedSuccess ? (
+            <div style={{ textAlign: "center", padding: "20px 0 10px" }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  background: "#ecfdf5",
+                  color: "#10b981",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 16px",
+                }}
+              >
+                <Icon name="check" size={28} />
+              </div>
+
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>
+                Email Verified!
+              </h2>
+
+              <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
+                Logging you in to your new MotionVille account…
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <h2 id="account-dialog-title" style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>
+                  Verify your account
+                </h2>
+
+                <p className="dialog-subtitle" style={{ fontSize: 13, color: "#64748b", margin: 0, lineHeight: 1.5 }}>
+                  We sent a 6-digit code and a verification link to<br />
+                  <strong style={{ color: "#0f172a" }}>{pendingEmail}</strong>
+                </p>
+              </div>
+
+              <div style={{ display: "grid", gap: 16 }}>
+                {/* Option 1: Enter 6-digit code */}
+                <form onSubmit={handleVerifyOtp} className="dialog-form">
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#334155" }}>
+                    Option 1: Enter 6-digit code
+                    <input
+                      name="otp"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      style={{
+                        textAlign: "center",
+                        fontSize: 22,
+                        letterSpacing: 8,
+                        fontWeight: 700,
+                        padding: "8px 12px",
+                      }}
+                      autoFocus
+                    />
+                  </label>
+
+                  {otpError && (
+                    <p className="inline-error" role="alert" style={{ margin: 0 }}>
+                      {otpError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="button button-primary"
+                    disabled={otpBusy || otpCode.length !== 6}
+                    style={{ justifyContent: "center" }}
+                  >
+                    {otpBusy ? "Verifying…" : "Verify Code"}
+                    {!otpBusy && <Icon name="chevron" size={17} />}
+                  </button>
+                </form>
+
+                {/* Divider */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "2px 0" }}>
+                  <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+                </div>
+
+                {/* Option 2: Click the link */}
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 3 }}>
+                    Option 2: Click the link in your email
+                  </div>
+                  <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
+                    Click <strong>Verify Email Address</strong> in the email we sent you.
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, fontSize: 11, color: "#2563eb", fontWeight: 600 }}>
+                    <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#2563eb", opacity: 0.8 }} />
+                    Listening for verification…
+                  </div>
+                </div>
+
+                {resendSuccess && (
+                  <p style={{ margin: 0, fontSize: 11, color: "#16a34a", textAlign: "center", fontWeight: 600 }}>
+                    ✓ New verification code and link sent! Check your inbox.
+                  </p>
+                )}
+
+                {/* Footer Controls */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 4 }}>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => {
+                      setVerificationStep(false);
+                      setOtpError("");
+                    }}
+                    style={{ fontSize: 11, color: "#64748b" }}
+                  >
+                    Edit details
+                  </button>
+
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={resendCooldown > 0 || otpBusy}
+                    onClick={handleResendCode}
+                    style={{
+                      fontSize: 11,
+                      color: resendCooldown > 0 ? "#94a3b8" : "#2563eb",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code & link"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </Modal>
     );
@@ -310,17 +686,19 @@ export function AccountDialog({
                 />
               </label>
 
-              <label>
-                Password <span className="optional">{registerMode ? "Required" : "Leave blank to keep current"}</span>
-                <PasswordInput
-                  name="password"
-                  value={form.password}
-                  onChange={update}
-                  placeholder={registerMode ? "Create a password" : "New password"}
-                  autoComplete={registerMode ? "new-password" : "new-password"}
-                  required={registerMode}
-                />
-              </label>
+              {registerMode && (
+                <label>
+                  Password <span className="optional">Required</span>
+                  <PasswordInput
+                    name="password"
+                    value={form.password}
+                    onChange={update}
+                    placeholder="Create a password"
+                    autoComplete="new-password"
+                    required={registerMode}
+                  />
+                </label>
+              )}
 
               <label>
                 Avatar URL <span className="optional">Optional</span>
@@ -444,6 +822,179 @@ export function AccountDialog({
             </div>
           )}
         </form>
+
+        {profileMode && (
+          <>
+            <div className="account-section-card">
+              <div className="account-section-header">
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Icon name="sparkle" size={16} />
+                  <strong style={{ fontSize: 13, color: "#1e293b" }}>Reset Password</strong>
+                </div>
+                <span style={{ fontSize: 11, color: "#64748b" }}>Choose a new password</span>
+              </div>
+
+              <form onSubmit={handleResetPasswordInProfile} className="dialog-form">
+                <label>
+                  New Password
+                  <PasswordInput
+                    name="newPassword"
+                    value={resetPasswordForm.newPassword}
+                    onChange={(e) =>
+                      setResetPasswordForm((p) => ({ ...p, newPassword: e.target.value }))
+                    }
+                    placeholder="At least 6 characters"
+                    autoComplete="new-password"
+                    minLength={6}
+                    required
+                  />
+                </label>
+
+                <label>
+                  Confirm New Password
+                  <PasswordInput
+                    name="confirmPassword"
+                    value={resetPasswordForm.confirmPassword}
+                    onChange={(e) =>
+                      setResetPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))
+                    }
+                    placeholder="Re-enter new password"
+                    autoComplete="new-password"
+                    minLength={6}
+                    required
+                  />
+                </label>
+
+                {resetPasswordError && (
+                  <p className="inline-error" role="alert" style={{ margin: 0 }}>
+                    {resetPasswordError}
+                  </p>
+                )}
+
+                {resetPasswordSuccess && (
+                  <p
+                    style={{
+                      margin: 0,
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      background: "#ecfdf5",
+                      color: "#059669",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    ✓ Password successfully updated!
+                  </p>
+                )}
+
+                {resetLinkSent && (
+                  <p
+                    style={{
+                      margin: 0,
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      background: "#eff6ff",
+                      color: "#2563eb",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    ✓ Password reset link sent to {user?.email}! Check your inbox.
+                  </p>
+                )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    marginTop: 4,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={handleSendResetLinkToEmail}
+                    disabled={sendingResetLink}
+                    style={{ fontSize: 11, color: "#2563eb", padding: 0, fontWeight: 500 }}
+                  >
+                    {sendingResetLink ? "Sending link…" : "Or send reset link to my email"}
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="button"
+                    disabled={
+                      resetPasswordBusy ||
+                      !resetPasswordForm.newPassword ||
+                      !resetPasswordForm.confirmPassword
+                    }
+                    style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600 }}
+                  >
+                    {resetPasswordBusy ? "Updating…" : "Reset Password"}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="account-danger-zone">
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <strong style={{ color: "#dc2626", fontSize: 13 }}>Delete Account</strong>
+              </div>
+
+              <p style={{ margin: "0 0 12px", color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>
+                Permanently delete your MotionVille account, your channels, videos, playlists, and comments. This action cannot be undone.
+              </p>
+
+              <form onSubmit={handleDeleteAccount} style={{ display: "grid", gap: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#475569" }}>
+                  To confirm, type <strong style={{ color: "#dc2626" }}>DELETE</strong> or your username:
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder={`Type "DELETE" or "${user?.username}"`}
+                    style={{ marginTop: 5 }}
+                    required
+                  />
+                </label>
+
+                {deleteError && (
+                  <p className="inline-error" role="alert" style={{ margin: 0 }}>
+                    {deleteError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="button button-danger"
+                  disabled={
+                    deleteBusy ||
+                    (deleteConfirmText !== "DELETE" && deleteConfirmText !== user?.username)
+                  }
+                  style={{
+                    background: "#dc2626",
+                    color: "#fff",
+                    borderColor: "#dc2626",
+                    justifyContent: "center",
+                    opacity:
+                      deleteConfirmText === "DELETE" || deleteConfirmText === user?.username
+                        ? 1
+                        : 0.6,
+                    cursor:
+                      deleteConfirmText === "DELETE" || deleteConfirmText === user?.username
+                        ? "pointer"
+                        : "not-allowed",
+                  }}
+                >
+                  {deleteBusy ? "Deleting account…" : "Permanently Delete Account"}
+                </button>
+              </form>
+            </div>
+          </>
+        )}
       </section>
     </Modal>
   );

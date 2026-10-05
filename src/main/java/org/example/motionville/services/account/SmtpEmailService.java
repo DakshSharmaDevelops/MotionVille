@@ -43,12 +43,12 @@ public class SmtpEmailService implements EmailService {
     }
 
     @Override
-    public void sendVerificationEmail(AppUser user, String token) {
+    public void sendVerificationEmail(AppUser user, String token, String otp) {
         String verificationUrl = verificationUrlBase + "?token=" + token;
 
         if (!mailEnabled || mailSender == null) {
-            log.info("[EmailService:DEV] SMTP disabled. Verification link for user '{}' ({}): {}",
-                    user.getUsername(), user.getEmail(), verificationUrl);
+            log.info("[EmailService:DEV] Registration verification for user '{}' ({}): OTP = {} | Link = {}",
+                    user.getUsername(), user.getEmail(), otp != null ? otp : "N/A", verificationUrl);
             return;
         }
 
@@ -58,25 +58,43 @@ public class SmtpEmailService implements EmailService {
 
             helper.setTo(user.getEmail());
             helper.setFrom(new InternetAddress(fromEmail, fromName));
-            helper.setSubject("Verify your MotionVille account");
+            helper.setSubject("Verify your MotionVille account" + (otp != null ? " - Code: " + otp : ""));
+
+            String otpSection = otp != null ? """
+                    <div style="margin: 24px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; text-align: center;">
+                        <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Option 1: Enter this 6-digit code</p>
+                        <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0f172a;">%s</span>
+                        <p style="margin: 8px 0 0 0; font-size: 12px; color: #94a3b8;">Valid for 10 minutes</p>
+                    </div>
+                    <div style="text-align: center; margin: 16px 0; font-weight: 700; color: #94a3b8; font-size: 13px;">— OR —</div>
+                    """.formatted(otp) : "";
 
             String html = """
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b;">
                         <h2 style="color: #0f172a; margin-bottom: 16px;">Welcome to MotionVille!</h2>
                         <p style="font-size: 16px; line-height: 1.5;">Hello <strong>%s</strong>,</p>
-                        <p style="font-size: 16px; line-height: 1.5;">Please verify your email address to unlock full features on MotionVille.</p>
-                        <div style="margin: 32px 0;">
-                            <a href="%s" style="background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Verify Email Address</a>
+                        <p style="font-size: 16px; line-height: 1.5;">Please verify your email address to complete your account registration. You can choose either method below:</p>
+                        %s
+                        <div style="margin: 20px 0; text-align: center;">
+                            <p style="margin: 0 0 10px 0; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Option 2: Click to verify instantly</p>
+                            <a href="%s" style="background-color: #2563eb; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Verify Email Address</a>
+                            <p style="font-size: 13px; color: #64748b; margin-top: 14px;">Or copy and paste this URL into your browser:</p>
+                            <p style="font-size: 12px; color: #2563eb; word-break: break-all;"><a href="%s" style="color: #2563eb;">%s</a></p>
                         </div>
-                        <p style="font-size: 14px; color: #64748b;">Or paste this link into your browser:</p>
-                        <p style="font-size: 13px; color: #2563eb; word-break: break-all;"><a href="%s">%s</a></p>
+                        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+                        <p style="font-size: 12px; color: #94a3b8;">MotionVille Team</p>
                     </div>
-                    """.formatted(user.getDisplayName() != null ? user.getDisplayName() : user.getUsername(),
-                    verificationUrl, verificationUrl, verificationUrl);
+                    """.formatted(
+                    user.getDisplayName() != null ? user.getDisplayName() : user.getUsername(),
+                    otpSection,
+                    verificationUrl,
+                    verificationUrl,
+                    verificationUrl
+            );
 
             helper.setText(html, true);
             mailSender.send(message);
-            log.info("Sent verification email to '{}'", user.getEmail());
+            log.info("Sent dual verification email to '{}'", user.getEmail());
 
         } catch (Exception exception) {
             log.error("Failed to send verification email to '{}': {}", user.getEmail(), exception.getMessage());

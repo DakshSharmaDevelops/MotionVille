@@ -27,6 +27,7 @@ import jakarta.servlet.http.Cookie;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -52,6 +53,9 @@ class EmailVerificationIntegrationTest {
 
     @Autowired
     private EmailVerificationTokenRepository tokenRepository;
+
+    @Autowired
+    private org.example.motionville.repo.account.RegistrationOtpRepository otpRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -184,6 +188,60 @@ class EmailVerificationIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void userCanVerifyAccountViaOtpOrCheckStatus() throws Exception {
+        UserCreateRequest request = new UserCreateRequest();
+        request.setUsername("dual_user");
+        request.setEmail("dual_user@example.com");
+        request.setPassword("StrongPassword123!");
+        request.setDisplayName("Dual User");
+
+        // 1. Create account
+        mockMvc.perform(post("/api/users")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.emailVerified").value(false));
+
+        // 2. Both token and OTP exist
+        AppUser user = userRepository.findByUsername("dual_user").orElseThrow();
+        assertFalse(user.isEmailVerified());
+
+        var token = tokenRepository.findTopByUserOrderByCreatedAtDesc(user).orElseThrow();
+        assertNotNull(token.getToken());
+
+        var otp = otpRepository.findTopByEmailAndConsumedFalseOrderByCreatedAtDesc("dual_user@example.com").orElseThrow();
+        assertNotNull(otp.getOtp());
+        assertEquals(6, otp.getOtp().length());
+
+        // 3. Status check returns unverified initially
+        mockMvc.perform(get("/api/auth/verification-status")
+                        .param("email", "dual_user@example.com"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verified").value(false));
+
+        // 4. Verify via OTP
+        org.example.motionville.dto.account.VerifyOtpRequest otpReq =
+                new org.example.motionville.dto.account.VerifyOtpRequest("dual_user@example.com", otp.getOtp());
+
+        mockMvc.perform(post("/api/auth/verify-otp")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(otpReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verified").value(true));
+
+        // 5. User is now verified and status check returns true
+        AppUser verifiedUser = userRepository.findByUsername("dual_user").orElseThrow();
+        assertTrue(verifiedUser.isEmailVerified());
+
+        mockMvc.perform(get("/api/auth/verification-status")
+                        .param("email", "dual_user@example.com"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verified").value(true));
     }
 
     @Test

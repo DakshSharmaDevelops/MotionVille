@@ -1,6 +1,7 @@
 package org.example.motionville.controllers.account;
 
 import jakarta.validation.Valid;
+import org.example.motionville.dto.account.ChangePasswordRequest;
 import org.example.motionville.dto.channel.ChannelResponse;
 import org.example.motionville.dto.account.UserCreateRequest;
 import org.example.motionville.dto.account.UserResponse;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -79,6 +81,19 @@ public class AppUserController {
                 appUserService.updateUser(id, request);
 
         return ResponseEntity.ok(response);
+    }
+
+    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#id, authentication)")
+    @PostMapping("/{id}/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @PathVariable Long id,
+            @Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
+
+        requireCurrentUser(id, principal);
+        appUserService.resetPasswordForUser(id, request.getNewPassword());
+
+        return ResponseEntity.ok(Map.of("message", "Password successfully reset"));
     }
 
     @PreAuthorize("hasRole('ADMIN') or @authorizationService.isUserOwner(#id, authentication)")

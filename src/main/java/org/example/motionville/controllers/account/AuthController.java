@@ -11,6 +11,7 @@ import org.example.motionville.dto.account.ResendVerificationRequest;
 import org.example.motionville.dto.account.ResetPasswordRequest;
 import org.example.motionville.dto.account.UserResponse;
 import org.example.motionville.dto.account.VerifyEmailRequest;
+import org.example.motionville.dto.account.VerifyOtpRequest;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.account.RefreshToken;
 import org.example.motionville.repo.account.AppUserRepository;
@@ -39,6 +40,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -220,6 +224,27 @@ public class AuthController {
         String email = request != null ? request.getEmail() : null;
         EmailVerificationResponse response = emailVerificationService.resendVerification(email, authentication);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<EmailVerificationResponse> verifyOtp(
+            @Valid @RequestBody VerifyOtpRequest request) {
+        EmailVerificationResponse response = emailVerificationService.verifyOtp(request.getEmail(), request.getOtp());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/verification-status")
+    public ResponseEntity<java.util.Map<String, Object>> checkVerificationStatus(
+            @RequestParam String email) {
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Optional<AppUser> userOpt = userRepository.findByEmailIgnoreCase(email.trim());
+        boolean verified = userOpt.map(AppUser::isEmailVerified).orElse(false);
+        return ResponseEntity.ok(java.util.Map.of(
+                "email", email.trim(),
+                "verified", verified
+        ));
     }
 
     @PostMapping("/forgot-password")

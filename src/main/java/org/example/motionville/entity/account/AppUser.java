@@ -53,6 +53,12 @@ public class AppUser {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EmailVerificationToken> verificationTokens;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<PasswordResetToken> passwordResetTokens;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RefreshToken> refreshTokens;
+
     @OneToMany(mappedBy="owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Channel> channels;
 

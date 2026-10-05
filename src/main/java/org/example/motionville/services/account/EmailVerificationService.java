@@ -3,10 +3,13 @@ package org.example.motionville.services.account;
 import org.example.motionville.dto.account.EmailVerificationResponse;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.account.EmailVerificationToken;
+import org.example.motionville.entity.account.RegistrationOtp;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.account.EmailVerificationTokenRepository;
+import org.example.motionville.repo.account.RegistrationOtpRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -30,24 +33,41 @@ public class EmailVerificationService {
     private final EmailVerificationTokenRepository tokenRepository;
     private final AppUserRepository userRepository;
     private final EmailService emailService;
+    private final RegistrationOtpRepository otpRepository;
+    private final RegistrationOtpService otpService;
 
     private final long tokenValidityMinutes;
     private final long resendCooldownSeconds;
     private final int maxResendsPerHour;
 
+    @Autowired
     public EmailVerificationService(
             EmailVerificationTokenRepository tokenRepository,
             AppUserRepository userRepository,
             EmailService emailService,
+            @Autowired(required = false) RegistrationOtpRepository otpRepository,
+            @Autowired(required = false) RegistrationOtpService otpService,
             @Value("${motionville.mail.token-validity-minutes:1440}") long tokenValidityMinutes,
             @Value("${motionville.mail.resend-cooldown-seconds:60}") long resendCooldownSeconds,
             @Value("${motionville.mail.max-resends-per-hour:5}") int maxResendsPerHour) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.otpRepository = otpRepository;
+        this.otpService = otpService;
         this.tokenValidityMinutes = tokenValidityMinutes;
         this.resendCooldownSeconds = resendCooldownSeconds;
         this.maxResendsPerHour = maxResendsPerHour;
+    }
+
+    public EmailVerificationService(
+            EmailVerificationTokenRepository tokenRepository,
+            AppUserRepository userRepository,
+            EmailService emailService,
+            long tokenValidityMinutes,
+            long resendCooldownSeconds,
+            int maxResendsPerHour) {
+        this(tokenRepository, userRepository, emailService, null, null, tokenValidityMinutes, resendCooldownSeconds, maxResendsPerHour);
     }
 
     public EmailVerificationToken createAndSendVerificationToken(AppUser user) {
@@ -87,8 +107,14 @@ public class EmailVerificationService {
         EmailVerificationToken token = new EmailVerificationToken(user, tokenString, expiresAt);
         EmailVerificationToken savedToken = tokenRepository.save(token);
 
-        // 5. Send email asynchronously / via emailService
-        emailService.sendVerificationEmail(user, tokenString);
+        // 5. Generate OTP if service available
+        String otp = null;
+        if (otpService != null) {
+            otp = otpService.generateAndSaveOtp(user.getEmail());
+        }
+
+        // 6. Send email containing both token and OTP
+        emailService.sendVerificationEmail(user, tokenString, otp);
 
         return savedToken;
     }
@@ -129,8 +155,57 @@ public class EmailVerificationService {
         token.setConsumedAt(Instant.now());
         tokenRepository.save(token);
 
-        log.info("User '{}' ({}) successfully verified their email", user.getUsername(), user.getEmail());
+        if (otpRepository != null) {
+            otpRepository.consumeActiveOtpsForEmail(user.getEmail().trim().toLowerCase());
+        }
 
+        log.info("User '{}' ({}) successfully verified their email via link", user.getUsername(), user.getEmail());
+
+        return new EmailVerificationResponse("Email verified successfully.", true);
+    }
+
+    public EmailVerificationResponse verifyOtp(String email, String rawOtp) {
+        if (email == null || email.isBlank() || rawOtp == null || rawOtp.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email and verification code are required");
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+
+        if (otpRepository != null) {
+            RegistrationOtp otp = otpRepository.findTopByEmailAndConsumedFalseOrderByCreatedAtDesc(normalizedEmail)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "No active verification code found for this email. Please request a new code."
+                    ));
+
+            if (otp.isExpired()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Verification code has expired. Please request a new code."
+                );
+            }
+
+            if (!otp.getOtp().equals(rawOtp.trim())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Invalid verification code. Please check your email and try again."
+                );
+            }
+
+            otp.setConsumed(true);
+            otpRepository.save(otp);
+        }
+
+        AppUser user = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElseGet(() -> userRepository.findByEmail(normalizedEmail)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")));
+
+        user.setEmailVerified(true);
+        userRepository.save(user);
+
+        tokenRepository.revokeActiveTokensForUser(user);
+
+        log.info("User '{}' ({}) successfully verified their email via OTP", user.getUsername(), user.getEmail());
         return new EmailVerificationResponse("Email verified successfully.", true);
     }
 

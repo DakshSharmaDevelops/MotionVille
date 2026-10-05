@@ -51,7 +51,7 @@ class EmailVerificationServiceTest {
         assertEquals(testUser, token.getUser());
         assertFalse(token.isExpired());
         verify(tokenRepository).revokeActiveTokensForUser(testUser);
-        verify(emailService).sendVerificationEmail(eq(testUser), anyString());
+        verify(emailService).sendVerificationEmail(eq(testUser), anyString(), any());
     }
 
     @Test
