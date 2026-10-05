@@ -84,7 +84,12 @@ public class DatabaseSchemaMigrationConfig implements BeanPostProcessor {
                     log.debug("password_reset_tokens migration skipped: {}", e.getMessage());
                 }
 
-                log.info("Pre-migration for app_user and channels completed.");
+                // 6. Ensure categories table description is nullable
+                try {
+                    statement.execute("ALTER TABLE categories ALTER COLUMN description DROP NOT NULL");
+                } catch (Exception e) {
+                    log.debug("categories description migration skipped: {}", e.getMessage());
+                }
             }
         } catch (Exception e) {
             log.debug("Database pre-migration check skipped or failed: {}", e.getMessage());

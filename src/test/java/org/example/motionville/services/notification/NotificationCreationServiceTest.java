@@ -23,13 +23,15 @@ class NotificationCreationServiceTest {
 
     private NotificationRepository notifications;
     private SubscriptionRepository subscriptions;
+    private org.example.motionville.services.account.EmailService emailService;
     private NotificationCreationService service;
 
     @BeforeEach
     void setUp() {
         notifications = mock(NotificationRepository.class);
         subscriptions = mock(SubscriptionRepository.class);
-        service = new NotificationCreationService(notifications, subscriptions);
+        emailService = mock(org.example.motionville.services.account.EmailService.class);
+        service = new NotificationCreationService(notifications, subscriptions, emailService);
     }
 
     @Test

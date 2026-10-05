@@ -11,6 +11,8 @@ import org.example.motionville.entity.notification.enums.NotificationType;
 import org.example.motionville.entity.video.Video;
 import org.example.motionville.repo.channel.SubscriptionRepository;
 import org.example.motionville.repo.notification.NotificationRepository;
+import org.example.motionville.services.account.EmailService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,10 @@ public class NotificationCreationService {
 
     private final NotificationRepository notificationRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final EmailService emailService;
+
+    @Value("${motionville.frontend-origin:http://localhost:5173}")
+    private String frontendOrigin;
 
     public void notifyNewVideo(Video video) {
         AppUser actor = video.getChannel().getOwner();
@@ -123,6 +129,16 @@ public class NotificationCreationService {
             Comment comment,
             NotificationType type,
             String message) {
+        String actionUrl = null;
+        if (video != null) {
+            actionUrl = frontendOrigin + "/watch/" + video.getVideoId();
+        }
+        try {
+            if (emailService != null && recipient.getEmail() != null) {
+                emailService.sendNotificationEmail(recipient, type.name().replace('_', ' ').toLowerCase(), message, actionUrl);
+            }
+        } catch (Exception ignored) {
+        }
         return Notification.builder()
                 .recipient(recipient)
                 .actor(actor)

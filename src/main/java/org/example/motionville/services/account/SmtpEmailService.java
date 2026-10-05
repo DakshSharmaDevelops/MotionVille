@@ -190,4 +190,50 @@ public class SmtpEmailService implements EmailService {
             }
         }
     }
+
+    @Override
+    public void sendNotificationEmail(AppUser recipient, String subject, String messageText, String actionUrl) {
+        if (!mailEnabled || mailSender == null) {
+            log.info("[EmailService:DEV] Notification email to '{}' ({}): {} | Link = {}",
+                    recipient.getUsername(), recipient.getEmail(), messageText, actionUrl != null ? actionUrl : "N/A");
+            return;
+        }
+
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setTo(recipient.getEmail());
+            helper.setFrom(new InternetAddress(fromEmail, fromName));
+            helper.setSubject("MotionVille Notification: " + subject);
+
+            String buttonHtml = actionUrl != null ? """
+                    <div style="margin: 24px 0;">
+                        <a href="%s" style="background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View on MotionVille</a>
+                    </div>
+                    """.formatted(actionUrl) : "";
+
+            String html = """
+                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b;">
+                        <h2 style="color: #0f172a; margin-bottom: 16px;">New Notification</h2>
+                        <p style="font-size: 16px; line-height: 1.5;">Hello <strong>%s</strong>,</p>
+                        <p style="font-size: 16px; line-height: 1.5; background-color: #f8fafc; padding: 16px; border-left: 4px solid #2563eb; border-radius: 4px;">%s</p>
+                        %s
+                        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+                        <p style="font-size: 12px; color: #94a3b8;">MotionVille Notifications Team</p>
+                    </div>
+                    """.formatted(
+                    recipient.getDisplayName() != null ? recipient.getDisplayName() : recipient.getUsername(),
+                    messageText,
+                    buttonHtml
+            );
+
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("Sent notification email to '{}'", recipient.getEmail());
+
+        } catch (Exception exception) {
+            log.error("Failed to send notification email to '{}': {}", recipient.getEmail(), exception.getMessage());
+        }
+    }
 }

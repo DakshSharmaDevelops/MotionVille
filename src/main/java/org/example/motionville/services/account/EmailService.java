@@ -13,4 +13,6 @@ public interface EmailService {
     void sendOtpEmail(String email, String otp);
 
     void sendPasswordResetEmail(AppUser user, String token);
+
+    void sendNotificationEmail(AppUser recipient, String subject, String messageText, String actionUrl);
 }
