@@ -733,7 +733,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
       setHistoryError("");
       onWatchProgress?.(savedProgress);
     } catch (error) {
-      setHistoryError(`Could not save watch progress: ${error.message}`);
+      console.warn("Could not save watch progress:", error.message);
     } finally {
       saveInProgress.current = false;
     }

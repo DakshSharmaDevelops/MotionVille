@@ -30,12 +30,20 @@ public class WatchHistoryController {
     private final WatchHistoryService watchHistoryService;
     private final AuthorizationService authorizationService;
 
-    @PreAuthorize("isAuthenticated()")
     @PostMapping("/videos/{videoId}/history")
     public WatchHistoryResponse recordProgress(
             @PathVariable Long videoId,
             @Valid @RequestBody WatchHistoryUpdateRequest request,
             Authentication authentication) {
+
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            WatchHistoryResponse response = new WatchHistoryResponse();
+            response.setVideoId(videoId);
+            response.setLastPositionSeconds(request.getLastPositionSeconds());
+            response.setLastWatchedAt(java.time.Instant.now());
+            return response;
+        }
+
         if (request.getUserId() == null || (!authorizationService.isAdmin(authentication) && !authorizationService.isUserOwner(request.getUserId(), authentication))) {
             Long currentUserId = authorizationService.getAuthenticatedUserId(authentication);
             if (currentUserId != null) {

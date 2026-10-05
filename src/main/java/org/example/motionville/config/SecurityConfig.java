@@ -102,8 +102,11 @@ public class SecurityConfig {
                                 "/api/live/authorize", // Media server webhook
                                 "/api/auth/verify-email", // Email token verification from external clients
                                 "/api/auth/resend-verification",
+                                "/api/auth/register/send-otp", // Public pre-registration OTP
                                 "/api/users", // Public registration
-                                "/api/auth/login" // Public login
+                                "/api/auth/login", // Public login
+                                "/api/videos/*/history", // Playback progress tracking
+                                "/api/videos/*/view" // Video view tracking
                         )
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
@@ -120,10 +123,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/verify-email", "/api/auth/resend-verification").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/register/send-otp").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/live/authorize").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/videos/*/view").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/videos/*/history").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/live", "/api/live/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/videos/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
@@ -141,20 +145,11 @@ public class SecurityConfig {
     }
 
     /**
-     * Resolves plain X-XSRF-TOKEN headers sent by SPAs or XOR-encoded tokens
+     * Resolves plain X-XSRF-TOKEN headers sent by SPAs
      */
     static final class SpaCsrfTokenRequestHandler extends CsrfTokenRequestAttributeHandler {
-        private final CsrfTokenRequestHandler delegate = new XorCsrfTokenRequestAttributeHandler();
-
-        @Override
-        public void handle(HttpServletRequest request, HttpServletResponse response, Supplier<CsrfToken> csrfToken) {
-            this.delegate.handle(request, response, csrfToken);
-        }
-
-        @Override
-        public String resolveCsrfTokenValue(HttpServletRequest request, CsrfToken csrfToken) {
-            String headerValue = request.getHeader(csrfToken.getHeaderName());
-            return (StringUtils.hasText(headerValue)) ? headerValue : this.delegate.resolveCsrfTokenValue(request, csrfToken);
+        public SpaCsrfTokenRequestHandler() {
+            setCsrfRequestAttributeName(null);
         }
     }
 
