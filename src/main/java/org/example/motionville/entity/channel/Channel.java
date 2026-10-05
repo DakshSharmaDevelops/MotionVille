@@ -69,6 +69,13 @@ public class Channel {
         if (subscriptions != null) subscriptions.remove(subscription);
     }
 
+    public String getAvatarUrl() {
+        if (profileImageUrl != null && !profileImageUrl.isBlank()) {
+            return profileImageUrl;
+        }
+        return owner != null ? owner.getAvatarUrl() : null;
+    }
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) createdAt = Instant.now();

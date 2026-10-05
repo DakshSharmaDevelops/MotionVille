@@ -106,11 +106,22 @@ function loadStoredIds(key) {
   }
 }
 
+function loadStoredJson(key, fallback = []) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
+    return saved !== null && Array.isArray(saved) ? saved : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
-  const [channels, setChannels] = useState([]);
+  const [channels, setChannels] = useState(() =>
+    loadStoredJson("motionville.cached_channels", [])
+  );
   const [categories, setCategories] = useState([]);
 
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -682,6 +693,19 @@ export default function App() {
 
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (channels.length > 0) {
+      try {
+        localStorage.setItem(
+          "motionville.cached_channels",
+          JSON.stringify(channels)
+        );
+      } catch {
+        // ignore quota limits
+      }
+    }
+  }, [channels]);
 
   useEffect(() => {
     const controller = new AbortController();

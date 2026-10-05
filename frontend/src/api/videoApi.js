@@ -186,6 +186,9 @@ export function mapApiVideo(video, categories = []) {
   return {
     videoId: video.id,
     channelId: video.channelId,
+    channelName: video.channelName || "",
+    channelHandle: video.channelHandle || "",
+    channelAvatarUrl: video.channelAvatarUrl || "",
     categoryId: video.categoryId,
     title: video.title,
     description: video.description || "",

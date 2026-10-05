@@ -156,6 +156,13 @@ export function VideoCard({ video, channel, onSelect, onSelectChannel, onManage,
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, [actionsOpen]);
 
+  const resolvedChannel = channel || (video.channelName ? {
+    channelId: video.channelId,
+    name: video.channelName,
+    handle: video.channelHandle,
+    avatarUrl: video.channelAvatarUrl,
+  } : null);
+
   return (
     <article className="video-card" style={{ "--card-order": index }}>
       <button className="video-thumb" onClick={() => onSelect(video)} aria-label={`Watch ${video.title}`}>
@@ -166,16 +173,16 @@ export function VideoCard({ video, channel, onSelect, onSelectChannel, onManage,
         <span className="thumb-play"><Icon name="play" size={22} filled /></span>
       </button>
       <div className="video-card-info">
-        <Avatar src={channel?.avatarUrl} name={channel?.name} />
+        <Avatar src={resolvedChannel?.avatarUrl} name={resolvedChannel?.name} />
         <div className="video-card-text">
           <button className="video-card-title" onClick={() => onSelect(video)}>{video.title}</button>
           <button
             className="channel-link"
             type="button"
-            onClick={() => channel && onSelectChannel?.(channel)}
-            disabled={!channel}
+            onClick={() => resolvedChannel && onSelectChannel?.(resolvedChannel)}
+            disabled={!resolvedChannel}
           >
-            {channel?.name || "MotionVille creator"}
+            {resolvedChannel?.name || "MotionVille creator"}
           </button>
           <p>{viewCount == null ? formatAge(video.createdAt) : `${formatViews(viewCount)} • ${formatAge(video.createdAt)}`}</p>
           {Number.isFinite(video.resumePositionSeconds) && (

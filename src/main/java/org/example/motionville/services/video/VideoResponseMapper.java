@@ -9,9 +9,19 @@ final class VideoResponseMapper {
     }
 
     static VideoResponse toResponse(Video video) {
+        String channelName = null;
+        String channelHandle = null;
+        String channelAvatarUrl = null;
+
+        if (video.getChannel() != null) {
+            channelName = video.getChannel().getName();
+            channelHandle = video.getChannel().getHandle();
+            channelAvatarUrl = video.getChannel().getAvatarUrl();
+        }
+
         return new VideoResponse(
                 video.getVideoId(),
-                video.getChannel().getChannelId(),
+                video.getChannel() != null ? video.getChannel().getChannelId() : null,
                 video.getCategory() == null ? null : video.getCategory().getId(),
                 video.getTitle(),
                 video.getDescription(),
@@ -21,7 +31,10 @@ final class VideoResponseMapper {
                 video.getProcessingStatus(),
                 video.getCreatedAt(),
                 video.getUpdatedAt(),
-                video.getPublishedAt()
+                video.getPublishedAt(),
+                channelName,
+                channelHandle,
+                channelAvatarUrl
         );
     }
 }
