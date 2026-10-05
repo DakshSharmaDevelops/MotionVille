@@ -10,11 +10,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginRequest {
+public class ForgotPasswordRequest {
 
-    @NotBlank
-    private String username;
-
-    @NotBlank
-    private String password;
+    @NotBlank(message = "Email or username is required")
+    private String emailOrUsername;
 }

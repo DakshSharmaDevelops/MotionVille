@@ -103,6 +103,8 @@ public class SecurityConfig {
                                 "/api/auth/verify-email", // Email token verification from external clients
                                 "/api/auth/resend-verification",
                                 "/api/auth/register/send-otp", // Public pre-registration OTP
+                                "/api/auth/forgot-password", // Forgot password request
+                                "/api/auth/reset-password", // Password reset completion
                                 "/api/users", // Public registration
                                 "/api/auth/login", // Public login
                                 "/api/videos/*/history", // Playback progress tracking
@@ -123,8 +125,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/register/send-otp").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/auth/register/send-otp", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/verify-email", "/api/auth/reset-password/validate").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/live/authorize").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/videos/*/view").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/videos/*/history").permitAll()

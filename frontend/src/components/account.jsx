@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Avatar, Icon, Modal } from "./ui.jsx";
+import { Avatar, Icon, Modal, PasswordInput } from "./ui.jsx";
 
 export function AccountDialog({
   mode,
@@ -16,6 +16,7 @@ export function AccountDialog({
   onSwitchLogin,
   onSwitchRegister,
   onResendVerification,
+  onForgotPassword,
 }) {
   const authMode = mode === "auth";
   const loginMode = mode === "login";
@@ -244,10 +245,21 @@ export function AccountDialog({
               </label>
 
               <label>
-                Password
-                <input
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Password</span>
+                  {onForgotPassword && (
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={onForgotPassword}
+                      style={{ fontSize: 11, color: "#2563eb", padding: 0, textDecoration: "none", cursor: "pointer", fontWeight: 500 }}
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <PasswordInput
                   name="password"
-                  type="password"
                   value={form.password}
                   onChange={update}
                   placeholder="Your password"
@@ -300,9 +312,8 @@ export function AccountDialog({
 
               <label>
                 Password <span className="optional">{registerMode ? "Required" : "Leave blank to keep current"}</span>
-                <input
+                <PasswordInput
                   name="password"
-                  type="password"
                   value={form.password}
                   onChange={update}
                   placeholder={registerMode ? "Create a password" : "New password"}

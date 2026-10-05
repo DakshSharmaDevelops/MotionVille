@@ -4,8 +4,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.example.motionville.dto.account.EmailVerificationResponse;
+import org.example.motionville.dto.account.ForgotPasswordRequest;
 import org.example.motionville.dto.account.LoginRequest;
+import org.example.motionville.dto.account.PasswordResetResponse;
 import org.example.motionville.dto.account.ResendVerificationRequest;
+import org.example.motionville.dto.account.ResetPasswordRequest;
 import org.example.motionville.dto.account.UserResponse;
 import org.example.motionville.dto.account.VerifyEmailRequest;
 import org.example.motionville.entity.account.AppUser;
@@ -15,6 +18,7 @@ import org.example.motionville.security.JwtService;
 import org.example.motionville.security.RefreshTokenService;
 import org.example.motionville.services.account.AppUserService;
 import org.example.motionville.services.account.EmailVerificationService;
+import org.example.motionville.services.account.PasswordResetService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -47,6 +51,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final EmailVerificationService emailVerificationService;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
@@ -55,7 +60,8 @@ public class AuthController {
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             RefreshTokenService refreshTokenService,
-            EmailVerificationService emailVerificationService) {
+            EmailVerificationService emailVerificationService,
+            PasswordResetService passwordResetService) {
         this.authenticationManager = authenticationManager;
         this.appUserService = appUserService;
         this.userRepository = userRepository;
@@ -63,6 +69,7 @@ public class AuthController {
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.emailVerificationService = emailVerificationService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -212,6 +219,27 @@ public class AuthController {
 
         String email = request != null ? request.getEmail() : null;
         EmailVerificationResponse response = emailVerificationService.resendVerification(email, authentication);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<PasswordResetResponse> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        PasswordResetResponse response = passwordResetService.sendResetLink(request.getEmailOrUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<PasswordResetResponse> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        PasswordResetResponse response = passwordResetService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/reset-password/validate")
+    public ResponseEntity<PasswordResetResponse> validateResetToken(
+            @RequestParam String token) {
+        PasswordResetResponse response = passwordResetService.validateToken(token);
         return ResponseEntity.ok(response);
     }
 

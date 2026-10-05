@@ -40,8 +40,65 @@ export function Icon({ name, size = 21, filled = false }) {
     filter: <><path d="M4 7h16M7 12h10m-7 5h4" /></>,
     grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></>,
     edit: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></>,
+    eye: (
+      <>
+        <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    eyeOff: (
+      <>
+        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+        <line x1="2" y1="2" x2="22" y2="22" />
+      </>
+    ),
   };
   return <svg {...shared}>{paths[name]}</svg>;
+}
+
+export function PasswordInput({
+  id,
+  name,
+  value,
+  onChange,
+  placeholder = "Password",
+  required = false,
+  autoComplete,
+  minLength,
+  disabled = false,
+  className = "",
+  style,
+}) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className={`password-input-wrapper ${className}`} style={style}>
+      <input
+        id={id}
+        name={name}
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        autoComplete={autoComplete}
+        minLength={minLength}
+        disabled={disabled}
+      />
+      <button
+        type="button"
+        className="password-toggle-btn"
+        onClick={() => setShow((prev) => !prev)}
+        aria-label={show ? "Hide password" : "Show password"}
+        title={show ? "Hide password" : "Show password"}
+        tabIndex={-1}
+      >
+        <Icon name={show ? "eyeOff" : "eye"} size={18} />
+      </button>
+    </div>
+  );
 }
 
 export function Avatar({ src, name, size = "normal" }) {

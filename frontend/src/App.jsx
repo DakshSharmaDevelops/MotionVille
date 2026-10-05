@@ -21,6 +21,7 @@ import {
   AccountMenu,
   SubscribersDialog,
 } from "./components/account.jsx";
+import ForgotPasswordPage from "./components/ForgotPasswordPage.jsx";
 
 import {
   CreateChannelDialog,
@@ -76,6 +77,7 @@ function routeView(pathname) {
   if (pathname === "/recent") return "Recently added";
   if (/^\/channel\/\d+\/?$/.test(pathname)) return "Channel";
   if (pathname === "/search") return "Search";
+  if (pathname === "/forgot-password" || pathname === "/reset-password") return "ForgotPassword";
   return "Home";
 }
 
@@ -90,6 +92,7 @@ function routeForView(view) {
     case "Your channel": return "/your-videos";
     case "Recently added": return "/recent";
     case "Search": return "/search";
+    case "ForgotPassword": return "/forgot-password";
     default: return "/";
   }
 }
@@ -3041,7 +3044,18 @@ export default function App() {
             </div>
           ) : null}
 
-          {view === "Playlists" ? (
+          {view === "ForgotPassword" ? (
+            <ForgotPasswordPage
+              token={new URLSearchParams(location.search).get("token")}
+              onNavigateLogin={() => {
+                setAccountDialog("login");
+                navigate("/login");
+              }}
+              onNavigateForgot={() => {
+                navigate("/forgot-password");
+              }}
+            />
+          ) : view === "Playlists" ? (
             <PlaylistLibrary
               playlists={playlists}
               selectedPlaylist={selectedPlaylist}
@@ -3666,6 +3680,10 @@ export default function App() {
             );
           }}
           onResendVerification={resendVerificationEmail}
+          onForgotPassword={() => {
+            setAccountDialog(null);
+            navigate("/forgot-password");
+          }}
         />
       )}
 

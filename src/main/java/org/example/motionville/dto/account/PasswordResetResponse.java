@@ -1,6 +1,5 @@
 package org.example.motionville.dto.account;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -10,11 +9,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginRequest {
+public class PasswordResetResponse {
 
-    @NotBlank
-    private String username;
-
-    @NotBlank
-    private String password;
+    private boolean success;
+    private String message;
 }
