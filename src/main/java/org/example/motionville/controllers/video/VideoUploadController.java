@@ -22,7 +22,7 @@ public class VideoUploadController {
         this.videoService = videoService;
     }
 
-    @PreAuthorize("hasRole('ADMIN') or @authorizationService.isChannelOwner(#request.channelId(), authentication)")
+    @PreAuthorize("hasRole('ADMIN') or (@authorizationService.isChannelOwner(#request.channelId(), authentication) and @authorizationService.isEmailVerified(authentication))")
     @PostMapping("/uploads")
     public ResponseEntity<VideoUploadResponse> createUpload(
             @Valid @RequestBody VideoUploadRequest request) {

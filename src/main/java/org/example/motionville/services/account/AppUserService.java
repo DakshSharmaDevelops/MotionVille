@@ -20,29 +20,33 @@ public class AppUserService {
 
     private final AppUserRepository appUserRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailValidatorService emailValidatorService;
+    private final EmailVerificationService emailVerificationService;
 
     public AppUserService(
             AppUserRepository appUserRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            EmailValidatorService emailValidatorService,
+            EmailVerificationService emailVerificationService) {
         this.appUserRepository = appUserRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailValidatorService = emailValidatorService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     public UserResponse createUser(UserCreateRequest request) {
 
-        if (appUserRepository.existsByUsername(request.getUsername())) {
+        // Anti-account-enumeration: generic conflict error regardless of whether username or email was the duplicate
+        if (appUserRepository.existsByUsername(request.getUsername())
+                || appUserRepository.existsByEmail(request.getEmail())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Username already exists"
+                    "An account with this username or email already exists"
             );
         }
 
-        if (appUserRepository.existsByEmail(request.getEmail())) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Email already exists"
-            );
-        }
+        // Validate MX records before persisting
+        emailValidatorService.validateEmailDomainMx(request.getEmail());
 
         AppUser user = new AppUser();
 
@@ -54,8 +58,12 @@ public class AppUserService {
         user.setRole("USER");
         user.setDisplayName(request.getDisplayName());
         user.setAvatarUrl(request.getAvatarUrl());
+        user.setEmailVerified(false);
 
         AppUser savedUser = appUserRepository.save(user);
+
+        // Generate and dispatch verification token email
+        emailVerificationService.createAndSendVerificationToken(savedUser);
 
         return convertToResponse(savedUser);
     }
@@ -139,10 +147,15 @@ public class AppUserService {
 
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "Email already exists"
+                    "An account with this username or email already exists"
             );
         }
 
+        boolean emailChanged = !user.getEmail().equalsIgnoreCase(request.getEmail().trim());
+        if (emailChanged) {
+            emailValidatorService.validateEmailDomainMx(request.getEmail());
+            user.setEmailVerified(false);
+        }
 
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
@@ -158,6 +171,10 @@ public class AppUserService {
 
 
         AppUser updatedUser = appUserRepository.save(user);
+
+        if (emailChanged) {
+            emailVerificationService.createAndSendVerificationToken(updatedUser);
+        }
 
         return convertToResponse(updatedUser);
     }
@@ -187,6 +204,7 @@ public class AppUserService {
         response.setCreatedAt(user.getCreatedAt());
         response.setUpdatedAt(user.getUpdatedAt());
         response.setRole(user.getRole() == null ? "USER" : user.getRole());
+        response.setEmailVerified(user.isEmailVerified());
 
         return response;
     }

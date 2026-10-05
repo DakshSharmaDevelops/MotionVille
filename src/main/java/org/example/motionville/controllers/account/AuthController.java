@@ -3,14 +3,18 @@ package org.example.motionville.controllers.account;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.example.motionville.dto.account.EmailVerificationResponse;
 import org.example.motionville.dto.account.LoginRequest;
+import org.example.motionville.dto.account.ResendVerificationRequest;
 import org.example.motionville.dto.account.UserResponse;
+import org.example.motionville.dto.account.VerifyEmailRequest;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.account.RefreshToken;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.security.JwtService;
 import org.example.motionville.security.RefreshTokenService;
 import org.example.motionville.services.account.AppUserService;
+import org.example.motionville.services.account.EmailVerificationService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -28,6 +32,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -41,6 +46,7 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthController(
             AuthenticationManager authenticationManager,
@@ -48,13 +54,15 @@ public class AuthController {
             AppUserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            RefreshTokenService refreshTokenService) {
+            RefreshTokenService refreshTokenService,
+            EmailVerificationService emailVerificationService) {
         this.authenticationManager = authenticationManager;
         this.appUserService = appUserService;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @PostMapping("/login")
@@ -166,6 +174,45 @@ public class AuthController {
         return ResponseEntity.ok(
                 appUserService.getUserByUsername(principal.getUsername())
         );
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<EmailVerificationResponse> verifyEmail(
+            @Valid @RequestBody(required = false) VerifyEmailRequest request,
+            @RequestParam(required = false) String token) {
+
+        String tokenValue = (request != null && request.getToken() != null && !request.getToken().isBlank())
+                ? request.getToken()
+                : token;
+
+        if (tokenValue == null || tokenValue.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verification token is required");
+        }
+
+        EmailVerificationResponse response = emailVerificationService.verifyEmail(tokenValue);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/verify-email")
+    public ResponseEntity<EmailVerificationResponse> verifyEmailGet(
+            @RequestParam(required = false) String token) {
+
+        if (token == null || token.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Verification token is required");
+        }
+
+        EmailVerificationResponse response = emailVerificationService.verifyEmail(token);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<EmailVerificationResponse> resendVerification(
+            @Valid @RequestBody(required = false) ResendVerificationRequest request,
+            Authentication authentication) {
+
+        String email = request != null ? request.getEmail() : null;
+        EmailVerificationResponse response = emailVerificationService.resendVerification(email, authentication);
+        return ResponseEntity.ok(response);
     }
 
     private void migrateLegacyPasswordIfNeeded(String usernameOrEmail, String rawPassword) {

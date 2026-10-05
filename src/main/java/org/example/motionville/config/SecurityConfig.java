@@ -99,7 +99,11 @@ public class SecurityConfig {
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers(
-                                "/api/live/authorize" // Media server webhook
+                                "/api/live/authorize", // Media server webhook
+                                "/api/auth/verify-email", // Email token verification from external clients
+                                "/api/auth/resend-verification",
+                                "/api/users", // Public registration
+                                "/api/auth/login" // Public login
                         )
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
@@ -116,7 +120,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout", "/api/auth/verify-email", "/api/auth/resend-verification").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/verify-email").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/live/authorize").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/videos/*/view").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/live", "/api/live/*").permitAll()

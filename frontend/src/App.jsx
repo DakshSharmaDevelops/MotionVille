@@ -215,6 +215,30 @@ export default function App() {
     setActiveChannelId(channelMatch ? Number(channelMatch[1]) : null);
 
     const query = new URLSearchParams(location.search);
+    if (path === "/verify-email") {
+      const token = query.get("token");
+      if (token) {
+        apiRequest("/auth/verify-email", {
+          method: "POST",
+          body: JSON.stringify({ token }),
+        })
+          .then((res) => {
+            setToast(res?.message || "Email verified successfully! Full features unlocked.");
+            apiRequest("/auth/me")
+              .then((updated) => {
+                if (updated?.id) setCurrentUser(updated);
+              })
+              .catch(() => {});
+            navigate("/", { replace: true });
+          })
+          .catch((err) => {
+            setToast(err?.message || "Verification link is invalid or has expired.");
+            navigate("/", { replace: true });
+          });
+      } else {
+        navigate("/", { replace: true });
+      }
+    }
     if (path === "/search") {
       const q = query.get("q") || "";
       setSearch(q);
@@ -1123,6 +1147,18 @@ export default function App() {
     );
 
     setToast("Profile updated.");
+  }
+
+  async function resendVerificationEmail() {
+    try {
+      const res = await apiRequest("/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email: currentUser?.email }),
+      });
+      setToast(res?.message || "Verification email sent.");
+    } catch (err) {
+      setToast(err?.message || "Could not send verification email. Please try again later.");
+    }
   }
 
   async function logoutUser() {
@@ -2364,6 +2400,36 @@ export default function App() {
         </div>
       </header>
 
+      {currentUser && !currentUser.emailVerified && (
+        <aside
+          style={{
+            background: "#fef3c7",
+            borderBottom: "1px solid #fde68a",
+            padding: "8px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            fontSize: 12,
+            color: "#92400e",
+            zIndex: 30,
+            position: "relative"
+          }}
+          aria-label="Email verification notice"
+        >
+          <span>
+            Please verify your email address (<strong>{currentUser.email}</strong>) to unlock channel creation and video uploads.
+          </span>
+          <button
+            type="button"
+            className="feed-filter"
+            style={{ fontSize: 11, padding: "4px 10px", cursor: "pointer", background: "#fff", borderColor: "#fcd34d" }}
+            onClick={resendVerificationEmail}
+          >
+            Resend verification email
+          </button>
+        </aside>
+      )}
+
       {sidebarOpen && (
         <button
           className="mobile-scrim"
@@ -3479,6 +3545,7 @@ export default function App() {
               "Subscriptions"
             );
           }}
+          onResendVerification={resendVerificationEmail}
         />
       )}
 

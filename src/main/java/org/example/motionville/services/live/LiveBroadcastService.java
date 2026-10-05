@@ -53,6 +53,9 @@ public class LiveBroadcastService {
         // The existing app has no server-issued login session. Recheck credentials
         // here rather than trusting a caller-supplied owner ID to start broadcasts.
         var user = users.login(username, password);
+        if (!user.isEmailVerified()) {
+            throw error(403, "Email verification is required to start a live broadcast");
+        }
         var channel = channels.findById(channelId).orElseThrow(() -> error(404, "Channel not found"));
         if (!channel.getOwner().getId().equals(user.getId())) throw error(403, "This channel belongs to another account");
         Session existing = sessions.values().stream().filter(s -> s.channelId().equals(channelId)).findFirst().orElse(null);

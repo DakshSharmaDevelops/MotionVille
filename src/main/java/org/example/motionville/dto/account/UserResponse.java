@@ -17,6 +17,7 @@ public class UserResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private String role;
+    private boolean emailVerified;
 
 
 }
