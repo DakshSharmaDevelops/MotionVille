@@ -40,8 +40,8 @@ public class SmtpEmailService implements EmailService {
 
     @Autowired
     public SmtpEmailService(
-            @Autowired(required = false) JavaMailSender mailSender,
-            @Autowired(required = false) TemplateEngine templateEngine,
+            JavaMailSender mailSender,
+            TemplateEngine templateEngine,
             @Value("${motionville.mail.enabled:false}") boolean mailEnabled,
             @Value("${motionville.mail.from:noreply@motionville.com}") String fromEmail,
             @Value("${motionville.mail.from-name:MotionVille}") String fromName,
@@ -56,31 +56,6 @@ public class SmtpEmailService implements EmailService {
         this.frontendBaseUrl = frontendBaseUrl;
         this.verificationUrlBase = verificationUrlBase;
         this.resetPasswordUrlBase = resetPasswordUrlBase;
-    }
-
-    public SmtpEmailService(
-            JavaMailSender mailSender,
-            boolean mailEnabled,
-            String fromEmail,
-            String fromName,
-            String verificationUrlBase,
-            String resetPasswordUrlBase,
-            String frontendOrigin,
-            String frontendPublicUrl) {
-        this(mailSender, null, mailEnabled, fromEmail, fromName,
-                frontendPublicUrl != null && !frontendPublicUrl.isBlank() ? frontendPublicUrl : frontendOrigin,
-                verificationUrlBase, resetPasswordUrlBase);
-    }
-
-    public SmtpEmailService(
-            JavaMailSender mailSender,
-            boolean mailEnabled,
-            String fromEmail,
-            String fromName,
-            String verificationUrlBase,
-            String resetPasswordUrlBase) {
-        this(mailSender, null, mailEnabled, fromEmail, fromName,
-                null, verificationUrlBase, resetPasswordUrlBase);
     }
 
     @Override

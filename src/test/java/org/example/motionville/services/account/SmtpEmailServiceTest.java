@@ -60,13 +60,13 @@ class SmtpEmailServiceTest {
     void verificationEmailUsesConfiguredDeployedFrontendUrl() throws Exception {
         SmtpEmailService emailService = new SmtpEmailService(
                 mailSender,
+                null,
                 true,
                 "noreply@motionville.com",
                 "MotionVille",
-                "https://motionville-app.vercel.app/verify-email",
-                "https://motionville-app.vercel.app/reset-password",
                 "https://motionville-app.vercel.app",
-                "https://motionville-app.vercel.app"
+                "https://motionville-app.vercel.app/verify-email",
+                "https://motionville-app.vercel.app/reset-password"
         );
 
         AppUser user = new AppUser();
@@ -89,13 +89,13 @@ class SmtpEmailServiceTest {
     void passwordResetEmailUsesConfiguredDeployedFrontendUrl() throws Exception {
         SmtpEmailService emailService = new SmtpEmailService(
                 mailSender,
+                null,
                 true,
                 "noreply@motionville.com",
                 "MotionVille",
-                "https://motionville-app.vercel.app/verify-email",
-                "https://motionville-app.vercel.app/reset-password",
                 "https://motionville-app.vercel.app",
-                "https://motionville-app.vercel.app"
+                "https://motionville-app.vercel.app/verify-email",
+                "https://motionville-app.vercel.app/reset-password"
         );
 
         AppUser user = new AppUser();
@@ -122,10 +122,10 @@ class SmtpEmailServiceTest {
 
         SmtpEmailService emailService = new SmtpEmailService(
                 mailSender,
+                null,
                 true,
                 "noreply@motionville.com",
                 "MotionVille",
-                null,
                 null,
                 null,
                 null
@@ -150,13 +150,13 @@ class SmtpEmailServiceTest {
     void sendReportNotificationEmailDispatchesVideoReportCorrectly() throws Exception {
         SmtpEmailService emailService = new SmtpEmailService(
                 mailSender,
+                null,
                 true,
                 "noreply@motionville.com",
                 "MotionVille",
-                "https://app.motionville.com/verify-email",
-                "https://app.motionville.com/reset-password",
                 "https://app.motionville.com",
-                "https://app.motionville.com"
+                "https://app.motionville.com/verify-email",
+                "https://app.motionville.com/reset-password"
         );
 
         AppUser reporter = new AppUser();
@@ -200,13 +200,13 @@ class SmtpEmailServiceTest {
     void sendReportNotificationEmailDispatchesCommentReportCorrectly() throws Exception {
         SmtpEmailService emailService = new SmtpEmailService(
                 mailSender,
+                null,
                 true,
                 "noreply@motionville.com",
                 "MotionVille",
-                "https://app.motionville.com/verify-email",
-                "https://app.motionville.com/reset-password",
                 "https://app.motionville.com",
-                "https://app.motionville.com"
+                "https://app.motionville.com/verify-email",
+                "https://app.motionville.com/reset-password"
         );
 
         AppUser reporter = new AppUser();
