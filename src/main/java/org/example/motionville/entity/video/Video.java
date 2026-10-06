@@ -4,6 +4,8 @@ import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.engagement.VideoReaction;
 import org.example.motionville.entity.playlist.PlayListVideo;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -35,6 +37,7 @@ public class Video {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="channel_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Channel channel;
 
     @ManyToOne(fetch = FetchType.LAZY)

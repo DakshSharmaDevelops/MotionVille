@@ -1,6 +1,8 @@
 package org.example.motionville.entity.playlist;
 
 import org.example.motionville.entity.video.Video;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -37,10 +39,12 @@ public class PlayListVideo {
 
     @ManyToOne
     @JoinColumn(name="playList_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private PlayList playList;
 
     @ManyToOne
     @JoinColumn(name="video_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Video video;
 
     @Column(nullable = false)

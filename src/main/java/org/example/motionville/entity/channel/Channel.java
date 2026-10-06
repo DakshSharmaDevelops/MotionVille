@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -23,6 +25,7 @@ public class Channel {
 
     @OneToOne
     @JoinColumn(name="owner_id", unique = true, nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser owner;
 
     @Column(nullable = false, unique = true, length = 50)

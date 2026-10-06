@@ -1,6 +1,8 @@
 package org.example.motionville.entity.playlist;
 
 import org.example.motionville.entity.account.AppUser;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,6 +25,7 @@ public class PlayList {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="owner_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser owner;
 
     @Column(nullable = false,length = 150)

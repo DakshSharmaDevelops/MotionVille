@@ -1,6 +1,8 @@
 package org.example.motionville.entity.engagement;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -34,10 +36,12 @@ public class VideoReaction {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="user_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="video_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Video video;
 
     @Enumerated(EnumType.STRING)

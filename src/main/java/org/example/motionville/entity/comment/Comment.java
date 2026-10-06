@@ -2,6 +2,8 @@ package org.example.motionville.entity.comment;
 
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.video.Video;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,14 +24,17 @@ public class Comment {
 
     @ManyToOne
     @JoinColumn(name="video_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Video video;
 
     @ManyToOne
     @JoinColumn(name="author_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser author;
 
     @ManyToOne
     @JoinColumn(name="parent_comment_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Comment parentComment;
 
     @Column(nullable = false, columnDefinition = "boolean not null default false")

@@ -2,6 +2,8 @@ package org.example.motionville.entity.comment;
 
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.engagement.enums.ReactionType;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -32,10 +34,12 @@ public class CommentReaction {
 
     @ManyToOne
     @JoinColumn(name = "user_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser user;
 
     @ManyToOne
     @JoinColumn(name = "comment_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Comment comment;
 
     @Enumerated(EnumType.STRING)

@@ -3,6 +3,8 @@ package org.example.motionville.entity.notification;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.video.Video;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -33,18 +35,22 @@ public class Notification {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser recipient;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="actor_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser actor;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="comment_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Comment comment;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="video_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Video video;
 
     @Enumerated(EnumType.STRING)

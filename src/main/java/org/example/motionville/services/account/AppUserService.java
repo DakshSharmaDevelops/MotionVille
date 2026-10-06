@@ -2,6 +2,7 @@ package org.example.motionville.services.account;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import lombok.RequiredArgsConstructor;
 import org.example.motionville.dto.account.UserCreateRequest;
 import org.example.motionville.dto.account.UserResponse;
 import org.example.motionville.dto.account.UserUpdateRequest;
@@ -9,8 +10,6 @@ import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.account.RefreshTokenRepository;
 import org.example.motionville.repo.account.RegistrationOtpRepository;
-import org.example.motionville.repo.channel.ChannelRepository;
-import org.example.motionville.repo.comment.CommentRepository;
 import org.example.motionville.repo.engagement.WatchHistoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -25,6 +24,7 @@ import java.util.List;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class AppUserService {
 
     @PersistenceContext
@@ -38,39 +38,12 @@ public class AppUserService {
 
     private final EmailVerificationService emailVerificationService;
 
-    private final ChannelRepository channelRepository;
-
-    private final CommentRepository commentRepository;
-
     private RefreshTokenRepository refreshTokenRepository;
 
     private WatchHistoryRepository watchHistoryRepository;
 
     private RegistrationOtpRepository registrationOtpRepository;
 
-    @Autowired
-    public AppUserService(
-            AppUserRepository appUserRepository,
-            PasswordEncoder passwordEncoder,
-            EmailValidatorService emailValidatorService,
-            EmailVerificationService emailVerificationService,
-            ChannelRepository channelRepository,
-            CommentRepository commentRepository) {
-        this.appUserRepository = appUserRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.emailValidatorService = emailValidatorService;
-        this.emailVerificationService = emailVerificationService;
-        this.channelRepository = channelRepository;
-        this.commentRepository = commentRepository;
-    }
-
-    public AppUserService(
-            AppUserRepository appUserRepository,
-            PasswordEncoder passwordEncoder,
-            EmailValidatorService emailValidatorService,
-            EmailVerificationService emailVerificationService) {
-        this(appUserRepository, passwordEncoder, emailValidatorService, emailVerificationService, null, null);
-    }
 
 
     public UserResponse createUser(UserCreateRequest request) {
@@ -244,141 +217,21 @@ public class AppUserService {
                         )
                 );
 
-        if (entityManager != null) {
-            entityManager.flush();
-
-            // 1. Channel & Video Cascades
-            List<?> channelIds = entityManager.createNativeQuery("SELECT id FROM channels WHERE owner_id = :userId")
-                    .setParameter("userId", id)
-                    .getResultList();
-
-            for (Object chId : channelIds) {
-                Long channelId = ((Number) chId).longValue();
-
-                // Video-related dependencies: comments on videos belonging to this channel
-                entityManager.createNativeQuery(
-                        "DELETE FROM comment_reactions WHERE comment_id IN (" +
-                                "SELECT id FROM comments WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId))")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM reports WHERE comment_id IN (" +
-                                "SELECT id FROM comments WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId))")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM notifications WHERE comment_id IN (" +
-                                "SELECT id FROM comments WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId))")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                // Break parent comment self-references
-                entityManager.createNativeQuery(
-                        "UPDATE comments SET parent_comment_id = NULL WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM comments WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                // Video relations
-                entityManager.createNativeQuery(
-                        "DELETE FROM video_views WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM watch_history WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM playlist_videos WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM video_tags WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM video_assets WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM video_reactions WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM notifications WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM reports WHERE video_id IN (SELECT id FROM videos WHERE channel_id = :channelId)")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM videos WHERE channel_id = :channelId")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM subscriptions WHERE channel_id = :channelId")
-                        .setParameter("channelId", channelId).executeUpdate();
-
-                entityManager.createNativeQuery(
-                        "DELETE FROM channels WHERE id = :channelId")
-                        .setParameter("channelId", channelId).executeUpdate();
-            }
-
-            // 2. Playlists owned by the user
-            entityManager.createNativeQuery(
-                    "DELETE FROM playlist_videos WHERE play_list_id IN (SELECT id FROM playlists WHERE owner_id = :userId)")
-                    .setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery(
-                    "DELETE FROM playlists WHERE owner_id = :userId")
-                    .setParameter("userId", id).executeUpdate();
-
-            // 3. Comments authored by the user (on ANY video)
-            entityManager.createNativeQuery(
-                    "DELETE FROM comment_reactions WHERE comment_id IN (SELECT id FROM comments WHERE author_id = :userId)")
-                    .setParameter("userId", id).executeUpdate();
-
-            entityManager.createNativeQuery(
-                    "DELETE FROM reports WHERE comment_id IN (SELECT id FROM comments WHERE author_id = :userId)")
-                    .setParameter("userId", id).executeUpdate();
-
-            entityManager.createNativeQuery(
-                    "DELETE FROM notifications WHERE comment_id IN (SELECT id FROM comments WHERE author_id = :userId)")
-                    .setParameter("userId", id).executeUpdate();
-
-            entityManager.createNativeQuery(
-                    "UPDATE comments SET parent_comment_id = NULL WHERE parent_comment_id IN (SELECT id FROM comments WHERE author_id = :userId)")
-                    .setParameter("userId", id).executeUpdate();
-
-            entityManager.createNativeQuery(
-                    "DELETE FROM comments WHERE author_id = :userId")
-                    .setParameter("userId", id).executeUpdate();
-
-            // 4. Reactions, Views, History, Subscriptions created by the user
-            entityManager.createNativeQuery("DELETE FROM comment_reactions WHERE user_id = :userId").setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM video_reactions WHERE user_id = :userId").setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM watch_history WHERE user_id = :userId").setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM video_views WHERE viewer_id = :userId").setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM subscriptions WHERE subscriber_id = :userId").setParameter("userId", id).executeUpdate();
-
-            // 5. Notifications and Reports involving the user as actor/recipient/reporter
-            entityManager.createNativeQuery("DELETE FROM notifications WHERE recipient_id = :userId OR actor_id = :userId").setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM reports WHERE reporter_id = :userId").setParameter("userId", id).executeUpdate();
-
-            // 6. Auth & Verification tokens
-            entityManager.createNativeQuery("DELETE FROM refresh_tokens WHERE user_id = :userId").setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM password_reset_tokens WHERE user_id = :userId").setParameter("userId", id).executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM email_verification_tokens WHERE user_id = :userId").setParameter("userId", id).executeUpdate();
-
-            entityManager.clear();
-        }
-
-        if (registrationOtpRepository != null) {
+        if (registrationOtpRepository != null && user.getEmail() != null) {
             registrationOtpRepository.deleteAllByEmail(user.getEmail());
         }
 
-        appUserRepository.deleteById(id);
+        // Database-level ON DELETE CASCADE automatically cascades the deletion to
+        // channels, videos, assets, tags, comments, reactions, playlists, history, and tokens.
+        if (entityManager != null) {
+            entityManager.flush();
+            entityManager.createNativeQuery("DELETE FROM app_user WHERE id = :userId")
+                    .setParameter("userId", id)
+                    .executeUpdate();
+            entityManager.clear();
+        } else {
+            appUserRepository.delete(user);
+        }
     }
 
     private UserResponse convertToResponse(AppUser user) {

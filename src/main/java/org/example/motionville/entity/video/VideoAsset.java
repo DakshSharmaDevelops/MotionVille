@@ -2,6 +2,8 @@ package org.example.motionville.entity.video;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 
@@ -24,6 +26,7 @@ public class VideoAsset {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "video_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Video video;
 
     @Column(name = "asset_url",nullable = false,columnDefinition = "TEXT")

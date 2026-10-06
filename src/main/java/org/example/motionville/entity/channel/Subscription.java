@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.example.motionville.entity.account.AppUser;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 
@@ -36,10 +38,12 @@ public class Subscription {
 
     @ManyToOne
     @JoinColumn(name = "subscriber_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser subscriber;
 
     @ManyToOne
     @JoinColumn(name = "channel_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Channel channel;
 
     @Column(name = "subscribed_at", nullable = false)

@@ -3,6 +3,8 @@ package org.example.motionville.entity.report;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.comment.Comment;
 import org.example.motionville.entity.video.Video;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
@@ -29,14 +31,17 @@ public class Report {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reporter_id",nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private AppUser reporter;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="video_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Video video;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="comment_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Comment comment;
 
     @Enumerated(EnumType.STRING)

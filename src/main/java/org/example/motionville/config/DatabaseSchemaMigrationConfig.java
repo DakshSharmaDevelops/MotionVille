@@ -11,6 +11,8 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 
 @Configuration
 public class DatabaseSchemaMigrationConfig implements BeanPostProcessor {
@@ -77,7 +79,7 @@ public class DatabaseSchemaMigrationConfig implements BeanPostProcessor {
                             expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
                             consumed_at TIMESTAMP WITH TIME ZONE,
                             revoked BOOLEAN NOT NULL DEFAULT FALSE,
-                            CONSTRAINT fk_pwd_reset_user FOREIGN KEY (user_id) REFERENCES app_user(id)
+                            CONSTRAINT fk_pwd_reset_user FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
                         )
                     """);
                 } catch (Exception e) {
@@ -90,9 +92,78 @@ public class DatabaseSchemaMigrationConfig implements BeanPostProcessor {
                 } catch (Exception e) {
                     log.debug("categories description migration skipped: {}", e.getMessage());
                 }
+
+                // 7. Ensure foreign keys cascade on delete for clean user & content deletion
+                upgradeForeignKeysToCascade(connection);
             }
         } catch (Exception e) {
             log.debug("Database pre-migration check skipped or failed: {}", e.getMessage());
+        }
+    }
+
+    private void upgradeForeignKeysToCascade(Connection connection) {
+        try {
+            DatabaseMetaData metaData = connection.getMetaData();
+            String dbProduct = metaData.getDatabaseProductName().toLowerCase();
+
+            if (dbProduct.contains("postgresql") || dbProduct.contains("h2")) {
+                log.info("Ensuring foreign key constraints cascade on delete ({})...", dbProduct);
+                String findFkQuery = """
+                    SELECT
+                        tc.table_name,
+                        tc.constraint_name,
+                        kcu.column_name,
+                        ccu.table_name AS foreign_table_name,
+                        ccu.column_name AS foreign_column_name
+                    FROM information_schema.table_constraints AS tc
+                    JOIN information_schema.key_column_usage AS kcu
+                        ON tc.constraint_name = kcu.constraint_name
+                        AND tc.table_schema = kcu.table_schema
+                    JOIN information_schema.constraint_column_usage AS ccu
+                        ON ccu.constraint_name = tc.constraint_name
+                        AND ccu.table_schema = tc.table_schema
+                    JOIN information_schema.referential_constraints AS rc
+                        ON rc.constraint_name = tc.constraint_name
+                        AND rc.constraint_schema = tc.table_schema
+                    WHERE tc.constraint_type = 'FOREIGN KEY'
+                      AND lower(tc.table_schema) = 'public'
+                      AND lower(ccu.table_name) IN ('app_user', 'channels', 'videos', 'comments', 'playlists')
+                      AND upper(rc.delete_rule) != 'CASCADE'
+                """;
+
+                List<String[]> fkList = new ArrayList<>();
+                try (Statement stmt = connection.createStatement();
+                     ResultSet rs = stmt.executeQuery(findFkQuery)) {
+                    while (rs.next()) {
+                        fkList.add(new String[]{
+                                rs.getString("table_name"),
+                                rs.getString("constraint_name"),
+                                rs.getString("column_name"),
+                                rs.getString("foreign_table_name"),
+                                rs.getString("foreign_column_name")
+                        });
+                    }
+                }
+
+                for (String[] fk : fkList) {
+                    String table = fk[0];
+                    String constraint = fk[1];
+                    String col = fk[2];
+                    String foreignTable = fk[3];
+                    String foreignCol = fk[4];
+
+                    try (Statement stmt = connection.createStatement()) {
+                        stmt.execute(String.format("ALTER TABLE \"%s\" DROP CONSTRAINT \"%s\"", table, constraint));
+                        stmt.execute(String.format("ALTER TABLE \"%s\" ADD CONSTRAINT \"%s\" FOREIGN KEY (\"%s\") REFERENCES \"%s\"(\"%s\") ON DELETE CASCADE",
+                                table, constraint, col, foreignTable, foreignCol));
+                        log.info("Migrated constraint '{}' on table '{}' to ON DELETE CASCADE", constraint, table);
+                    } catch (Exception ex) {
+                        log.warn("Could not migrate constraint '{}' on table '{}': {}", constraint, table, ex.getMessage());
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Foreign key cascade migration skipped: {}", ex.getMessage());
         }
     }
 
