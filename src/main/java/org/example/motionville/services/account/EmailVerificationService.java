@@ -28,6 +28,7 @@ import java.util.Optional;
 public class EmailVerificationService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailVerificationService.class);
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final EmailVerificationTokenRepository tokenRepository;
@@ -45,8 +46,8 @@ public class EmailVerificationService {
             EmailVerificationTokenRepository tokenRepository,
             AppUserRepository userRepository,
             EmailService emailService,
-            @Autowired(required = false) RegistrationOtpRepository otpRepository,
-            @Autowired(required = false) RegistrationOtpService otpService,
+            RegistrationOtpRepository otpRepository,
+            RegistrationOtpService otpService,
             @Value("${motionville.mail.token-validity-minutes:1440}") long tokenValidityMinutes,
             @Value("${motionville.mail.resend-cooldown-seconds:60}") long resendCooldownSeconds,
             @Value("${motionville.mail.max-resends-per-hour:5}") int maxResendsPerHour) {
@@ -67,7 +68,8 @@ public class EmailVerificationService {
             long tokenValidityMinutes,
             long resendCooldownSeconds,
             int maxResendsPerHour) {
-        this(tokenRepository, userRepository, emailService, null, null, tokenValidityMinutes, resendCooldownSeconds, maxResendsPerHour);
+        this(tokenRepository, userRepository, emailService, null, null,
+                tokenValidityMinutes, resendCooldownSeconds, maxResendsPerHour);
     }
 
     public EmailVerificationToken createAndSendVerificationToken(AppUser user) {
