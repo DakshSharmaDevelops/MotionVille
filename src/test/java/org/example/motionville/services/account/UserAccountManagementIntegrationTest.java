@@ -56,6 +56,9 @@ class UserAccountManagementIntegrationTest {
     private org.example.motionville.repo.comment.CommentRepository commentRepository;
 
     @Autowired
+    private org.example.motionville.repo.comment.CommentReactionRepository commentReactionRepository;
+
+    @Autowired
     private org.example.motionville.repo.notification.NotificationRepository notificationRepository;
 
     @Autowired
@@ -169,6 +172,21 @@ class UserAccountManagementIntegrationTest {
         notification.setType(org.example.motionville.entity.notification.enums.NotificationType.NEW_COMMENT);
         notification.setMessage("New comment notification");
         notificationRepository.save(notification);
+
+        // 4b. Another user reacts to the comment (the exact constraint that caused the failure)
+        AppUser otherUser = new AppUser();
+        otherUser.setUsername("otheruser");
+        otherUser.setDisplayName("Other User");
+        otherUser.setEmail("other@example.com");
+        otherUser.setPassword(passwordEncoder.encode("Password123!"));
+        otherUser = userRepository.save(otherUser);
+
+        org.example.motionville.entity.comment.CommentReaction reaction =
+                new org.example.motionville.entity.comment.CommentReaction();
+        reaction.setUser(otherUser);
+        reaction.setComment(comment);
+        reaction.setReaction(org.example.motionville.entity.engagement.enums.ReactionType.LIKE);
+        commentReactionRepository.save(reaction);
 
         // 5. Delete user should cleanly cascade and succeed
         mockMvc.perform(delete("/api/users/" + user.getId())
