@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface WatchHistoryRepository extends JpaRepository<WatchHistory, Long> {
+
     Optional<WatchHistory> findByUser_IdAndVideo_VideoId(Long userId, Long videoId);
 
     List<WatchHistory> findByUser_IdOrderByLastWatchedAtDesc(Long userId);

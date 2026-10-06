@@ -2,6 +2,7 @@ package org.example.motionville.services.account;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import lombok.RequiredArgsConstructor;
 import org.example.motionville.dto.account.UserCreateRequest;
 import org.example.motionville.dto.account.UserResponse;
 import org.example.motionville.dto.account.UserUpdateRequest;
@@ -23,35 +24,25 @@ import java.util.List;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class AppUserService {
 
-    @PersistenceContext
     private EntityManager entityManager;
 
     private final AppUserRepository appUserRepository;
+
     private final PasswordEncoder passwordEncoder;
+
     private final EmailValidatorService emailValidatorService;
+
     private final EmailVerificationService emailVerificationService;
 
-    @Autowired(required = false)
     private RefreshTokenRepository refreshTokenRepository;
 
-    @Autowired(required = false)
     private WatchHistoryRepository watchHistoryRepository;
 
-    @Autowired(required = false)
     private RegistrationOtpRepository registrationOtpRepository;
 
-    public AppUserService(
-            AppUserRepository appUserRepository,
-            PasswordEncoder passwordEncoder,
-            EmailValidatorService emailValidatorService,
-            EmailVerificationService emailVerificationService) {
-        this.appUserRepository = appUserRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.emailValidatorService = emailValidatorService;
-        this.emailVerificationService = emailVerificationService;
-    }
 
     public UserResponse createUser(UserCreateRequest request) {
 
