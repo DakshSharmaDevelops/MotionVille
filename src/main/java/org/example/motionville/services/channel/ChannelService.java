@@ -167,14 +167,12 @@ public class ChannelService {
                         )
                 );
 
-        List<Channel> channels =
+        java.util.Optional<Channel> channelOpt =
                 channelRepository.findByOwner_Id(userId);
 
         List<ChannelResponse> responses = new ArrayList<>();
 
-        for (Channel channel : channels) {
-            responses.add(convertToResponse(channel));
-        }
+        channelOpt.ifPresent(channel -> responses.add(convertToResponse(channel)));
 
         return responses;
     }

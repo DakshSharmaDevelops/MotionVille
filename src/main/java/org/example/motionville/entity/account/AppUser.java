@@ -3,10 +3,12 @@ package org.example.motionville.entity.account;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.example.motionville.entity.channel.Channel;
 import org.example.motionville.entity.comment.Comment;
+import org.example.motionville.entity.notification.Notification;
 import org.example.motionville.entity.playlist.PlayList;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.example.motionville.entity.report.Report;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -59,8 +61,8 @@ public class AppUser {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RefreshToken> refreshTokens;
 
-    @OneToMany(mappedBy="owner", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Channel> channels;
+    @OneToOne(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Channel channel;
 
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PlayList> playLists;
@@ -69,19 +71,20 @@ public class AppUser {
     private List<Comment> comments;
 
     @OneToMany(mappedBy = "recipient", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<org.example.motionville.entity.notification.Notification> receivedNotifications;
+    private List<Notification> receivedNotifications;
 
     @OneToMany(mappedBy = "reporter", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<org.example.motionville.entity.report.Report> reports;
+    private List<Report> reports;
 
-    public void addChannel(Channel channel) {
-        if (channels == null) channels = new ArrayList<>();
-        channels.add(channel);
-        channel.setOwner(this);
-    }
-
-    public void removeChannel(Channel channel) {
-        if (channels != null) channels.remove(channel);
+    public void setChannel(Channel channel) {
+        if (channel == null) {
+            if (this.channel != null) {
+                this.channel.setOwner(null);
+            }
+        } else {
+            channel.setOwner(this);
+        }
+        this.channel = channel;
     }
 
     public void addPlayList(PlayList playList) {

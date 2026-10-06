@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
@@ -17,7 +18,7 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
     boolean existsByOwner_Id(Long ownerId);
 
     @EntityGraph(attributePaths = {"owner"})
-    List<Channel> findByOwner_Id(Long ownerId);
+    Optional<Channel> findByOwner_Id(Long ownerId);
 
     @EntityGraph(attributePaths = {"owner"})
     @Query("""

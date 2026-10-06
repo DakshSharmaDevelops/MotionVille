@@ -21,8 +21,8 @@ public class Channel {
     @Column(name = "id")
     private Long channelId;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name="owner_id" , unique = true,nullable = false)
+    @OneToOne
+    @JoinColumn(name="owner_id", unique = true, nullable = false)
     private AppUser owner;
 
     @Column(nullable = false, unique = true, length = 50)
