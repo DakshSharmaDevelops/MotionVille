@@ -12,7 +12,7 @@ import {
 } from "../api/videoApi.js";
 import { fetchWatchHistory, recordWatchProgress } from "../api/watchHistoryApi.js";
 import { fetchVideoViews } from "../api/videoViewApi.js";
-import { formatAge, formatViews } from "../utils/format.js";
+import { formatAge, formatViews, generateUuid } from "../utils/format.js";
 import { Avatar, Icon, Modal, VideoCard } from "./ui.jsx";
 
 import {
@@ -774,7 +774,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
   const pendingQualitySeek = useRef(null);
   const pendingQualityPlay = useRef(false);
   const saveInProgress = useRef(false);
-  const viewSessionId = useRef(crypto.randomUUID());
+  const viewSessionId = useRef(generateUuid());
   const viewRequestAttempted = useRef(false);
   const viewRequestInProgress = useRef(false);
   const [resumePosition, setResumePosition] = useState(0);

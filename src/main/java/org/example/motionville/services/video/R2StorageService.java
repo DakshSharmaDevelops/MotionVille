@@ -435,6 +435,21 @@ public class R2StorageService {
         return "r2://" + bucket + "/" + key;
     }
 
+    public String resolveUrl(String locator) {
+        if (locator == null || !locator.startsWith("r2://")) {
+            return locator;
+        }
+        String prefix = "r2://" + bucket + "/";
+        if (locator.startsWith(prefix)) {
+            return createPlaybackUrl(locator.substring(prefix.length()));
+        }
+        int slashIndex = locator.indexOf('/', "r2://".length());
+        if (slashIndex >= 0 && slashIndex + 1 < locator.length()) {
+            return createPlaybackUrl(locator.substring(slashIndex + 1));
+        }
+        return locator;
+    }
+
     public String bucketName() {
         return bucket;
     }

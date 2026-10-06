@@ -9,6 +9,11 @@ final class VideoResponseMapper {
     }
 
     static VideoResponse toResponse(Video video) {
+        return toResponse(video, null);
+    }
+
+    static VideoResponse toResponse(Video video, R2StorageService r2StorageService) {
+        if (video == null) return null;
         String channelName = null;
         String channelHandle = null;
         String channelAvatarUrl = null;
@@ -19,13 +24,18 @@ final class VideoResponseMapper {
             channelAvatarUrl = video.getChannel().getAvatarUrl();
         }
 
+        String thumbnailUrl = video.getThumbnailUrl();
+        if (r2StorageService != null && thumbnailUrl != null) {
+            thumbnailUrl = r2StorageService.resolveUrl(thumbnailUrl);
+        }
+
         return new VideoResponse(
                 video.getVideoId(),
                 video.getChannel() != null ? video.getChannel().getChannelId() : null,
                 video.getCategory() == null ? null : video.getCategory().getId(),
                 video.getTitle(),
                 video.getDescription(),
-                video.getThumbnailUrl(),
+                thumbnailUrl,
                 video.getDurationSeconds(),
                 video.getVisibility(),
                 video.getProcessingStatus(),

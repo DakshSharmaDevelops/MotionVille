@@ -141,6 +141,8 @@ class UserAccountManagementIntegrationTest {
         channel.setHandle("testchannel");
         channel.setOwner(user);
         channel = channelRepository.save(channel);
+        user.setChannel(channel);
+        user = userRepository.save(user);
 
         // 2. Create a video in channel
         org.example.motionville.entity.video.Video video = new org.example.motionville.entity.video.Video();

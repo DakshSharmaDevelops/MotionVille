@@ -10,6 +10,9 @@ import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.engagement.WatchHistoryRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.video.R2StorageService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,13 +22,25 @@ import java.time.Instant;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class WatchHistoryServiceImplements implements WatchHistoryService {
 
     private final WatchHistoryRepository watchHistoryRepository;
     private final AppUserRepository appUserRepository;
     private final VideoRepository videoRepository;
+    private final R2StorageService r2StorageService;
+
+    @Autowired
+    public WatchHistoryServiceImplements(
+            WatchHistoryRepository watchHistoryRepository,
+            AppUserRepository appUserRepository,
+            VideoRepository videoRepository,
+            @Lazy R2StorageService r2StorageService) {
+        this.watchHistoryRepository = watchHistoryRepository;
+        this.appUserRepository = appUserRepository;
+        this.videoRepository = videoRepository;
+        this.r2StorageService = r2StorageService;
+    }
 
     @Override
     public WatchHistoryResponse recordProgress(Long videoId, WatchHistoryUpdateRequest request) {
@@ -96,12 +111,16 @@ public class WatchHistoryServiceImplements implements WatchHistoryService {
 
     private WatchHistoryResponse toResponse(WatchHistory history) {
         Video video = history.getVideo();
+        String thumbnailUrl = video.getThumbnailUrl();
+        if (r2StorageService != null && thumbnailUrl != null) {
+            thumbnailUrl = r2StorageService.resolveUrl(thumbnailUrl);
+        }
         return new WatchHistoryResponse(
                 history.getId(),
                 history.getUser().getId(),
                 video.getVideoId(),
                 video.getTitle(),
-                video.getThumbnailUrl(),
+                thumbnailUrl,
                 video.getDurationSeconds(),
                 history.getLastPositionSeconds(),
                 history.getLastWatchedAt());

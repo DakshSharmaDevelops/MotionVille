@@ -8,6 +8,9 @@ import org.example.motionville.entity.video.Video;
 import org.example.motionville.repo.playlist.PlayListRepository;
 import org.example.motionville.repo.playlist.PlayListVideoRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.video.R2StorageService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,13 +23,25 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class PlayListVideoServiceImplements implements PlayListVideoService {
 
     private final PlayListVideoRepository playListVideoRepository;
     private final PlayListRepository playListRepository;
     private final VideoRepository videoRepository;
+    private final R2StorageService r2StorageService;
+
+    @Autowired
+    public PlayListVideoServiceImplements(
+            PlayListVideoRepository playListVideoRepository,
+            PlayListRepository playListRepository,
+            VideoRepository videoRepository,
+            @Lazy R2StorageService r2StorageService) {
+        this.playListVideoRepository = playListVideoRepository;
+        this.playListRepository = playListRepository;
+        this.videoRepository = videoRepository;
+        this.r2StorageService = r2StorageService;
+    }
 
     @Override
     public PlayListVideoResponse addVideo(Long playListId, Long videoId) {
@@ -141,11 +156,15 @@ public class PlayListVideoServiceImplements implements PlayListVideoService {
 
     private PlayListVideoResponse toResponse(PlayListVideo link) {
         Video video = link.getVideo();
+        String thumbnailUrl = video.getThumbnailUrl();
+        if (r2StorageService != null && thumbnailUrl != null) {
+            thumbnailUrl = r2StorageService.resolveUrl(thumbnailUrl);
+        }
         return new PlayListVideoResponse(
                 video.getVideoId(),
                 video.getTitle(),
                 video.getDescription(),
-                video.getThumbnailUrl(),
+                thumbnailUrl,
                 video.getDurationSeconds(),
                 video.getVisibility(),
                 video.getProcessingStatus(),

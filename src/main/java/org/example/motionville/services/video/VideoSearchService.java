@@ -7,6 +7,8 @@ import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.VideoRepository;
 import org.example.motionville.repo.video.VideoSpecifications;
 import org.example.motionville.security.AuthorizationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
@@ -32,12 +34,22 @@ public class VideoSearchService {
 
     private final VideoRepository videoRepository;
     private final AuthorizationService authorizationService;
+    private final R2StorageService r2StorageService;
+
+    @Autowired
+    public VideoSearchService(
+            VideoRepository videoRepository,
+            AuthorizationService authorizationService,
+            @Lazy R2StorageService r2StorageService) {
+        this.videoRepository = videoRepository;
+        this.authorizationService = authorizationService;
+        this.r2StorageService = r2StorageService;
+    }
 
     public VideoSearchService(
             VideoRepository videoRepository,
             AuthorizationService authorizationService) {
-        this.videoRepository = videoRepository;
-        this.authorizationService = authorizationService;
+        this(videoRepository, authorizationService, null);
     }
 
     public VideoPageResponse search(
@@ -67,7 +79,7 @@ public class VideoSearchService {
                 result.getSize(),
                 result.getTotalElements(),
                 result.getTotalPages(),
-                result.getContent().stream().map(VideoResponseMapper::toResponse).toList()
+                result.getContent().stream().map(video -> VideoResponseMapper.toResponse(video, r2StorageService)).toList()
         );
     }
 
@@ -85,7 +97,7 @@ public class VideoSearchService {
                 result.getSize(),
                 result.getTotalElements(),
                 result.getTotalPages(),
-                result.getContent().stream().map(VideoResponseMapper::toResponse).toList()
+                result.getContent().stream().map(video -> VideoResponseMapper.toResponse(video, r2StorageService)).toList()
         );
     }
 

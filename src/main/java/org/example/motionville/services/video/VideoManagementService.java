@@ -336,7 +336,7 @@ public class VideoManagementService {
     }
 
     private VideoResponse toResponse(Video video) {
-        return VideoResponseMapper.toResponse(video);
+        return VideoResponseMapper.toResponse(video, r2StorageService);
     }
 
     private String trimToNull(String value) {

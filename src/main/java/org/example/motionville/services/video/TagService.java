@@ -8,6 +8,8 @@ import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.repo.video.TagRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +24,22 @@ public class TagService {
 
     private final TagRepository tagRepository;
     private final VideoRepository videoRepository;
+    private final R2StorageService r2StorageService;
 
-    public TagService(TagRepository tagRepository, VideoRepository videoRepository) {
+    @Autowired
+    public TagService(
+            TagRepository tagRepository,
+            VideoRepository videoRepository,
+            @Lazy R2StorageService r2StorageService) {
         this.tagRepository = tagRepository;
         this.videoRepository = videoRepository;
+        this.r2StorageService = r2StorageService;
+    }
+
+    public TagService(
+            TagRepository tagRepository,
+            VideoRepository videoRepository) {
+        this(tagRepository, videoRepository, null);
     }
 
     @Transactional
@@ -76,7 +90,7 @@ public class TagService {
                         && v.getPublishedAt() != null
                         && (v.getProcessingStatus() == VideoProcessingStatus.READY
                             || v.getProcessingStatus() == VideoProcessingStatus.UPLOADED))
-                .map(VideoResponseMapper::toResponse)
+                .map(video -> VideoResponseMapper.toResponse(video, r2StorageService))
                 .toList();
     }
 

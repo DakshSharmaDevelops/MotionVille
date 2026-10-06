@@ -8,6 +8,7 @@ import org.example.motionville.entity.video.VideoAsset;
 import org.example.motionville.entity.video.enums.VideoProcessingStatus;
 import org.example.motionville.entity.video.enums.VideoVisibility;
 import org.example.motionville.dto.video.VideoPlaybackResponse;
+import org.example.motionville.dto.video.VideoResponse;
 import org.example.motionville.dto.video.VideoUploadRequest;
 import org.example.motionville.dto.video.VideoUploadResponse;
 import org.example.motionville.repo.channel.ChannelRepository;
@@ -293,10 +294,42 @@ public class VideoService {
         if (thumbnailUrl == null || thumbnailUrl.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Video thumbnail not found");
         }
-        if (thumbnailUrl.startsWith("r2://")) {
-            return r2StorageService.createPlaybackUrl(objectKey(thumbnailUrl));
+        return r2StorageService.resolveUrl(thumbnailUrl);
+    }
+
+    public String resolveThumbnailUrl(String thumbnailUrl) {
+        return r2StorageService.resolveUrl(thumbnailUrl);
+    }
+
+    public VideoResponse toResponse(Video video) {
+        if (video == null) return null;
+        String channelName = null;
+        String channelHandle = null;
+        String channelAvatarUrl = null;
+
+        if (video.getChannel() != null) {
+            channelName = video.getChannel().getName();
+            channelHandle = video.getChannel().getHandle();
+            channelAvatarUrl = video.getChannel().getAvatarUrl();
         }
-        return thumbnailUrl;
+
+        return new VideoResponse(
+                video.getVideoId(),
+                video.getChannel() != null ? video.getChannel().getChannelId() : null,
+                video.getCategory() == null ? null : video.getCategory().getId(),
+                video.getTitle(),
+                video.getDescription(),
+                resolveThumbnailUrl(video.getThumbnailUrl()),
+                video.getDurationSeconds(),
+                video.getVisibility(),
+                video.getProcessingStatus(),
+                video.getCreatedAt(),
+                video.getUpdatedAt(),
+                video.getPublishedAt(),
+                channelName,
+                channelHandle,
+                channelAvatarUrl
+        );
     }
 
     private void markFailed(Long videoId) {

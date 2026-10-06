@@ -9,6 +9,9 @@ import java.util.List;
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     @EntityGraph(attributePaths = {"author", "video", "parentComment"})
+    List<Comment> findByAuthor_Id(Long authorId);
+
+    @EntityGraph(attributePaths = {"author", "video", "parentComment"})
     List<Comment> findByVideo_VideoIdAndParentCommentIsNullOrderByCreatedAtAsc(Long videoId);
 
     @EntityGraph(attributePaths = {"author", "video", "parentComment"})
