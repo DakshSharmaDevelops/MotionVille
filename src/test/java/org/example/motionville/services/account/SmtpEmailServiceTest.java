@@ -115,7 +115,7 @@ class SmtpEmailServiceTest {
     }
 
     @Test
-    void dynamicOriginFromHttpRequestIsUsedWhenConfiguredIsLocalhost() throws Exception {
+    void dynamicOriginFromHttpRequestIsUsedWhenConfiguredIsEmpty() throws Exception {
         MockHttpServletRequest mockRequest = new MockHttpServletRequest();
         mockRequest.addHeader("Origin", "https://deployed.motionville.internal");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(mockRequest));
@@ -125,10 +125,10 @@ class SmtpEmailServiceTest {
                 true,
                 "noreply@motionville.com",
                 "MotionVille",
-                "http://localhost:5173/verify-email",
-                "http://localhost:5173/reset-password",
-                "http://localhost:5173",
-                "http://localhost:5173"
+                null,
+                null,
+                null,
+                null
         );
 
         AppUser user = new AppUser();
@@ -144,7 +144,6 @@ class SmtpEmailServiceTest {
         String content = extractContent(sentMessage.getContent());
 
         assertTrue(content.contains("https://deployed.motionville.internal/verify-email?token=dynToken789"));
-        assertFalse(content.contains("http://localhost:5173"));
     }
 
     @Test

@@ -15,9 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
@@ -34,10 +34,9 @@ public class SmtpEmailService implements EmailService {
     private final boolean mailEnabled;
     private final String fromEmail;
     private final String fromName;
+    private final String frontendBaseUrl;
     private final String verificationUrlBase;
     private final String resetPasswordUrlBase;
-    private final String frontendOrigin;
-    private final String frontendPublicUrl;
 
     @Autowired
     public SmtpEmailService(
@@ -46,19 +45,17 @@ public class SmtpEmailService implements EmailService {
             @Value("${motionville.mail.enabled:false}") boolean mailEnabled,
             @Value("${motionville.mail.from:noreply@motionville.com}") String fromEmail,
             @Value("${motionville.mail.from-name:MotionVille}") String fromName,
-            @Value("${motionville.mail.verification-url-base:http://localhost:5173/verify-email}") String verificationUrlBase,
-            @Value("${motionville.mail.reset-password-url-base:http://localhost:5173/reset-password}") String resetPasswordUrlBase,
-            @Value("${motionville.frontend-origin:http://localhost:5173}") String frontendOrigin,
-            @Value("${motionville.frontend-public-url:http://localhost:5173}") String frontendPublicUrl) {
+            @Value("${motionville.mail.frontend-url:${motionville.frontend-public-url:${motionville.frontend-origin:}}}") String frontendBaseUrl,
+            @Value("${motionville.mail.verification-url-base:}") String verificationUrlBase,
+            @Value("${motionville.mail.reset-password-url-base:}") String resetPasswordUrlBase) {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
         this.mailEnabled = mailEnabled;
         this.fromEmail = fromEmail;
         this.fromName = fromName;
+        this.frontendBaseUrl = frontendBaseUrl;
         this.verificationUrlBase = verificationUrlBase;
         this.resetPasswordUrlBase = resetPasswordUrlBase;
-        this.frontendOrigin = frontendOrigin;
-        this.frontendPublicUrl = frontendPublicUrl;
     }
 
     public SmtpEmailService(
@@ -70,8 +67,9 @@ public class SmtpEmailService implements EmailService {
             String resetPasswordUrlBase,
             String frontendOrigin,
             String frontendPublicUrl) {
-        this(mailSender, null, mailEnabled, fromEmail, fromName, verificationUrlBase, resetPasswordUrlBase,
-                frontendOrigin, frontendPublicUrl);
+        this(mailSender, null, mailEnabled, fromEmail, fromName,
+                frontendPublicUrl != null && !frontendPublicUrl.isBlank() ? frontendPublicUrl : frontendOrigin,
+                verificationUrlBase, resetPasswordUrlBase);
     }
 
     public SmtpEmailService(
@@ -81,13 +79,13 @@ public class SmtpEmailService implements EmailService {
             String fromName,
             String verificationUrlBase,
             String resetPasswordUrlBase) {
-        this(mailSender, null, mailEnabled, fromEmail, fromName, verificationUrlBase, resetPasswordUrlBase,
-                "http://localhost:5173", "http://localhost:5173");
+        this(mailSender, null, mailEnabled, fromEmail, fromName,
+                null, verificationUrlBase, resetPasswordUrlBase);
     }
 
     @Override
     public void sendVerificationEmail(AppUser user, String token, String otp) {
-        String verificationUrl = resolveUrl(verificationUrlBase, "/verify-email", "token", token);
+        String verificationUrl = buildUrl(verificationUrlBase, "/verify-email", "token", token);
 
         if (!mailEnabled || mailSender == null) {
             log.info("[EmailService:DEV] Registration verification for user '{}' ({}): OTP = {} | Link = {}",
@@ -156,7 +154,7 @@ public class SmtpEmailService implements EmailService {
 
     @Override
     public void sendPasswordResetEmail(AppUser user, String token) {
-        String resetUrl = resolveUrl(resetPasswordUrlBase, "/reset-password", "token", token);
+        String resetUrl = buildUrl(resetPasswordUrlBase, "/reset-password", "token", token);
 
         if (!mailEnabled || mailSender == null) {
             log.info("[EmailService:DEV] SMTP disabled. Password reset link for user '{}' ({}): {}",
@@ -193,8 +191,8 @@ public class SmtpEmailService implements EmailService {
     @Override
     public void sendNotificationEmail(AppUser recipient, String subject, String messageText, String actionUrl) {
         String resolvedActionUrl = actionUrl;
-        if (resolvedActionUrl != null && resolvedActionUrl.startsWith("http://localhost:5173") && isNonLocalhostUrl(getFrontendBaseUrl())) {
-            resolvedActionUrl = getFrontendBaseUrl() + resolvedActionUrl.substring("http://localhost:5173".length());
+        if (resolvedActionUrl != null && resolvedActionUrl.startsWith("/")) {
+            resolvedActionUrl = getFrontendBaseUrl() + resolvedActionUrl;
         }
 
         if (!mailEnabled || mailSender == null) {
@@ -300,50 +298,15 @@ public class SmtpEmailService implements EmailService {
         }
     }
 
-    private String renderTemplate(String templateName, Context context) {
-        return getTemplateEngine().process(templateName, context);
-    }
-
-    private TemplateEngine getTemplateEngine() {
-        if (templateEngine != null) {
-            return templateEngine;
-        }
-        if (fallbackTemplateEngine == null) {
-            synchronized (this) {
-                if (fallbackTemplateEngine == null) {
-                    ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
-                    resolver.setPrefix("templates/");
-                    resolver.setSuffix(".html");
-                    resolver.setTemplateMode(TemplateMode.HTML);
-                    resolver.setCharacterEncoding("UTF-8");
-                    resolver.setCacheable(false);
-                    SpringTemplateEngine engine = new SpringTemplateEngine();
-                    engine.setTemplateResolver(resolver);
-                    fallbackTemplateEngine = engine;
-                }
-            }
-        }
-        return fallbackTemplateEngine;
-    }
-
     public String getFrontendBaseUrl() {
-        if (isNonLocalhostUrl(frontendPublicUrl)) {
-            return stripTrailingSlash(frontendPublicUrl);
-        }
-        if (isNonLocalhostUrl(frontendOrigin)) {
-            return stripTrailingSlash(frontendOrigin);
+        if (frontendBaseUrl != null && !frontendBaseUrl.isBlank()) {
+            return stripTrailingSlash(frontendBaseUrl);
         }
         String reqOrigin = getRequestOrigin();
-        if (isNonLocalhostUrl(reqOrigin)) {
+        if (reqOrigin != null && !reqOrigin.isBlank()) {
             return stripTrailingSlash(reqOrigin);
         }
-        if (frontendPublicUrl != null && !frontendPublicUrl.isBlank()) {
-            return stripTrailingSlash(frontendPublicUrl);
-        }
-        if (frontendOrigin != null && !frontendOrigin.isBlank()) {
-            return stripTrailingSlash(frontendOrigin);
-        }
-        return "http://localhost:5173";
+        return "";
     }
 
     private String getRequestOrigin() {
@@ -377,33 +340,45 @@ public class SmtpEmailService implements EmailService {
         return null;
     }
 
-    private boolean isNonLocalhostUrl(String url) {
-        if (url == null || url.isBlank()) return false;
-        String lower = url.trim().toLowerCase();
-        return (lower.startsWith("http://") || lower.startsWith("https://"))
-                && !lower.contains("localhost")
-                && !lower.contains("127.0.0.1");
-    }
-
-    private String resolveUrl(String configuredUrl, String defaultPath, String paramName, String paramValue) {
-        String base = configuredUrl;
-        if (base == null || base.isBlank() || base.contains("localhost") || base.contains("127.0.0.1")) {
-            String deployedBase = getFrontendBaseUrl();
-            if (isNonLocalhostUrl(deployedBase)) {
-                base = deployedBase + defaultPath;
-            }
-        }
+    private String buildUrl(String configuredBase, String defaultPath, String paramName, String paramValue) {
+        String base = configuredBase;
         if (base == null || base.isBlank()) {
-            base = "http://localhost:5173" + defaultPath;
-        }
-        if (!base.contains(defaultPath)) {
+            String frontendBase = getFrontendBaseUrl();
+            base = stripTrailingSlash(frontendBase) + defaultPath;
+        } else if (!base.contains(defaultPath)) {
             base = stripTrailingSlash(base) + defaultPath;
         }
         return base + (base.contains("?") ? "&" : "?") + paramName + "=" + paramValue;
     }
 
+    private String renderTemplate(String templateName, Context context) {
+        return getTemplateEngine().process(templateName, context);
+    }
+
+    private TemplateEngine getTemplateEngine() {
+        if (templateEngine != null) {
+            return templateEngine;
+        }
+        if (fallbackTemplateEngine == null) {
+            synchronized (this) {
+                if (fallbackTemplateEngine == null) {
+                    ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+                    resolver.setPrefix("templates/");
+                    resolver.setSuffix(".html");
+                    resolver.setTemplateMode(TemplateMode.HTML);
+                    resolver.setCharacterEncoding("UTF-8");
+                    resolver.setCacheable(false);
+                    SpringTemplateEngine engine = new SpringTemplateEngine();
+                    engine.setTemplateResolver(resolver);
+                    fallbackTemplateEngine = engine;
+                }
+            }
+        }
+        return fallbackTemplateEngine;
+    }
+
     private String stripTrailingSlash(String str) {
-        if (str == null) return null;
+        if (str == null) return "";
         String s = str.trim();
         while (s.endsWith("/")) {
             s = s.substring(0, s.length() - 1);
