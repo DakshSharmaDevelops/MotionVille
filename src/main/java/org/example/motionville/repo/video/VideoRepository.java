@@ -19,6 +19,8 @@ public interface VideoRepository extends JpaRepository<Video, Long>, JpaSpecific
 
     long countByChannel_ChannelId(Long channelId);
 
+    java.util.List<Video> findByProcessingStatus(org.example.motionville.entity.video.enums.VideoProcessingStatus processingStatus);
+
     @EntityGraph(attributePaths = {"channel", "category"})
     java.util.List<Video> findDistinctByTags_Id(Long tagId);
 

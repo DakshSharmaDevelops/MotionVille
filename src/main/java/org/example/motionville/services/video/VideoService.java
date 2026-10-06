@@ -16,6 +16,8 @@ import org.example.motionville.repo.video.CategoryRepository;
 import org.example.motionville.repo.video.VideoAssetRepository;
 import org.example.motionville.repo.video.VideoRepository;
 import org.example.motionville.services.notification.NotificationCreationService;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -281,6 +283,27 @@ public class VideoService {
                 }
             }
         });
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void resumeInterruptedProcessing() {
+        java.util.List<Video> pending = videoRepository.findByProcessingStatus(VideoProcessingStatus.PROCESSING);
+        for (Video v : pending) {
+            Long videoId = v.getVideoId();
+            log.info("Resuming interrupted processing for video {}", videoId);
+            try {
+                processingExecutor.execute(() -> {
+                    try {
+                        videoProcessing(videoId);
+                    } catch (RuntimeException exception) {
+                        log.error("Video {} processing failed", videoId, exception);
+                    }
+                });
+            } catch (RuntimeException rejected) {
+                markFailed(videoId);
+                log.error("Video {} could not be queued", videoId, rejected);
+            }
+        }
     }
 
     public VideoProcessingStatus getProcessingStatus(Long videoId) {
