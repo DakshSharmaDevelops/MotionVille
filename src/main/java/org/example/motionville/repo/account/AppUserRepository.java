@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
 
 public interface AppUserRepository
@@ -29,4 +30,7 @@ public interface AppUserRepository
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from AppUser user where user.id = :id")
     Optional<AppUser> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("select user from AppUser user where upper(user.role) = 'ADMIN' or upper(user.role) = 'ROLE_ADMIN'")
+    List<AppUser> findAllAdmins();
 }

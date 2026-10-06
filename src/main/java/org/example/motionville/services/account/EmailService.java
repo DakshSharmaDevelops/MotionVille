@@ -1,6 +1,7 @@
 package org.example.motionville.services.account;
 
 import org.example.motionville.entity.account.AppUser;
+import org.example.motionville.entity.report.Report;
 
 public interface EmailService {
 
@@ -15,4 +16,6 @@ public interface EmailService {
     void sendPasswordResetEmail(AppUser user, String token);
 
     void sendNotificationEmail(AppUser recipient, String subject, String messageText, String actionUrl);
+
+    void sendReportNotificationEmail(String recipientEmail, String recipientName, Report report);
 }

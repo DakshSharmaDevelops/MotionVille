@@ -47,13 +47,13 @@ Configuration can be overridden with environment variables. Use the shared **Mot
 | `R2_BUCKET` | R2 bucket name |
 | `R2_ACCESS_KEY` | R2 access key ID |
 | `R2_SECRET_KEY` | R2 secret access key |
-| `FRONTEND_ORIGIN` | `http://localhost:5173` |
+| `FRONTEND_ORIGIN` | `http://localhost:5173`; allowed CORS origin; fallback to `FRONTEND_URL` / `APP_URL` |
+| `FRONTEND_PUBLIC_URL` | `http://localhost:5173`; base URL included in shared live links and email links |
+| `FRONTEND_URL` | Optional alias for deployed frontend root URL (e.g. `https://motionville.example.com`) |
+| `MOTIONVILLE_ADMIN_EMAIL` | Optional email address to receive administrative content report notifications |
+| `MOTIONVILLE_MAIL_VERIFICATION_URL` | Verification link base URL (defaults to `${FRONTEND_PUBLIC_URL}/verify-email`) |
+| `MOTIONVILLE_MAIL_RESET_PASSWORD_URL` | Password reset link base URL (defaults to `${FRONTEND_PUBLIC_URL}/reset-password`) |
 | `DDL_AUTO` | `update` locally; production uses `validate` and requires a pre-created schema |
-| `MEDIAMTX_PATH` | `mediamtx` executable used for local live broadcasts |
-| `MEDIAMTX_CONFIG` | `./streaming/mediamtx.yml` |
-| `LIVE_AUTOSTART` | `true`; set to `false` to use an externally managed MediaMTX |
-| `LIVE_WHIP_URL` | `http://localhost:8889`; browser WebRTC publishing endpoint |
-| `FRONTEND_PUBLIC_URL` | `http://localhost:5173`; base URL included in shared live links |
 
 Video uploads require the R2 settings above. The browser receives a 15-minute presigned PUT URL, uploads directly to R2, and notifies the backend to verify object size and content type. The backend reports `READY` after generating and storing playable assets. Playback URLs are freshly signed for one hour. Configure bucket CORS to allow your frontend origin, `PUT`, `GET`, and `HEAD`; allow the `Content-Type` and `Range` headers, and expose `Content-Length` and `Content-Range` for browser playback.
 

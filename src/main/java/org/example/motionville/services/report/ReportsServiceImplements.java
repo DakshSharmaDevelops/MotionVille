@@ -1,6 +1,5 @@
 package org.example.motionville.services.report;
 
-import lombok.RequiredArgsConstructor;
 import org.example.motionville.dto.report.ReportCreateRequest;
 import org.example.motionville.dto.report.ReportResponse;
 import org.example.motionville.dto.report.ReportStatusUpdateRequest;
@@ -13,6 +12,10 @@ import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.comment.CommentRepository;
 import org.example.motionville.repo.report.ReportRepository;
 import org.example.motionville.repo.video.VideoRepository;
+import org.example.motionville.services.account.EmailService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,11 +24,14 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class ReportsServiceImplements implements ReportsService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReportsServiceImplements.class);
 
     private static final EnumSet<ReportStatus> ACTIVE_REPORT_STATUSES =
             EnumSet.of(ReportStatus.OPEN, ReportStatus.REVIEWING);
@@ -34,9 +40,35 @@ public class ReportsServiceImplements implements ReportsService {
     private final AppUserRepository appUserRepository;
     private final VideoRepository videoRepository;
     private final CommentRepository commentRepository;
+    private final EmailService emailService;
 
     @Value("${motionville.demo-admin-user-id:1}")
     private Long demoAdminUserId;
+
+    @Value("${motionville.mail.admin-email:}")
+    private String configuredAdminEmail;
+
+    @Autowired
+    public ReportsServiceImplements(
+            ReportRepository reportRepository,
+            AppUserRepository appUserRepository,
+            VideoRepository videoRepository,
+            CommentRepository commentRepository,
+            @Autowired(required = false) EmailService emailService) {
+        this.reportRepository = reportRepository;
+        this.appUserRepository = appUserRepository;
+        this.videoRepository = videoRepository;
+        this.commentRepository = commentRepository;
+        this.emailService = emailService;
+    }
+
+    public ReportsServiceImplements(
+            ReportRepository reportRepository,
+            AppUserRepository appUserRepository,
+            VideoRepository videoRepository,
+            CommentRepository commentRepository) {
+        this(reportRepository, appUserRepository, videoRepository, commentRepository, null);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -85,7 +117,11 @@ public class ReportsServiceImplements implements ReportsService {
         report.setReason(request.getReason());
         report.setDetails(request.getDetails());
         report.setStatus(ReportStatus.OPEN);
-        return toResponse(reportRepository.save(report));
+        Report savedReport = reportRepository.save(report);
+
+        sendAdminReportNotifications(savedReport);
+
+        return toResponse(savedReport);
     }
 
     @Override
@@ -101,6 +137,56 @@ public class ReportsServiceImplements implements ReportsService {
         report.setResolvedAt(status == ReportStatus.RESOLVED || status == ReportStatus.REJECTED
                 ? Instant.now() : null);
         return toResponse(reportRepository.save(report));
+    }
+
+    private void sendAdminReportNotifications(Report report) {
+        if (emailService == null) {
+            return;
+        }
+
+        try {
+            Map<String, String> recipients = new LinkedHashMap<>();
+
+            // 1. Configured admin email from properties
+            if (configuredAdminEmail != null && !configuredAdminEmail.isBlank()) {
+                recipients.put(configuredAdminEmail.trim(), "Administrator");
+            }
+
+            // 2. All registered admin users in database
+            List<AppUser> admins = appUserRepository.findAllAdmins();
+            if (admins != null) {
+                for (AppUser admin : admins) {
+                    if (admin.getEmail() != null && !admin.getEmail().isBlank()) {
+                        String name = admin.getDisplayName() != null && !admin.getDisplayName().isBlank()
+                                ? admin.getDisplayName()
+                                : admin.getUsername();
+                        recipients.putIfAbsent(admin.getEmail().trim(), name);
+                    }
+                }
+            }
+
+            // 3. Fallback to demo admin user if no admin emails found yet
+            if (recipients.isEmpty() && demoAdminUserId != null) {
+                appUserRepository.findById(demoAdminUserId).ifPresent(user -> {
+                    if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                        String name = user.getDisplayName() != null && !user.getDisplayName().isBlank()
+                                ? user.getDisplayName()
+                                : user.getUsername();
+                        recipients.putIfAbsent(user.getEmail().trim(), name);
+                    }
+                });
+            }
+
+            for (Map.Entry<String, String> entry : recipients.entrySet()) {
+                try {
+                    emailService.sendReportNotificationEmail(entry.getKey(), entry.getValue(), report);
+                } catch (Exception ex) {
+                    log.error("Failed to send report notification to '{}': {}", entry.getKey(), ex.getMessage());
+                }
+            }
+        } catch (Exception ex) {
+            log.error("Failed to process admin report notifications for report #{}: {}", report.getId(), ex.getMessage());
+        }
     }
 
     private void requireDemoAdmin(Long requesterId) {
