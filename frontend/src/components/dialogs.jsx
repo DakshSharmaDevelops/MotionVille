@@ -706,6 +706,9 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
     userReaction: null,
   });
 
+  const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "ROLE_ADMIN";
+  const canManageVideo = isAdmin || Number(channel?.ownerId) === Number(currentUser?.id);
+
   useEffect(() => {
     let active = true;
     const vid = Number(video.id || video.videoId);
@@ -1649,7 +1652,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                             Report
                           </button>
                         )}
-                        {Number(channel?.ownerId) === Number(currentUser?.id) && onManageVideo && (
+                        {canManageVideo && onManageVideo && (
                           <>
                             <button className="video-actions-menu-item" type="button" role="menuitem" onClick={() => { setVideoActionsOpen(false); onManageVideo(video); }}>
                               Edit video
@@ -1873,7 +1876,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                           Report
                                         </button>
                                       )}
-                                      {(Number(item.authorId) === Number(currentUser?.id) || currentUser?.role === "ADMIN" || Number(channel?.ownerId) === Number(currentUser?.id)) && (
+                                      {(Number(item.authorId) === Number(currentUser?.id) || isAdmin || Number(channel?.ownerId) === Number(currentUser?.id)) && (
                                         <button
                                           className="comment-menu-item danger-text"
                                           type="button"
@@ -2069,7 +2072,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
                                                     Report
                                                   </button>
                                                 )}
-                                                {(Number(reply.authorId) === Number(currentUser?.id) || currentUser?.role === "ADMIN" || Number(channel?.ownerId) === Number(currentUser?.id)) && (
+                                                {(Number(reply.authorId) === Number(currentUser?.id) || isAdmin || Number(channel?.ownerId) === Number(currentUser?.id)) && (
                                                   <button
                                                     className="comment-menu-item danger-text"
                                                     type="button"

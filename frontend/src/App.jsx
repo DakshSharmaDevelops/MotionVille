@@ -204,7 +204,7 @@ export default function App() {
   const [notificationActionBusy, setNotificationActionBusy] = useState(false);
   const accountMenuRef = useRef(null);
   const notificationMenuRef = useRef(null);
-  const isDemoAdmin = currentUser?.role === "ADMIN";
+  const isDemoAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "ROLE_ADMIN";
 
   useEffect(() => {
     function closeMenusOutside(event) {
@@ -3362,7 +3362,7 @@ export default function App() {
                           onManage={
                             setManageVideo
                           }
-                          canManage={Number(channelById.get(Number(video.channelId))?.ownerId) === Number(currentUser?.id)}
+                          canManage={isDemoAdmin || Number(channelById.get(Number(video.channelId))?.ownerId) === Number(currentUser?.id)}
                           onDelete={
                             deleteVideoFromCard
                           }

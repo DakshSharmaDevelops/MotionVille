@@ -45,7 +45,8 @@ public class AuthorizationService {
         return isAuthenticated(authentication)
                 && authentication.getAuthorities().stream()
                 .anyMatch(authority ->
-                        "ROLE_ADMIN".equals(authority.getAuthority()));
+                        "ROLE_ADMIN".equals(authority.getAuthority())
+                                || "ADMIN".equals(authority.getAuthority()));
     }
 
     public boolean isEmailVerified(Authentication authentication) {
@@ -71,6 +72,9 @@ public class AuthorizationService {
         if (!isAuthenticated(authentication)) {
             return false;
         }
+        if (isAdmin(authentication)) {
+            return true;
+        }
 
         return channelRepository.findById(channelId)
                 .map(channel ->
@@ -86,6 +90,9 @@ public class AuthorizationService {
 
         if (!isAuthenticated(authentication)) {
             return false;
+        }
+        if (isAdmin(authentication)) {
+            return true;
         }
 
         return videoRepository.findById(videoId)
@@ -120,6 +127,9 @@ public class AuthorizationService {
         if (!isAuthenticated(authentication)) {
             return false;
         }
+        if (isAdmin(authentication)) {
+            return true;
+        }
 
         return commentRepository.findById(commentId)
                 .map(comment ->
@@ -135,6 +145,9 @@ public class AuthorizationService {
 
         if (!isAuthenticated(authentication)) {
             return false;
+        }
+        if (isAdmin(authentication)) {
+            return true;
         }
 
         return commentRepository.findById(commentId)
