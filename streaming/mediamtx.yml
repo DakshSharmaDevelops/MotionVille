@@ -21,6 +21,7 @@ webrtcAddress: :8889
 webrtcAllowOrigins: ["*"]
 webrtcLocalUDPAddress: :8189
 webrtcIPsFromInterfaces: true
+webrtcAdditionalHosts: [52.66.239.42]
 srt: false
 moq: false
 pathDefaults:
