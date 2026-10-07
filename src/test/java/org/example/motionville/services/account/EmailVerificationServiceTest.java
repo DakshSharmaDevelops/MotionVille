@@ -5,6 +5,7 @@ import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.account.EmailVerificationToken;
 import org.example.motionville.repo.account.AppUserRepository;
 import org.example.motionville.repo.account.EmailVerificationTokenRepository;
+import org.example.motionville.repo.account.RegistrationOtpRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,6 +23,8 @@ class EmailVerificationServiceTest {
     private EmailVerificationTokenRepository tokenRepository;
     private AppUserRepository userRepository;
     private EmailService emailService;
+    private RegistrationOtpRepository otpRepository;
+    private RegistrationOtpService otpService;
     private EmailVerificationService service;
     private AppUser testUser;
 
@@ -30,7 +33,9 @@ class EmailVerificationServiceTest {
         tokenRepository = mock(EmailVerificationTokenRepository.class);
         userRepository = mock(AppUserRepository.class);
         emailService = mock(EmailService.class);
-        service = new EmailVerificationService(tokenRepository, userRepository, emailService, 1440, 60, 5);
+        otpRepository = mock(RegistrationOtpRepository.class);
+        otpService = mock(RegistrationOtpService.class);
+        service = new EmailVerificationService(tokenRepository, userRepository, emailService, otpRepository, otpService, 1440, 60, 5);
 
         testUser = new AppUser();
         testUser.setId(1L);
