@@ -26,6 +26,7 @@ import java.util.Optional;
 public class PasswordResetService {
 
     private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final PasswordResetTokenRepository tokenRepository;

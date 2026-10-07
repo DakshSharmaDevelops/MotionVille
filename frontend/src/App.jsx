@@ -2301,9 +2301,12 @@ export default function App() {
                 <button
                   className="create-button"
                   type="button"
+                  title="Manage reports"
+                  aria-label="Manage reports"
                   onClick={() => setReportsAdminOpen(true)}
                 >
-                  Manage reports
+                  <Icon name="sparkle" size={17} />
+                  <span>Manage reports</span>
                 </button>
               )}
 
@@ -3315,46 +3318,21 @@ export default function App() {
                         key={ch.channelId}
                         className="search-channel-result"
                         onClick={() => showChannel(ch)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "1.25rem",
-                          padding: "1rem 1.25rem",
-                          background: "var(--card-bg, rgba(255, 255, 255, 0.05))",
-                          borderRadius: "12px",
-                          border: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-                          cursor: "pointer",
-                          transition: "background 0.2s ease",
-                        }}
                       >
-                        <div
-                          style={{
-                            width: "56px",
-                            height: "56px",
-                            borderRadius: "50%",
-                            background: "linear-gradient(135deg, #e50914, #990000)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#fff",
-                            fontSize: "22px",
-                            fontWeight: "bold",
-                            flexShrink: 0,
-                          }}
-                        >
+                        <div className="search-channel-avatar">
                           {ch.name ? ch.name.charAt(0).toUpperCase() : "C"}
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h4 style={{ margin: "0 0 4px 0", fontSize: "1.15rem", fontWeight: 600, cursor: "pointer", display: "inline-block" }}>
+                        <div className="search-channel-info">
+                          <h4 className="search-channel-name">
                             {ch.name}
                           </h4>
-                          <div style={{ fontSize: "0.85rem", opacity: 0.75, display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                          <div className="search-channel-meta">
                             <span>{ch.handle ? (ch.handle.startsWith("@") ? ch.handle : `@${ch.handle}`) : ""}</span>
                             <span>•</span>
                             <span>Channel</span>
                           </div>
                           {ch.description && (
-                            <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <p className="search-channel-desc">
                               {ch.description}
                             </p>
                           )}

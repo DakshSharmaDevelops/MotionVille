@@ -27,8 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AppUserService {
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    private final EntityManager entityManager;
 
     private final AppUserRepository appUserRepository;
 
@@ -38,11 +37,11 @@ public class AppUserService {
 
     private final EmailVerificationService emailVerificationService;
 
-    private RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
-    private WatchHistoryRepository watchHistoryRepository;
+    private final WatchHistoryRepository watchHistoryRepository;
 
-    private RegistrationOtpRepository registrationOtpRepository;
+    private final RegistrationOtpRepository registrationOtpRepository;
 
 
 
@@ -66,7 +65,6 @@ public class AppUserService {
         user.setEmail(request.getEmail());
         String encodedPassword = passwordEncoder.encode(request.getPassword());
         user.setPassword(encodedPassword);
-
         user.setRole("USER");
         user.setDisplayName(request.getDisplayName());
         user.setAvatarUrl(request.getAvatarUrl());

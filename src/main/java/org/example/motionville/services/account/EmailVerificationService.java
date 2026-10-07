@@ -61,17 +61,6 @@ public class EmailVerificationService {
         this.maxResendsPerHour = maxResendsPerHour;
     }
 
-    public EmailVerificationService(
-            EmailVerificationTokenRepository tokenRepository,
-            AppUserRepository userRepository,
-            EmailService emailService,
-            long tokenValidityMinutes,
-            long resendCooldownSeconds,
-            int maxResendsPerHour) {
-        this(tokenRepository, userRepository, emailService, null, null,
-                tokenValidityMinutes, resendCooldownSeconds, maxResendsPerHour);
-    }
-
     public EmailVerificationToken createAndSendVerificationToken(AppUser user) {
         Instant now = Instant.now();
 

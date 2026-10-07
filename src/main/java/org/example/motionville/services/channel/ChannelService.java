@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -88,10 +89,6 @@ public class ChannelService {
                 );
 
         return convertToResponse(channel);
-    }
-
-    public List<ChannelResponse> getAllChannels() {
-        return getAllChannels(null);
     }
 
     public List<ChannelResponse> getAllChannels(String search) {
@@ -167,7 +164,7 @@ public class ChannelService {
                         )
                 );
 
-        java.util.Optional<Channel> channelOpt =
+        Optional<Channel> channelOpt =
                 channelRepository.findByOwner_Id(userId);
 
         List<ChannelResponse> responses = new ArrayList<>();
