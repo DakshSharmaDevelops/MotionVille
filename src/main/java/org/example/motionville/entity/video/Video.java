@@ -37,7 +37,6 @@ public class Video {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="channel_id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
     private Channel channel;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -97,38 +96,6 @@ public class Video {
                     columnNames = {"video_id", "tag_id"})
     )
     private List<Tag> tags;
-
-    public void addAsset(VideoAsset asset) {
-        if (assets == null) assets = new ArrayList<>();
-        assets.add(asset);
-        asset.setVideo(this);
-    }
-
-    public void removeAsset(VideoAsset asset) {
-        if (assets != null && assets.remove(asset)) {
-            asset.setVideo(null);
-        }
-    }
-
-    public void addComment(Comment comment) {
-        if (comments == null) comments = new ArrayList<>();
-        comments.add(comment);
-        comment.setVideo(this);
-    }
-
-    public void removeComment(Comment comment) {
-        if (comments != null) comments.remove(comment);
-    }
-
-    public void addVideoReaction(VideoReaction videoReaction) {
-        if (videoReactions == null) videoReactions = new ArrayList<>();
-        videoReactions.add(videoReaction);
-        videoReaction.setVideo(this);
-    }
-
-    public void removeVideoReaction(VideoReaction videoReaction) {
-        if (videoReactions != null) videoReactions.remove(videoReaction);
-    }
 
     public void addTag(Tag tag) {
         if (tags == null) tags = new ArrayList<>();

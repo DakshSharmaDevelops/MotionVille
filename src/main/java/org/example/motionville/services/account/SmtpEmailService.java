@@ -3,6 +3,7 @@ package org.example.motionville.services.account;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.example.motionville.entity.account.AppUser;
 import org.example.motionville.entity.report.Report;
 import org.slf4j.Logger;

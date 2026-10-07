@@ -22,11 +22,4 @@ public class Tag {
     @ManyToMany(mappedBy = "tags")
     private List<Video> videos;
 
-    public void addVideo(Video video) {
-        video.addTag(this);
-    }
-
-    public void removeVideo(Video video) {
-        video.removeTag(this);
-    }
 }

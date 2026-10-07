@@ -49,16 +49,6 @@ public class PlayList {
                 orphanRemoval = true)
     private List<PlayListVideo> videos;
 
-    public void addVideo(PlayListVideo playlistVideo) {
-        if (videos == null) videos = new ArrayList<>();
-        videos.add(playlistVideo);
-        playlistVideo.setPlayList(this);
-    }
-
-    public void removeVideo(PlayListVideo playlistVideo) {
-        if (videos != null && videos.remove(playlistVideo)) playlistVideo.setPlayList(null);
-    }
-
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();

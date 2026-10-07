@@ -86,27 +86,6 @@ public class AppUser {
         }
         this.channel = channel;
     }
-
-    public void addPlayList(PlayList playList) {
-        if (playLists == null) playLists = new ArrayList<>();
-        playLists.add(playList);
-        playList.setOwner(this);
-    }
-
-    public void removePlayList(PlayList playList) {
-        if (playLists != null) playLists.remove(playList);
-    }
-
-    public void addComment(Comment comment) {
-        if (comments == null) comments = new ArrayList<>();
-        comments.add(comment);
-        comment.setAuthor(this);
-    }
-
-    public void removeComment(Comment comment) {
-        if (comments != null) comments.remove(comment);
-    }
-
     @PrePersist
     protected void onCreate() {
         Instant now = Instant.now();

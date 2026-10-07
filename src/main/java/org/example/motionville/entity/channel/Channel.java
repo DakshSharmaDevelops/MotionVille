@@ -52,26 +52,6 @@ public class Channel {
     @OneToMany(mappedBy = "channel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Subscription> subscriptions;
 
-    public void addVideo(Video video) {
-        if (videos == null) videos = new ArrayList<>();
-        videos.add(video);
-        video.setChannel(this);
-    }
-
-    public void removeVideo(Video video) {
-        if (videos != null) videos.remove(video);
-    }
-
-    public void addSubscription(Subscription subscription) {
-        if (subscriptions == null) subscriptions = new ArrayList<>();
-        subscriptions.add(subscription);
-        subscription.setChannel(this);
-    }
-
-    public void removeSubscription(Subscription subscription) {
-        if (subscriptions != null) subscriptions.remove(subscription);
-    }
-
     public String getAvatarUrl() {
         if (profileImageUrl != null && !profileImageUrl.isBlank()) {
             return profileImageUrl;
