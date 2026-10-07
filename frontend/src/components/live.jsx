@@ -159,7 +159,11 @@ function WebRtcBroadcaster({ studio }) {
       streamRef.current = stream;
       if (previewRef.current) previewRef.current.srcObject = stream;
 
-      const peer = new RTCPeerConnection();
+      const peer = new RTCPeerConnection({
+        iceServers: [
+          { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+        ],
+      });
       peerRef.current = peer;
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === "failed") {
