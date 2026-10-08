@@ -12,6 +12,7 @@ import {
   addTagToVideo,
   fetchTags,
   updateChannelApi,
+  fetchVideo,
 } from "./api/videoApi.js";
 
 import { Avatar, Icon, VideoCard } from "./components/ui.jsx";
@@ -266,11 +267,22 @@ export default function App() {
     const watchMatch = path.match(/^\/watch\/(\d+)\/?$/);
     if (watchMatch) {
       const videoId = Number(watchMatch[1]);
-      setSelectedVideo((current) =>
-        current?.videoId === videoId ? current : videos.find(
-          (item) => Number(item.videoId) === videoId
-        ) || null
+      const found = videos.find(
+        (item) => Number(item.videoId) === videoId
       );
+      if (found) {
+        setSelectedVideo(found);
+      } else {
+        fetchVideo(videoId)
+          .then((videoData) => {
+            if (active && videoData) {
+              setSelectedVideo(mapApiVideo(videoData));
+            }
+          })
+          .catch(() => {
+            if (active) setSelectedVideo(null);
+          });
+      }
     } else {
       setSelectedVideo(null);
     }

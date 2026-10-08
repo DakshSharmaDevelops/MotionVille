@@ -88,7 +88,7 @@ public class SmtpEmailService implements EmailService {
             log.info("Sent dual verification email to '{}'", user.getEmail());
 
         } catch (Exception exception) {
-            log.error("Failed to send verification email to '{}': {}", user.getEmail(), exception.getMessage());
+            log.error("Failed to send verification email to '{}': {}", user.getEmail(), exception.getMessage(), exception);
             if (exception.getMessage() != null && exception.getMessage().contains("535")) {
                 log.warn("[EmailService] Gmail SMTP rejected credentials (535 BadCredentials). Google requires a 16-character 'App Password', NOT your regular account password. Generate one at: https://myaccount.google.com/apppasswords");
             }
@@ -120,7 +120,7 @@ public class SmtpEmailService implements EmailService {
             log.info("Sent registration OTP email to '{}'", email);
 
         } catch (Exception exception) {
-            log.error("Failed to send OTP email to '{}': {}", email, exception.getMessage());
+            log.error("Failed to send OTP email to '{}': {}", email, exception.getMessage(), exception);
             if (exception.getMessage() != null && exception.getMessage().contains("535")) {
                 log.warn("[EmailService] Gmail SMTP rejected credentials (535 BadCredentials). Google requires a 16-character 'App Password', NOT your regular account password. Generate one at: https://myaccount.google.com/apppasswords");
             }
@@ -156,7 +156,7 @@ public class SmtpEmailService implements EmailService {
             log.info("Sent password reset email to '{}'", user.getEmail());
 
         } catch (Exception exception) {
-            log.error("Failed to send password reset email to '{}': {}", user.getEmail(), exception.getMessage());
+            log.error("Failed to send password reset email to '{}': {}", user.getEmail(), exception.getMessage(), exception);
             if (exception.getMessage() != null && exception.getMessage().contains("535")) {
                 log.warn("[EmailService] Gmail SMTP rejected credentials (535 BadCredentials). Google requires a 16-character 'App Password', NOT your regular account password. Generate one at: https://myaccount.google.com/apppasswords");
             }
@@ -196,7 +196,7 @@ public class SmtpEmailService implements EmailService {
             log.info("Sent notification email to '{}'", recipient.getEmail());
 
         } catch (Exception exception) {
-            log.error("Failed to send notification email to '{}': {}", recipient.getEmail(), exception.getMessage());
+            log.error("Failed to send notification email to '{}': {}", recipient.getEmail(), exception.getMessage(), exception);
         }
     }
 
@@ -270,7 +270,7 @@ public class SmtpEmailService implements EmailService {
 
         } catch (Exception exception) {
             log.error("Failed to send report notification email for report #{} to '{}': {}",
-                    report.getId(), recipientEmail, exception.getMessage());
+                    report.getId(), recipientEmail, exception.getMessage(), exception);
         }
     }
 

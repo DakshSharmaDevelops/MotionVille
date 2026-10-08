@@ -258,6 +258,10 @@ export function fetchVideosByTag(tagId) {
   return apiRequest(`/tags/${tagId}/videos`);
 }
 
+export function fetchVideo(videoId) {
+  return apiRequest(`/videos/${videoId}`);
+}
+
 export function createTag(name) {
   return apiRequest("/tags", {
     method: "POST",

@@ -3,9 +3,16 @@ import { apiRequest } from "../api/videoApi.js";
 import { Modal, Icon } from "./ui.jsx";
 
 function resolveLiveServerUrl(value) {
+  if (!value) return "";
   const url = new URL(value, window.location.origin);
-  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "52.66.239.42") {
     url.hostname = window.location.hostname;
+  }
+  if (window.location.protocol === "https:") {
+    url.protocol = "https:";
+    if (url.port === "8888" || url.port === "8889") {
+      url.port = "";
+    }
   }
   return url.toString();
 }
@@ -25,12 +32,15 @@ function useBroadcast(id) {
       } catch (failure) {
         if (active) { setError(failure.message); setBroadcast(null); }
       } finally {
-        if (active) timer = setTimeout(poll, 3000);
+        if (active) {
+          const interval = broadcast?.status === "LIVE" ? 2500 : 1000;
+          timer = setTimeout(poll, interval);
+        }
       }
     }
     poll();
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [id]);
+  }, [id, broadcast?.status]);
   return { broadcast, error };
 }
 
@@ -51,7 +61,8 @@ function LivePlayer({ broadcast }) {
         hls = new Hls({
           lowLatencyMode: true,
           liveSyncDuration: 1,
-          liveMaxLatencyDuration: 3,
+          liveMaxLatencyDuration: 2.5,
+          enableWorker: true,
         });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (data.fatal) setError("The live connection was interrupted. Retry playback.");
@@ -81,11 +92,11 @@ function LivePlayer({ broadcast }) {
 function waitForIceGathering(peer) {
   if (peer.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {
-    // Gather initial candidates quickly (max 1.5s) so live broadcast starts fast without timing out
+    // Fast gathering: wait at most 800ms for initial candidates, then start immediately for maximum speed
     const timeout = window.setTimeout(() => {
       peer.removeEventListener("icegatheringstatechange", onStateChange);
       resolve();
-    }, 1500);
+    }, 800);
     function onStateChange() {
       if (peer.iceGatheringState === "complete") {
         window.clearTimeout(timeout);
@@ -154,9 +165,22 @@ function WebRtcBroadcaster({ studio }) {
       if (!captureMedia || !window.RTCPeerConnection) {
         throw new Error("Browser streaming requires a modern browser on localhost or HTTPS.");
       }
-      const stream = source === "screen"
-        ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-        : await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      let stream;
+      if (source === "screen") {
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        } catch (mediaError) {
+          if (mediaError.name === "NotAllowedError") throw mediaError;
+          stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        }
+      } else {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        } catch (mediaError) {
+          if (mediaError.name === "NotAllowedError") throw mediaError;
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+      }
       streamRef.current = stream;
       if (previewRef.current) previewRef.current.srcObject = stream;
 
@@ -167,7 +191,9 @@ function WebRtcBroadcaster({ studio }) {
       });
       peerRef.current = peer;
       peer.onconnectionstatechange = () => {
-        if (peer.connectionState === "failed") {
+        if (peer.connectionState === "connected") {
+          setError("");
+        } else if (peer.connectionState === "failed") {
           setError("The WebRTC media connection could not be established. Ensure port 8189 (UDP & TCP) is open in your AWS Security Group (motionville-sg).");
           stopPublishing().catch(failure => setError(failure.message));
         }
