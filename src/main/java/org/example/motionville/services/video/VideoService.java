@@ -570,8 +570,10 @@ public class VideoService {
                 log.info("Video {} is browser-compatible (MP4/H.264/AAC). Performing fast stream copy...", videoId);
                 remuxFast(directory, original, playback);
             } else {
-                log.info("Video {} requires transcoding. Encoding playback.mp4 with veryfast preset...", videoId);
-                transcode(directory, original, playback, "scale=trunc(iw/2)*2:trunc(ih/2)*2");
+                log.info("Video {} requires transcoding. Encoding playback.mp4 capped at 1080p with veryfast preset...", videoId);
+                // Cap resolution at 1080p (1920x1080 or 1080x1920) to prevent 4K memory thrashing on resource-constrained instances
+                String max1080pScale = "scale='if(gt(iw,ih),min(1920,iw),-2)':'if(gt(iw,ih),-2,min(1920,ih))':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2";
+                transcode(directory, original, playback, max1080pScale);
             }
 
             String playbackKey = "videos/" + videoId + "/playback.mp4";
@@ -601,7 +603,14 @@ public class VideoService {
                 }
             });
 
-            // Generate additional MP4 renditions for key tiers: 360p, 720p (and 1080p if source >= 1080)
+            // Clean up original local download early to preserve disk space and RAM
+            try {
+                Files.deleteIfExists(original);
+            } catch (Exception cleanupEx) {
+                log.debug("Could not delete original temp file: {}", cleanupEx.getMessage());
+            }
+
+            // Generate additional MP4 renditions using normalized playback.mp4 as fast, lightweight source
             List<Integer> targetMp4Heights = new ArrayList<>();
             if (sourceHeight >= 360) targetMp4Heights.add(360);
             if (sourceHeight >= 480 && sourceHeight < 720) targetMp4Heights.add(480);
@@ -612,7 +621,7 @@ public class VideoService {
                 String quality = height + "p";
                 Path output = directory.resolve(quality + ".mp4");
 
-                transcode(directory, original, output, "scale=-2:" + height);
+                transcode(directory, playback, output, "scale=-2:" + height);
 
                 String outputKey = "videos/" + videoId + "/" + quality + ".mp4";
                 generatedKeys.add(outputKey);
@@ -641,10 +650,11 @@ public class VideoService {
                 }
             }
 
-            // Generate HLS renditions
+            // Generate HLS renditions from normalized playback.mp4
             try {
+                int effectiveHeight = Math.min(1080, sourceHeight);
                 List<VideoAsset> hlsAssets = createHlsAssets(
-                        video, directory, original, sourceHeight, generatedKeys);
+                        video, directory, playback, effectiveHeight, generatedKeys);
                 assets.addAll(hlsAssets);
 
                 transactionTemplate.executeWithoutResult(status -> {
