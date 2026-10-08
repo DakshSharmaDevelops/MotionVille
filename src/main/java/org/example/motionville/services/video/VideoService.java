@@ -41,6 +41,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -528,6 +531,7 @@ public class VideoService {
                     30,
                     ffprobe,
                     "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                    "-analyzeduration", "5M", "-probesize", "10M",
                     "-v", "error",
                     "-select_streams", "v:0",
                     "-show_entries", "stream=height",
@@ -540,6 +544,7 @@ public class VideoService {
                     30,
                     ffprobe,
                     "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                    "-analyzeduration", "5M", "-probesize", "10M",
                     "-v", "error",
                     "-show_entries", "format=duration",
                     "-of", "default=noprint_wrappers=1:nokey=1",
@@ -596,12 +601,14 @@ public class VideoService {
                 }
             });
 
-            // Generate additional MP4 renditions
-            for (int height : new int[]{360, 480, 720, 1080}) {
-                if (sourceHeight < height) {
-                    continue;
-                }
+            // Generate additional MP4 renditions for key tiers: 360p, 720p (and 1080p if source >= 1080)
+            List<Integer> targetMp4Heights = new ArrayList<>();
+            if (sourceHeight >= 360) targetMp4Heights.add(360);
+            if (sourceHeight >= 480 && sourceHeight < 720) targetMp4Heights.add(480);
+            if (sourceHeight >= 720) targetMp4Heights.add(720);
+            if (sourceHeight >= 1080) targetMp4Heights.add(1080);
 
+            for (int height : targetMp4Heights) {
                 String quality = height + "p";
                 Path output = directory.resolve(quality + ".mp4");
 
@@ -701,11 +708,10 @@ public class VideoService {
         Files.createDirectories(hlsRoot);
         int maxHeight = sourceHeight - sourceHeight % 2;
         List<Integer> heights = new ArrayList<>();
-        for (int height : new int[]{360, 480, 720, 1080}) {
-            if (maxHeight >= height) {
-                heights.add(height);
-            }
-        }
+        if (maxHeight >= 360) heights.add(360);
+        if (maxHeight >= 480 && maxHeight < 720) heights.add(480);
+        if (maxHeight >= 720) heights.add(720);
+        if (maxHeight >= 1080) heights.add(1080);
         if (heights.isEmpty()) {
             heights.add(Math.max(2, maxHeight));
         }
@@ -733,29 +739,39 @@ public class VideoService {
                     .sorted(Comparator.naturalOrder())
                     .toList();
         }
-        for (Path file : hlsFiles) {
-            String relativePath = hlsRoot.relativize(file).toString()
-                    .replace(file.getFileSystem().getSeparator(), "/");
-            String key = hlsKeyPrefix + relativePath;
-            generatedKeys.add(key);
-            r2StorageService.upload(
-                    file,
-                    key,
-                    relativePath.endsWith(".m3u8")
-                            ? "application/vnd.apple.mpegurl"
-                            : "video/mp2t",
-                    relativePath.endsWith(".m3u8")
-                            ? "public, max-age=60"
-                            : "public, max-age=31536000, immutable"
-            );
+
+        ExecutorService uploadPool = Executors.newFixedThreadPool(4);
+        try {
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            for (Path file : hlsFiles) {
+                String relativePath = hlsRoot.relativize(file).toString()
+                        .replace(file.getFileSystem().getSeparator(), "/");
+                String key = hlsKeyPrefix + relativePath;
+                generatedKeys.add(key);
+                String mimeType = relativePath.endsWith(".m3u8")
+                        ? "application/vnd.apple.mpegurl"
+                        : "video/mp2t";
+                String cacheControl = relativePath.endsWith(".m3u8")
+                        ? "public, max-age=60"
+                        : "public, max-age=31536000, immutable";
+                futures.add(CompletableFuture.runAsync(() -> {
+                    r2StorageService.upload(file, key, mimeType, cacheControl);
+                }, uploadPool));
+            }
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        } finally {
+            uploadPool.shutdown();
         }
+
+        long masterSize = Files.size(masterPlaylist);
+        deleteTemporaryFiles(hlsRoot);
 
         return List.of(VideoAsset.builder()
                 .video(video)
                 .assetUrl(r2StorageService.objectLocator(hlsKeyPrefix + "master.m3u8"))
                 .quality("hls")
                 .mimeType("application/vnd.apple.mpegurl")
-                .sizeBytes(Files.size(masterPlaylist))
+                .sizeBytes(masterSize)
                 .createdAt(Instant.now())
                 .build());
     }
@@ -797,6 +813,7 @@ public class VideoService {
                     15,
                     ffprobe,
                     "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                    "-analyzeduration", "5M", "-probesize", "10M",
                     "-v", "error",
                     "-show_entries", "format=format_name",
                     "-of", "default=noprint_wrappers=1:nokey=1",
@@ -812,6 +829,7 @@ public class VideoService {
                     15,
                     ffprobe,
                     "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                    "-analyzeduration", "5M", "-probesize", "10M",
                     "-v", "error",
                     "-select_streams", "v:0",
                     "-show_entries", "stream=codec_name,pix_fmt",
@@ -838,6 +856,7 @@ public class VideoService {
                         15,
                         ffprobe,
                         "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                        "-analyzeduration", "5M", "-probesize", "10M",
                         "-v", "error",
                         "-select_streams", "a:0",
                         "-show_entries", "stream=codec_name",

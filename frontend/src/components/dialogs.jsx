@@ -1429,6 +1429,7 @@ export function WatchDialog({ video, channel, recommendations, onSelectRecommend
               {playbackUrl && !playbackError
                 ? <video
                       ref={playerRef}
+                      preload="auto"
                       controls={false}
                       controlsList="nodownload noremoteplayback"
                       disableRemotePlayback
