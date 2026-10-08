@@ -271,8 +271,16 @@ export function createTag(name) {
 
 export function uploadFile(uploadUrl, file, mimeType, onProgress) {
   return new Promise((resolve, reject) => {
+    let targetUrl = uploadUrl;
+    try {
+      const parsed = new URL(uploadUrl, window.location.origin);
+      if (parsed.hostname.includes("r2.cloudflarestorage.com")) {
+        targetUrl = `${window.location.origin}/r2-upload${parsed.pathname}${parsed.search}`;
+      }
+    } catch (_) {}
+
     const request = new XMLHttpRequest();
-    request.open("PUT", uploadUrl);
+    request.open("PUT", targetUrl);
     request.setRequestHeader("Content-Type", mimeType);
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
