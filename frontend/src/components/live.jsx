@@ -167,7 +167,7 @@ function WebRtcBroadcaster({ studio }) {
       peerRef.current = peer;
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === "failed") {
-          setError("The WebRTC connection failed. Check that MediaMTX is running and try again.");
+          setError("The WebRTC media connection could not be established. Ensure port 8189 (UDP & TCP) is open in your AWS Security Group (motionville-sg).");
           stopPublishing().catch(failure => setError(failure.message));
         }
       };
