@@ -556,65 +556,33 @@ public class VideoService {
 
             List<VideoAsset> assets = new ArrayList<>();
 
-
             // Always produce a playable version, even when the source is below
-            // 360p. Merely renaming an AVI/MKV file to .mp4 would not convert it.
+            // 360p. For already-compatible MP4s (H.264 + AAC/MP3 + yuv420p),
+            // skip the expensive re-encode and remux instantly with +faststart.
             Path playback = directory.resolve("playback.mp4");
-            transcode(directory, original, playback, "scale=trunc(iw/2)*2:trunc(ih/2)*2");
+            boolean compatible = isBrowserCompatible(directory, original);
+            if (compatible) {
+                log.info("Video {} is browser-compatible (MP4/H.264/AAC). Performing fast stream copy...", videoId);
+                remuxFast(directory, original, playback);
+            } else {
+                log.info("Video {} requires transcoding. Encoding playback.mp4 with veryfast preset...", videoId);
+                transcode(directory, original, playback, "scale=trunc(iw/2)*2:trunc(ih/2)*2");
+            }
+
             String playbackKey = "videos/" + videoId + "/playback.mp4";
             generatedKeys.add(playbackKey);
             r2StorageService.upload(playback, playbackKey, "video/mp4");
-            assets.add(buildAsset(video, playback, playbackKey, "playback"));
-
-            for (int height : new int[]{360, 480, 720, 1080}) {
-
-
-                if (sourceHeight < height) {
-                    continue;
-                }
-
-                String quality = height + "p";
-                Path output = directory.resolve(quality + ".mp4");
-
-                transcode(directory, original, output, "scale=-2:" + height);
-
-                String outputKey =
-                        "videos/" + videoId + "/" + quality + ".mp4";
-
-                // Track the key before uploading for failure cleanup.
-                generatedKeys.add(outputKey);
-
-                r2StorageService.upload(
-                        output,
-                        outputKey,
-                        "video/mp4"
-                );
-
-                assets.add(buildAsset(
-                        video,
-                        output,
-                        outputKey,
-                        quality
-                ));
-            }
-
-            List<VideoAsset> hlsAssets = createHlsAssets(
-                    video, directory, original, sourceHeight, generatedKeys);
-            assets.addAll(hlsAssets);
+            VideoAsset playbackAsset = buildAsset(video, playback, playbackKey, "playback");
+            assets.add(playbackAsset);
 
             int durationSeconds = (int) Math.ceil(duration);
 
-
-            List<VideoAsset> savedAssets = transactionTemplate.execute(status -> {
+            // Immediately mark video as READY so users can watch while background renditions build!
+            transactionTemplate.executeWithoutResult(status -> {
                 Video currentVideo = getVideoById(videoId);
                 boolean wasPublished = currentVideo.getPublishedAt() != null;
-
-                for (VideoAsset asset : assets) {
-                    asset.setVideo(currentVideo);
-                }
-
-                List<VideoAsset> persistedAssets =
-                        videoAssetRepository.saveAll(assets);
+                playbackAsset.setVideo(currentVideo);
+                videoAssetRepository.save(playbackAsset);
 
                 currentVideo.setDurationSeconds(durationSeconds);
                 currentVideo.setProcessingStatus(VideoProcessingStatus.READY);
@@ -626,19 +594,73 @@ public class VideoService {
                 if (!wasPublished && currentVideo.getPublishedAt() != null) {
                     notificationCreationService.notifyNewVideo(currentVideo);
                 }
-
-                return persistedAssets;
             });
-            if (savedAssets != null
-                    && video.getVisibility() == VideoVisibility.PUBLIC
-                    && r2StorageService.cdnConfigured()) {
+
+            // Generate additional MP4 renditions
+            for (int height : new int[]{360, 480, 720, 1080}) {
+                if (sourceHeight < height) {
+                    continue;
+                }
+
+                String quality = height + "p";
+                Path output = directory.resolve(quality + ".mp4");
+
+                transcode(directory, original, output, "scale=-2:" + height);
+
+                String outputKey = "videos/" + videoId + "/" + quality + ".mp4";
+                generatedKeys.add(outputKey);
+
+                r2StorageService.upload(
+                        output,
+                        outputKey,
+                        "video/mp4"
+                );
+
+                VideoAsset renditionAsset = buildAsset(
+                        video,
+                        output,
+                        outputKey,
+                        quality
+                );
+                assets.add(renditionAsset);
                 try {
-                    r2StorageService.publishCdnPrefix("videos/" + videoId + "/hls/");
-                } catch (RuntimeException exception) {
-                    log.error("Video {} is ready, but its HLS renditions could not be published to the CDN", videoId, exception);
+                    transactionTemplate.executeWithoutResult(s -> {
+                        Video cv = getVideoById(videoId);
+                        renditionAsset.setVideo(cv);
+                        videoAssetRepository.save(renditionAsset);
+                    });
+                } catch (Exception e) {
+                    log.warn("Could not persist rendition {} for video {}: {}", quality, videoId, e.getMessage());
                 }
             }
-            return savedAssets;
+
+            // Generate HLS renditions
+            try {
+                List<VideoAsset> hlsAssets = createHlsAssets(
+                        video, directory, original, sourceHeight, generatedKeys);
+                assets.addAll(hlsAssets);
+
+                transactionTemplate.executeWithoutResult(status -> {
+                    Video cv = getVideoById(videoId);
+                    for (VideoAsset ha : hlsAssets) {
+                        ha.setVideo(cv);
+                    }
+                    videoAssetRepository.saveAll(hlsAssets);
+                });
+
+                if (video.getVisibility() == VideoVisibility.PUBLIC
+                        && r2StorageService.cdnConfigured()) {
+                    try {
+                        r2StorageService.publishCdnPrefix("videos/" + videoId + "/hls/");
+                    } catch (RuntimeException exception) {
+                        log.error("Video {} is ready, but its HLS renditions could not be published to the CDN", videoId, exception);
+                    }
+                }
+            } catch (Exception hlsException) {
+                log.warn("HLS generation failed for video {}, but playback.mp4 is available: {}", videoId, hlsException.getMessage());
+            }
+
+            return assets;
 
         } catch (Exception exception) {
 
@@ -748,7 +770,7 @@ public class VideoService {
         runCommand(directory, 7200, ffmpeg, "-nostdin", "-y", "-v", "error",
                 "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS, "-i", source.toString(),
                 "-map", "0:v:0", "-map", "0:a:0?", "-vf", "scale=-2:" + height,
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
                 "-sc_threshold", "0", "-force_key_frames", "expr:gte(t,n_forced*6)",
                 "-f", "hls", "-hls_time", "6", "-hls_playlist_type", "vod",
@@ -767,6 +789,84 @@ public class VideoService {
         };
     }
 
+    private boolean isBrowserCompatible(Path directory, Path source) {
+        try {
+            // 1. Check container format
+            String formatName = runCommand(
+                    directory,
+                    15,
+                    ffprobe,
+                    "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                    "-v", "error",
+                    "-show_entries", "format=format_name",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    source.toString()
+            ).trim().toLowerCase();
+            if (!formatName.contains("mp4") && !formatName.contains("mov")) {
+                return false;
+            }
+
+            // 2. Check video codec and pixel format
+            String videoCodecs = runCommand(
+                    directory,
+                    15,
+                    ffprobe,
+                    "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                    "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=codec_name,pix_fmt",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    source.toString()
+            ).trim();
+            String[] vLines = videoCodecs.split("\\R");
+            if (vLines.length < 2) {
+                return false;
+            }
+            String vCodec = vLines[0].trim().toLowerCase();
+            String pixFmt = vLines[1].trim().toLowerCase();
+            if (!"h264".equals(vCodec)) {
+                return false;
+            }
+            if (!pixFmt.startsWith("yuv420p") && !pixFmt.startsWith("yuvj420p")) {
+                return false;
+            }
+
+            // 3. Check audio codec if present
+            try {
+                String audioCodec = runCommand(
+                        directory,
+                        15,
+                        ffprobe,
+                        "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS,
+                        "-v", "error",
+                        "-select_streams", "a:0",
+                        "-show_entries", "stream=codec_name",
+                        "-of", "default=noprint_wrappers=1:nokey=1",
+                        source.toString()
+                ).trim().toLowerCase();
+                if (!audioCodec.isEmpty() && !"aac".equals(audioCodec) && !"mp3".equals(audioCodec)) {
+                    return false;
+                }
+            } catch (Exception ignored) {
+                // Audio absent is acceptable
+            }
+
+            return true;
+        } catch (Exception exception) {
+            log.debug("Browser compatibility check returned false: {}", exception.getMessage());
+            return false;
+        }
+    }
+
+    private void remuxFast(Path directory, Path source, Path output)
+            throws IOException, InterruptedException {
+        runCommand(directory, 60, ffmpeg, "-nostdin", "-y", "-v", "error",
+                "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS, "-i", source.toString(),
+                "-map", "0:v:0", "-map", "0:a:0?",
+                "-c", "copy",
+                "-movflags", "+faststart", output.toString());
+    }
+
     private void transcode(Path directory, Path source, Path output, String scale)
             throws IOException, InterruptedException {
         // H.264 video + AAC audio in MP4 is widely playable in browsers.
@@ -775,7 +875,7 @@ public class VideoService {
         runCommand(directory, 7200, ffmpeg, "-nostdin", "-y", "-v", "error",
                 "-protocol_whitelist", "file", "-format_whitelist", INPUT_FORMATS, "-i", source.toString(),
                 "-map", "0:v:0", "-map", "0:a:0?", "-vf", scale,
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
                 "-movflags", "+faststart", output.toString());
     }

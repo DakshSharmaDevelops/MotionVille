@@ -89,6 +89,19 @@ class VideoProcessingTest {
     }
 
     @Test
+    void compatibleH264Mp4FastRemuxesAndBecomesReadyImmediately() throws Exception {
+        Path source = directory.resolve("compatible.mp4");
+        run("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=10",
+                "-f", "lavfi", "-i", "sine=frequency=440", "-t", "0.5",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", source.toString());
+        supplyOriginal(source);
+        List<VideoAsset> converted = service.videoProcessing(1L);
+        assertEquals(List.of("playback", "360p", "hls"), converted.stream().map(VideoAsset::getQuality).toList());
+        assertEquals(VideoProcessingStatus.READY, video.getProcessingStatus());
+        assertTrue(Files.exists(directory.resolve("playback.mp4")));
+    }
+
+    @Test
     void silentAviBelow360pStillGetsPlayableAsset() throws Exception {
         Path source = directory.resolve("input.avi");
         run("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=s=320x240:r=10",
