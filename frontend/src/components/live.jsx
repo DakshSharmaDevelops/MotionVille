@@ -80,11 +80,12 @@ function LivePlayer({ broadcast }) {
 
 function waitForIceGathering(peer) {
   if (peer.iceGatheringState === "complete") return Promise.resolve();
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    // Gather initial candidates quickly (max 1.5s) so live broadcast starts fast without timing out
     const timeout = window.setTimeout(() => {
       peer.removeEventListener("icegatheringstatechange", onStateChange);
-      reject(new Error("Network setup timed out. Check the WebRTC connection and try again."));
-    }, 15000);
+      resolve();
+    }, 1500);
     function onStateChange() {
       if (peer.iceGatheringState === "complete") {
         window.clearTimeout(timeout);
