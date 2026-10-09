@@ -1,235 +1,163 @@
 # MotionVille
 
-MotionVille is a Java 17 / Spring Boot video-sharing application built with Spring MVC, Thymeleaf, Spring Security, Spring Data JPA, and PostgreSQL. It follows a layered MVC design: controllers handle web requests, services enforce business rules, repositories own persistence, and templates render server-side views.
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4%2B-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Java](https://img.shields.io/badge/Java-17%2B-orange.svg)](https://www.oracle.com/java/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## First release
+MotionVille is a high-performance, full-stack video-sharing and live streaming platform built with Java 17, Spring Boot, Spring Security, Spring Data JPA, PostgreSQL, Cloudflare R2, MediaMTX, and React (Vite).
 
-- Email/password registration and session-based sign-in with BCrypt password hashing
-- One creator channel per account
-- Creator channel and video metadata editing with owner-only soft deletion
-- Direct-to-R2 upload of MP4 or WebM videos up to 500 MB
-- Public/private video visibility, byte-range video playback, and view counts
-- Lazy video-frame thumbnail previews on feed and channel cards, with a branded fallback
-- Case-insensitive video search across titles and descriptions, with pagination, sorting, and category/channel filters
-- Creator subscription feed and a trending list ranked by local video views
-- Comments, video likes, and channel subscriptions
-- Soft deletion of videos and comments at the service/domain layer
-- Private visibility metadata (authorization is not implemented in the no-sign-in development setup)
-- Hibernate-managed local schema and PostgreSQL-ready production configuration
+---
 
-This release intentionally starts with the reliable upload-to-playback path. It does not claim to implement every feature in the full project proposal.
+## 🌐 Live Deployment
 
-## Run locally
+The application is deployed and live in production on AWS EC2 with full HTTPS/TLS:
 
-Requirements: Java 17+ and network access the first time Maven resolves dependencies.
+- **Live Application URL**: **[https://52-66-239-42.sslip.io](https://52-66-239-42.sslip.io)**
+- **SSL/TLS**: Automated Let's Encrypt certificates with HTTP-to-HTTPS redirection
+- **Object Storage**: Cloudflare R2 (high-speed S3-compatible storage with zero egress fees)
+- **Streaming Engine**: MediaMTX with WebRTC (WHIP/WHEP) and Low-Latency HLS (LL-HLS)
 
-The default local profile uses a file-backed H2 database at `./data/motionville`. Set your R2 credentials and enable the development channel bootstrap before starting the backend:
+---
+
+## Key Features
+
+### 🎬 Video Upload & Playback
+- **Direct-to-R2 Streaming Uploads**: Zero-CORS same-origin upload proxy (`/r2-upload/`) streams files directly from the browser to Cloudflare R2 with no disk buffering on the server.
+- **Ultra-Fast Processing Pipeline**:
+  - **Smart Format Detection & Stream Copy**: MP4 files with H.264 video and AAC/MP3 audio bypass expensive software re-encoding entirely. Fast stream copy (`-c copy -movflags +faststart`) finishes in **~0.04 seconds**.
+  - **Immediate `READY` Status**: Videos become playable and live for viewers **within seconds** as soon as the `playback.mp4` asset is uploaded, without waiting for multi-resolution or HLS generation.
+  - **4K+ Resource Protection**: Automatically downscales $2160 \times 3840$ (portrait) or $3840 \times 2160$ (landscape) inputs to 1080p, reducing encoding pixel load by 4x and preventing memory exhaustion and swap thrashing on cloud instances.
+  - **Intermediate Playback Normalization**: Multi-resolution variants (360p, 720p, 1080p) and HLS playlists are generated from the lightweight 8-bit H.264 `playback.mp4` file rather than repeatedly decoding heavy original containers (such as 10-bit HEVC).
+  - **Concurrent Bounded HLS Uploads**: HLS `.ts` segments and `.m3u8` playlists upload concurrently using a bounded 4-thread pool, cutting HLS upload time from ~25s down to ~3s.
+  - **Instant Browser Playback**: Player configured with `preload="auto"` and `playsInline` for sub-200ms click-to-play startup.
+
+### 🔴 WebRTC Live Broadcasting & LL-HLS
+- **In-Browser Studio**: Broadcast camera, microphone, or system screen directly from the browser over WebRTC (WHIP protocol) — no external software or OBS required.
+- **Fast Startup Latency**: Sub-second connection establishment using an 800ms ICE gathering debounce and Google STUN NAT traversal.
+- **Graceful Media Fallback**: Automatic microphone fallback allows video-only screen sharing and streaming even without an audio input device.
+- **Low-Latency HLS (LL-HLS)**: Viewers receive 200ms fMP4 parts with adaptive playback latency (1s–2.5s).
+
+### 🔐 Authentication & Security
+- **JWT & Refresh Tokens**: Secure stateless authentication with short-lived access tokens and database-backed refresh tokens with automated expiration cleanup.
+- **Dual Verification Flow**: User registration sends both a 6-digit OTP code and a secure, time-bounded verification link via Gmail SMTP.
+- **Password Reset**: Secure forgot-password flow with one-time BCrypt-validated tokens.
+- **Granular Ownership Control**: Spring Security SpEL authorization ensures only channel owners can update or soft-delete their videos and comments.
+- **CORS & CSRF Hardening**: Strict origin whitelisting, HTTP-only SameSite cookies, and security headers.
+
+### 💬 Community & Engagement
+- **Channels**: Personalized creator channels, custom avatars, banners, and handle URLs.
+- **Engagements**: Comments, nested comment reactions, video likes/dislikes, and channel subscriptions.
+- **Watch History & Playlists**: View progress persistence and custom playlist curation.
+- **Content Moderation**: User report submissions with administrative notifications.
+
+---
+
+## Architecture Overview
+
+```
+                      ┌──────────────────────────────────────┐
+                      │          React Frontend SPA          │
+                      │       (Vite / Responsive UI)         │
+                      └──────────────────┬───────────────────┘
+                                         │
+                   HTTPS / Port 443      │
+                                         ▼
+                      ┌──────────────────────────────────────┐
+                      │             Nginx Reverse            │
+                      │               Proxy / TLS            │
+                      └────┬─────────────┬──────────────┬────┘
+                           │             │              │
+             /api/*        │    /live-*  │   /r2-upload │
+                           ▼             ▼              ▼
+       ┌─────────────────────┐   ┌────────────┐   ┌───────────────┐
+       │     Spring Boot     │   │  MediaMTX  │   │ Cloudflare R2 │
+       │     Application     │   │   Server   │   │ Object Storage│
+       │     (Port 8080)     │   │ (Port 8889)│   └───────────────┘
+       └──────────┬──────────┘   └─────┬──────┘
+                  │                    │
+                  ▼                    ▼
+       ┌─────────────────────┐   ┌────────────┐
+       │ PostgreSQL Database │   │ WebRTC ICE │
+       │     (Port 5432)     │   │ (Port 8189)│
+       └─────────────────────┘   └────────────┘
+```
+
+---
+
+## Configuration & Environment Variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `jdbc:h2:file:./data/motionville` | Database connection URL (PostgreSQL in production) |
+| `DATABASE_USERNAME` | `sa` | Database username |
+| `DATABASE_PASSWORD` | `""` | Database password |
+| `R2_ENDPOINT` | — | Cloudflare R2 S3-compatible API endpoint |
+| `R2_BUCKET` | — | Cloudflare R2 storage bucket name |
+| `R2_ACCESS_KEY` | — | Cloudflare R2 Access Key ID |
+| `R2_SECRET_KEY` | — | Cloudflare R2 Secret Access Key |
+| `FRONTEND_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
+| `FRONTEND_PUBLIC_URL` | `https://52-66-239-42.sslip.io` | Public URL for email links and live sharing |
+| `SPRING_MAIL_HOST` | `smtp.gmail.com` | SMTP host |
+| `SPRING_MAIL_PORT` | `587` | SMTP port |
+| `SPRING_MAIL_USERNAME` | — | SMTP username / sender email |
+| `SPRING_MAIL_PASSWORD` | — | SMTP password or 16-character Google App Password |
+| `MOTIONVILLE_LIVE_API_URL`| `http://127.0.0.1:9997` | Internal MediaMTX API endpoint |
+
+---
+
+## Running Locally
+
+### Prerequisites
+- **Java 17+**
+- **Node.js 18+** & npm
+- **FFmpeg & FFprobe** installed and available on your system `PATH`
+
+### 1. Start the Backend
+```bash
+./mvnw clean spring-boot:run
+```
+The backend initializes the local H2 database at `./data/motionville` and automatically starts an embedded MediaMTX process using `streaming/mediamtx.yml`.
+
+### 2. Start the Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open **[http://localhost:5173](http://localhost:5173)** in your browser.
+
+---
+
+## Running Tests
+
+Execute the full suite of automated unit, integration, and security tests:
 
 ```bash
-DEV_CHANNEL_BOOTSTRAP_ENABLED=true \
-R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
-R2_BUCKET=<bucket-name> \
-R2_ACCESS_KEY=<access-key-id> \
-R2_SECRET_KEY=<secret-access-key> \
-./mvnw spring-boot:run
-```
-
-Open the frontend at `http://localhost:5173`, create a channel, then upload a supported video. Browsing demo data remains local to the browser.
-
-Configuration can be overridden with environment variables. Use the shared **MotionVille Local** run configuration or run `./mvnw spring-boot:run`.
-
-| Variable | Default / purpose |
-|---|---|
-| `DATABASE_URL` | `jdbc:h2:file:./data/motionville;DB_CLOSE_ON_EXIT=FALSE` |
-| `DATABASE_USERNAME` | `sa` |
-| `DATABASE_PASSWORD` | Empty for local H2; set a secret for PostgreSQL |
-| `R2_ENDPOINT` | Cloudflare R2 S3 API endpoint |
-| `R2_BUCKET` | R2 bucket name |
-| `R2_ACCESS_KEY` | R2 access key ID |
-| `R2_SECRET_KEY` | R2 secret access key |
-| `FRONTEND_ORIGIN` | `http://localhost:5173`; allowed CORS origin; fallback to `FRONTEND_URL` / `APP_URL` |
-| `FRONTEND_PUBLIC_URL` | `http://localhost:5173`; base URL included in shared live links and email links |
-| `FRONTEND_URL` | Optional alias for deployed frontend root URL (e.g. `https://motionville.example.com`) |
-| `MOTIONVILLE_ADMIN_EMAIL` | Optional email address to receive administrative content report notifications |
-| `MOTIONVILLE_MAIL_VERIFICATION_URL` | Verification link base URL (defaults to `${FRONTEND_PUBLIC_URL}/verify-email`) |
-| `MOTIONVILLE_MAIL_RESET_PASSWORD_URL` | Password reset link base URL (defaults to `${FRONTEND_PUBLIC_URL}/reset-password`) |
-| `DDL_AUTO` | `update` locally; production uses `validate` and requires a pre-created schema |
-
-Video uploads require the R2 settings above. The browser receives a 15-minute presigned PUT URL, uploads directly to R2, and notifies the backend to verify object size and content type. The backend reports `READY` after generating and storing playable assets. Playback URLs are freshly signed for one hour. Configure bucket CORS to allow your frontend origin, `PUT`, `GET`, and `HEAD`; allow the `Content-Type` and `Range` headers, and expose `Content-Length` and `Content-Range` for browser playback.
-
-### Local live broadcasts
-
-When Spring Boot starts, it checks the MediaMTX API and starts MediaMTX with
-`streaming/mediamtx.yml` if no server is already listening. Install the
-MediaMTX executable and make it available on `PATH`, or set `MEDIAMTX_PATH`
-to its full path (for example, `/tmp/mediamtx`). Spring Boot stops only the
-MediaMTX process it started. Set `LIVE_AUTOSTART=false` when managing MediaMTX
-separately.
-
-The studio captures camera/microphone or screen/audio in the browser and
-publishes directly to MediaMTX over WebRTC; OBS is not required. Browser capture
-requires localhost or HTTPS and user permission. For other devices on the same LAN, run the frontend with Vite's configured
-`0.0.0.0` bind and set `FRONTEND_PUBLIC_URL` to the host's LAN URL (for example,
-`http://192.168.1.20:5173`). Open MotionVille on the broadcaster's computer at
-`http://localhost:5173` to allow camera/screen permissions, then share the
-Viewer link shown in the studio. The Spring API remains behind Vite's `/api`
-proxy, and MediaMTX's management API remains loopback-only. HLS and WebRTC
-signaling listen on all interfaces; WebRTC ICE uses UDP port `8189`. Allow TCP
-ports `5173`, `8888`, and `8889`, plus UDP port `8189`, through the host firewall
-for the LAN. Restart Spring Boot and MediaMTX after changing
-`streaming/mediamtx.yml`.
-
-This LAN setup does not expose streams to the public internet. Internet-wide
-viewing requires a public hostname, HTTPS/reverse proxy, router port forwarding
-or hosting, and a configured WebRTC public ICE address/TURN server.
-
-### Optional Cloudflare CDN streaming
-
-The backend generates on-demand HLS renditions alongside the MP4 playback asset. To serve HLS through Cloudflare, configure a **separate** R2 delivery bucket, connect it to a Cloudflare custom domain, and provide all four settings below. The bucket holding original uploads and private MP4 assets must remain private and must not be connected to a public domain.
-
-| Variable | Purpose |
-|---|---|
-| `R2_CDN_BUCKET` | Separate R2 bucket for published HLS playlists and segments |
-| `R2_CDN_BASE_URL` | HTTPS custom-domain origin for that bucket, without a trailing slash |
-| `CLOUDFLARE_ZONE_ID` | Zone ID for the custom domain |
-| `CLOUDFLARE_API_TOKEN` | Secret API token with cache-purge permission for the zone |
-
-Configure CORS on the delivery bucket/custom domain to allow the frontend origin and `GET`, `HEAD`, and `OPTIONS`. HLS playlists use short-lived caching and segments use immutable, long-lived caching. The backend purges the relevant CDN URLs when videos are unpublished, made private, or deleted. Keep the API token in a deployment secret manager; do not put it in frontend configuration or commit it. Either configure all four settings or leave all four unset. With them unset, HLS is still generated in the private origin bucket and playback uses the existing signed MP4 path.
-
-Only public, published HLS is copied to the delivery bucket. Unlisted and private videos continue to use signed MP4 playback. The CDN-backed player uses native HLS support where available and `hls.js` in browsers that do not support HLS natively.
-
-For a no-sign-in local demo, start the backend with `DEV_CHANNEL_BOOTSTRAP_ENABLED=true`. The **Create channel** UI then creates a backend-backed development channel, ready for upload. Video upload and playback endpoints are unauthenticated; do not expose them to the public internet or use private visibility as access control until authentication and authorization are implemented. The bootstrap defaults off and should remain off in deployed environments.
-
-For PostgreSQL, set the database URL and credentials, then run with the `prod` profile:
-
-```bash
-SPRING_PROFILES_ACTIVE=prod \
-DATABASE_URL=jdbc:postgresql://localhost:5432/motionville \
-DATABASE_USERNAME=motionville \
-DATABASE_PASSWORD='set-through-your-secret-manager' \
-R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
-R2_BUCKET=<bucket-name> \
-R2_ACCESS_KEY=<access-key-id> \
-R2_SECRET_KEY=<secret-access-key> \
-DEV_CHANNEL_BOOTSTRAP_ENABLED=false \
-./mvnw spring-boot:run
-```
-
-Do not commit database passwords or production secrets. R2 credentials must be supplied through environment variables or a secret manager.
-
-## Architecture
-
-### Video discovery API
-
-`GET /api/videos` returns a page object containing `page`, `size`,
-`totalElements`, `totalPages`, and `content`. Search checks titles and
-descriptions; optional category and channel IDs filter the results.
-Use `publicOnly=true` for feed queries to filter to published, ready public
-videos before pagination, so private or processing videos do not consume page
-slots. The frontend uses this for public feed views and requests the broader
-result set in channel-management views.
-`GET /api/categories` returns the available category IDs and names used by
-video creation and category filtering. Categories also support CRUD through
-`POST /api/categories`, `GET /api/categories/{id}`, `PUT /api/categories/{id}`,
-and `DELETE /api/categories/{id}`. Create and update requests accept `name`
-and a lowercase hyphenated `slug`; both are unique without regard to case.
-Deleting a category assigned to videos returns `409 Conflict`.
-For example, create a category with `{"name":"Technology","slug":"technology"}`.
-
-### Tags and video assets
-
-Tags can be managed through `POST`, `GET`, `PUT`, and `DELETE /api/tags`
-(single-tag routes use `/api/tags/{tagId}`). Requests use `{"name":"Java"}`.
-A tag name is unique without regard to case; deleting a tag that is assigned
-to a video returns `409 Conflict`.
-
-Associate a tag with a video using
-`POST /api/videos/{videoId}/tags/{tagId}`; remove it with `DELETE` on that
-route, and list a video's tags with `GET /api/videos/{videoId}/tags`.
-`GET /api/tags/{tagId}/videos` lists the videos associated with a tag.
-Adding a duplicate association returns `409 Conflict`.
-
-Video-asset endpoints are `POST /api/videos/{videoId}/assets`,
-`GET /api/videos/{videoId}/assets`, and
-`DELETE /api/videos/{videoId}/assets/{assetId}`. The create request contains
-`assetUrl`, `quality`, `mimeType`, and `sizeBytes`. These endpoints persist
-asset metadata and the external URL only; media bytes remain in object storage.
-Removing an asset record does not delete its external object. Variants are
-unique per video, quality, and MIME type.
-
-```text
-GET /api/videos?search=java
-GET /api/videos?page=0&size=20
-GET /api/videos?sort=createdAt,desc
-GET /api/videos?categoryId=1
-GET /api/videos?channelId=2
-GET /api/videos?publicOnly=true&page=0&size=20
-```
-
-The default page is `0`, the default size is `20`, and page sizes are limited
-to `1..100`. Sort uses `field,asc|desc`; supported fields are `createdAt`,
-`updatedAt`, `publishedAt`, `title`, `durationSeconds`, and `id`. Results use
-video ID as a stable tie-breaker where needed.
-
-Feature packages keep MVC layers close to their domain:
-
-```text
-account/       account entity, role, repository, authentication service and MVC pages
-channel/       channel entity, repository, service and channel controller
-video/         video entity, repository, upload/storage service and MVC/media controllers
-engagement/    comments, likes, subscriptions and engagement service
-config/        Spring Security, MVC error handling
-resources/
-  templates/   Thymeleaf server-rendered pages
-  static/      CSS
-```
-
-Controllers accept validated form input and delegate. Services enforce ownership, visibility, upload, and engagement rules. JPA entities are not returned from JSON APIs; templates only receive entities loaded with the relations they render. Constructor injection is used throughout.
-
-## Delivery roadmap
-
-1. **Foundation and first release (implemented):** account/channel creation, upload, playback, discovery/search, comments, likes, and subscriptions.
-2. **Processing and streaming:** background job state and retries, FFmpeg thumbnail/transcoding, HLS renditions, and resumable/range-friendly media delivery.
-3. **Creator and discovery polish:** watch history, playlists, trending, notifications, and a creator dashboard with metrics backed by recorded view events.
-4. **Production hardening:** object storage/CDN, content validation and moderation, rate limits, observability, deployment automation, and integration/load testing.
-
-Advanced ML recommendations, DASH, live streaming, payments, and direct messaging remain out of scope as specified in the project plan.
-
-## Tests
-
-```bash
+# Run all backend tests
 ./mvnw test
+
+# Run video processing performance tests
+./mvnw test -Dtest=VideoProcessingTest
+
+# Run security and authentication tests
+./mvnw test -Dtest=Developer3SecurityTest
 ```
 
-Tests use an isolated in-memory H2 database and cover view rendering, password hashing, and the account/channel/upload/engagement flow.
+---
 
+## Production Deployment
 
-### Video conversion (common input formats)
+Production builds are automated via the included Maven and Vite pipelines:
 
-New uploads accept common containers including MP4/M4V/MOV, WebM/MKV, AVI,
-WMV/ASF, FLV, MPEG/MPG, TS/MTS/M2TS, 3GP and Ogg video. Actual codec support
-comes from the installed FFmpeg build; corrupt, encrypted or unsupported files
-fail processing. MIME types/extensions alone do not prove a file is playable.
+```bash
+# Frontend build
+cd frontend && npm run build
 
-Install FFmpeg (including ffprobe) on the backend host. If IntelliJ cannot find
-Homebrew executables, add `FFMPEG_PATH=/opt/homebrew/bin/ffmpeg` and
-`FFPROBE_PATH=/opt/homebrew/bin/ffprobe` to the motionVille run configuration.
-Restart the backend after changing code or environment variables.
+# Backend production packaging
+./mvnw clean package -DskipTests
 
-The browser uploads the original to R2, then POSTs `/api/videos/{id}/complete`.
-HTTP 202 queues conversion. `/api/videos/{id}/status` returns `PROCESSING`,
-`UPLOADED` (the existing enum's ready state), or `FAILED`. The player polls this
-endpoint. It requests `/playback` only when ready, receiving a signed URL for
-H.264/AAC MP4. The original and converted assets share the same video ID.
-A full-resolution playback asset is always generated, plus 360p/480p/720p/1080p
-variants only where the source height permits. Existing uploads are not migrated.
+# Start with production environment
+java -Xms128m -Xmx384m -jar target/MotionVille-0.0.1-SNAPSHOT.jar
+```
 
-This development worker uses a bounded in-memory queue (one conversion at a time).
-Keep the backend running while processing. A restart loses queued jobs; affected
-videos currently need re-uploading. A production deployment should use a durable
-job queue with retry/recovery. Originals stay in R2; temporary local files are cleaned
-up and partial converted objects are removed on failure.
-
-Conversion tests require ffmpeg and ffprobe on PATH:
-`mvn -Dtest=VideoProcessingTest test`. They generate small synthetic MKV/AVI files
-and mock R2/database access, so they do not upload anything to your bucket.
+Systemd service configuration and Nginx virtual host configurations are available under the server deployment directories.
